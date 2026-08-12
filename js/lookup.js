@@ -27,6 +27,8 @@ const TIMEOUT_MS = 12000;
  */
 function popisChyby(chyba) {
   if (chyba?.name === 'AbortError') return 'nestihl odpovědět';
+  // 429 není chyba sítě ani aplikace — služba jen odmítla další dotazy.
+  if (chyba?.message === 'HTTP 429') return 'vyčerpaný limit dotazů';
   if (chyba?.message?.startsWith('HTTP')) return chyba.message;
   return 'nedostupný';
 }
@@ -65,10 +67,16 @@ function uklidNazev(text) {
  * pořadí, aby sloupec vypadal stejně jako u ostatních zdrojů.
  */
 function uklidAutora(jmeno) {
-  const bezLet = String(jmeno || '')
+  let bezLet = String(jmeno || '')
     .replace(/,?\s*\d{3,4}\s*-\s*\d{0,4}\.?\s*$/, '')
-    .replace(/[,.]\s*$/, '')
+    .replace(/,\s*$/, '')
     .trim();
+
+  // Koncová tečka je katalogizační — kromě případu, kdy je to tečka
+  // za iniciálou („Novák, J.“), tam ke jménu patří.
+  if (bezLet.endsWith('.') && !/\p{Lu}\.$/u.test(bezLet)) {
+    bezLet = bezLet.slice(0, -1).trim();
+  }
 
   const casti = bezLet.split(',');
   if (casti.length === 2) {
@@ -95,15 +103,29 @@ function zGoogleBooks(polozka) {
 }
 
 /**
- * Google Books — nejširší záběr.
+ * Nepovinný klíč ke Google Books.
+ *
+ * Bez klíče spadají dotazy do sdílené kvóty, která bývá vyčerpaná — služba
+ * pak odpovídá „HTTP 429“ a nenajde nic. Vlastní klíč je zdarma a kvótu má
+ * jen pro sebe. Návod je v README v sekci „Google Books a limit dotazů“.
+ *
+ * Klíč tu bude veřejně vidět, což je u klíčů pro prohlížeč běžné a bezpečné
+ * jedině tehdy, když se v Google Cloud omezí na vlastní doménu.
+ */
+const GOOGLE_KLIC = '';
+
+/**
+ * Google Books — nejširší záběr u zahraničních titulů.
  *
  * Když strukturované hledání podle ISBN nic nevrátí, zkusí se ještě totéž
- * číslo jako obyčejné klíčové slovo. U řady titulů (a hodně českých mezi ně
- * patří) je ISBN jen v popisu, ne v rejstříku, a jinak by se nenašly.
+ * číslo jako obyčejné klíčové slovo. U řady titulů je ISBN jen v popisu,
+ * ne v rejstříku, a jinak by se nenašly.
  */
 async function googleBooks(isbn) {
   const dotaz = async (q) => {
-    const data = await ziskej(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}`);
+    const parametry = new URLSearchParams({ q });
+    if (GOOGLE_KLIC) parametry.set('key', GOOGLE_KLIC);
+    const data = await ziskej(`https://www.googleapis.com/books/v1/volumes?${parametry}`);
     return zGoogleBooks(data?.items?.[0]?.volumeInfo);
   };
   return (await dotaz(`isbn:${isbn}`)) || (await dotaz(isbn));
@@ -167,35 +189,12 @@ async function openLibrary(isbn) {
   };
 }
 
-/**
- * Obálky knih (obalkyknih.cz) — česká databáze používaná knihovnami.
- *
- * Je to hlavně zdroj obálek a obsahů, ne katalog: pole `bibinfo` v odpovědi
- * je jen opis dotazu, ne údaje o knize, takže se z něj nedá číst název.
- * Bere se odsud proto především obálka, a bibliografická pole jen tehdy,
- * když je odpověď opravdu obsahuje.
- */
-async function obalkyKnih(isbn) {
-  const dotaz = encodeURIComponent(JSON.stringify([{ isbn }]));
-  const data = await ziskej(`https://www.obalkyknih.cz/api/books?multi=${dotaz}`);
-  const polozka = Array.isArray(data) ? data[0] : null;
-  if (!polozka) return null;
-
-  const obalka =
-    polozka.cover_medium_url || polozka.cover_preview510_url || polozka.cover_thumbnail_url || '';
-  const nazev = polozka.nazev || polozka.title || '';
-  if (!obalka && !nazev) return null;
-
-  return {
-    nazev,
-    autor: polozka.autor || polozka.author || '',
-    vydavatel: polozka.nakladatel || polozka.publisher || '',
-    rok: rok(polozka.rok_vydani || polozka.year),
-    stran: '',
-    jazyk: nazev ? 'cs' : '',
-    obalka,
-  };
-}
+// Poznámka pro budoucnost: Obálky knih (obalkyknih.cz) sem nepatří, i když
+// se to jako český zdroj nabízí. Z běžné webové stránky se z nich číst nedá:
+// neposílají hlavičku CORS, odpovídají JSONP místo JSON a přístup pouštějí
+// jen registrovaným knihovnám — na dotaz odpoví „Unknown referer. You need
+// to sign up and provide your catalog URL“. Ověřeno dotazem z prohlížeče.
+// Jejich data jsou dostupná knihovnám s vlastním katalogem, ne téhle aplikaci.
 
 /**
  * Pořadí rozhoduje jen při shodě: u každého pole vyhraje první zdroj, který
@@ -206,15 +205,19 @@ const ZDROJE = [
   { nazev: 'Knihovny.cz', hledej: knihovnyCz },
   { nazev: 'Google Books', hledej: googleBooks },
   { nazev: 'Open Library', hledej: openLibrary },
-  { nazev: 'Obálky knih', hledej: obalkyKnih },
 ];
 
 /**
  * Náhradní obálka pro případ, že ji zdroj metadat nedodal.
  * Načítá se přímo do <img>, takže na ni CORS nemá vliv.
+ *
+ * Parametr default=false je důležitý: bez něj Open Library u neznámé knihy
+ * nevrátí chybu, ale průhledný obrázek 1×1 px. Ten se načte „úspěšně“,
+ * takže by se nikdy neuplatnil náhradní symbol a v tabulce by zůstalo
+ * prázdné místo vypadající jako rozbitý obrázek.
  */
 export function nahradniObalka(isbn) {
-  return `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-M.jpg`;
+  return `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-M.jpg?default=false`;
 }
 
 /**

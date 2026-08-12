@@ -117,9 +117,8 @@ název a autora, jiný má obálku. Výpadek jednoho zdroje tak nezastaví ostat
 | Zdroj | K čemu je nejlepší |
 |---|---|
 | [Knihovny.cz](https://www.knihovny.cz/) | **české knihy** — katalogy zhruba stovky českých knihoven včetně Národní knihovny |
-| [Google Books](https://developers.google.com/books) | nejširší záběr, zahraniční tituly |
-| [Open Library](https://openlibrary.org/dev/docs/api/books) | starší a anglicky psané knihy |
-| [Obálky knih](https://www.obalkyknih.cz/) | obálky českých vydání (bibliografii dodává jen někdy) |
+| [Google Books](https://developers.google.com/books) | zahraniční tituly (viz limit dotazů níže) |
+| [Open Library](https://openlibrary.org/dev/docs/api/books) | starší a anglicky psané knihy, obálky |
 
 České zdroje jsou v pořadí první, takže když má knihu víc katalogů, přednost
 dostane český záznam — se správnou diakritikou a českým názvem. Knihovnické
@@ -140,8 +139,38 @@ situace a napíše, o kterou jde:
   server, který se prohlížeče nepustí; tady má smysl to za chvíli zkusit znovu.
 
 Hláška vždy jmenuje, který zdroj selhal a proč (`nedostupný`, `nestihl
-odpovědět`, `HTTP 429`), takže jde poznat, jestli je problém na straně knihy,
-sítě, nebo konkrétní služby. Podrobnosti jsou i v konzoli prohlížeče.
+odpovědět`, `vyčerpaný limit dotazů`), takže jde poznat, jestli je problém na
+straně knihy, sítě, nebo konkrétní služby. Podrobnosti jsou i v konzoli
+prohlížeče.
+
+### Google Books a limit dotazů
+
+Bez vlastního klíče Google Books často odpovídá `vyčerpaný limit dotazů`
+(HTTP 429) — kvóta je sdílená a bývá vyčerpaná. **Českých knih se to skoro
+netýká**, ty najde Knihovny.cz; u zahraničních titulů to ale znamená, že
+Google občas nepomůže.
+
+Trvale se to řeší vlastním klíčem, který je zdarma:
+
+1. V [Google Cloud Console](https://console.cloud.google.com/) založte projekt.
+2. Zapněte **Books API**.
+3. V *Credentials* vytvořte **API key**.
+4. U klíče nastavte **Application restrictions → Websites** a povolte jen
+   svou adresu (`https://<vaše-jméno>.github.io/*`). Bez tohoto omezení
+   to nedělejte — klíč bude v repozitáři veřejně vidět.
+5. Klíč vložte do konstanty `GOOGLE_KLIC` na začátku `js/lookup.js`.
+
+Aplikace funguje i bez klíče, jen se u zahraničních knih spoléhá víc na
+Open Library.
+
+### Proč tu nejsou Obálky knih
+
+Česká databáze [obalkyknih.cz](https://www.obalkyknih.cz/) by se jako zdroj
+nabízela, ale z běžné webové stránky se z ní číst nedá: neposílá hlavičku
+CORS, odpovídá ve formátu JSONP a přístup pouští jen registrovaným knihovnám
+(`Unknown referer. You need to sign up and provide your catalog URL`). Je
+určená knihovnám s vlastním katalogem. U českých knih proto někdy chybí
+obálka, i když se název a autor najdou.
 
 Když se kniha nenajde, zkontrolujte i samotné číslo — skener se občas splete
 a klepnutím na ISBN v tabulce ho opravíte.
@@ -188,6 +217,7 @@ vendor/isbn3.min.js      oficiální rozsahy pro dělení ISBN pomlčkami
 vendor/tesseract/        rozpoznávání textu (načítá se až při použití)
 tests/jednotky.mjs       rychlé testy bez prohlížeče
 tests/e2e.mjs            automatický test v prohlížeči
+tests/aktualizace.mjs    test, že se nová verze dostane k uživateli
 .github/workflows/       automatické nasazení na GitHub Pages
 ```
 
@@ -206,13 +236,14 @@ se načítá rovnou, Tesseract (7 MB) až když si někdo řekne o čtení čís
 
 ### Testy
 
-Testy jsou dvě sady. `tests/jednotky.mjs` běží v Node během vteřiny a kontroluje
+Testy jsou tři sady. `tests/jednotky.mjs` běží v Node během vteřiny a kontroluje
 dělení ISBN, vytahování čísla z rozpoznaného textu, slučování duplicit
 a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
 skutečném prohlížeči včetně obojího skenování: Chromiu se místo kamery
 podstrčí jednou video s opravdovým čárovým kódem, podruhé video s vytištěným
-číslem ISBN. Dotazy do databází knih se podvrhují, testy proto nezávisí
-na připojení.
+číslem ISBN. `tests/aktualizace.mjs` hlídá, že se nová verze aplikace opravdu
+dostane k uživateli a že přitom nepřestane fungovat offline režim. Dotazy do
+databází knih se podvrhují, testy proto nezávisí na připojení.
 
 ```bash
 npm install          # jen poprvé, kvůli Playwrightu

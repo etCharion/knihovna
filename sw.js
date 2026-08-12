@@ -6,7 +6,7 @@
  * offline funguje skenování a už uložená tabulka.
  */
 
-const VERZE = 'knihovna-v3';
+const VERZE = 'knihovna-v4';
 
 /**
  * Soubory aplikace — bez nich by se nespustila, proto se stahují dopředu.
@@ -57,35 +57,51 @@ self.addEventListener('fetch', (udalost) => {
   const pozadavek = udalost.request;
   if (pozadavek.method !== 'GET') return;
 
+  // Cizí adresy (databáze knih, obrázky obálek) si řídí prohlížeč sám.
+  // Nemá smysl je ukládat a průchod přes service worker by jen komplikoval
+  // dotazy přes hranice domén.
   const url = new URL(pozadavek.url);
+  if (url.origin !== self.location.origin) return;
 
-  // Dotazy do databází knih se nikdy neberou z cache — potřebujeme čerstvá data.
-  const jeApi = ['googleapis.com', 'openlibrary.org', 'obalkyknih.cz'].some((host) =>
-    url.hostname.endsWith(host)
-  );
-  if (jeApi) return;
-
+  // Velké knihovny ve vendor/ se mění jen s novou verzí a Tesseract má sám
+  // o sobě 7 MB — ty se berou z cache. Vlastní soubory aplikace jsou drobné,
+  // u nich je přednější mít vždy tu nejnovější.
   udalost.respondWith(
-    (async () => {
-      const ulozene = await caches.match(pozadavek);
-      if (ulozene) return ulozene;
-
-      try {
-        const odpoved = await fetch(pozadavek);
-        // Povedené odpovědi ze stejného původu si necháme na příště.
-        if (odpoved.ok && url.origin === self.location.origin) {
-          const cache = await caches.open(VERZE);
-          cache.put(pozadavek, odpoved.clone());
-        }
-        return odpoved;
-      } catch (chyba) {
-        // Offline a stránka není v cache → aspoň úvodní obrazovka.
-        if (pozadavek.mode === 'navigate') {
-          const nahrada = await caches.match('./index.html');
-          if (nahrada) return nahrada;
-        }
-        throw chyba;
-      }
-    })()
+    url.pathname.includes('/vendor/') ? zCacheNejdriv(pozadavek) : zeSiteNejdriv(pozadavek)
   );
 });
+
+/**
+ * Nejdřív síť, cache až když spojení selže.
+ *
+ * Dřív to bylo obráceně a mělo to ošklivý důsledek: jednou uložený soubor
+ * se už nikdy nenahradil, takže na telefonu běžela stará verze aplikace
+ * i dlouho po vydání oprav. Tímhle pořadím se to nemůže opakovat.
+ */
+async function zeSiteNejdriv(pozadavek) {
+  const cache = await caches.open(VERZE);
+  try {
+    const odpoved = await fetch(pozadavek);
+    if (odpoved.ok) cache.put(pozadavek, odpoved.clone());
+    return odpoved;
+  } catch (chyba) {
+    const ulozene = await cache.match(pozadavek);
+    if (ulozene) return ulozene;
+    // Offline a stránka není uložená → aspoň úvodní obrazovka.
+    if (pozadavek.mode === 'navigate') {
+      const nahrada = await cache.match('./index.html');
+      if (nahrada) return nahrada;
+    }
+    throw chyba;
+  }
+}
+
+async function zCacheNejdriv(pozadavek) {
+  const cache = await caches.open(VERZE);
+  const ulozene = await cache.match(pozadavek);
+  if (ulozene) return ulozene;
+
+  const odpoved = await fetch(pozadavek);
+  if (odpoved.ok) cache.put(pozadavek, odpoved.clone());
+  return odpoved;
+}

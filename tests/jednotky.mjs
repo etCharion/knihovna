@@ -76,17 +76,18 @@ const odpoved = (data) => Promise.resolve({ ok: true, json: async () => data });
 const vypadek = () => Promise.reject(new Error('síť'));
 
 {
-  // Text zná jeden zdroj, obálku jiný — výsledek se má složit z obojího.
+  // Českým katalogům chybí obálky, Open Library je má — výsledek se skládá.
   globalThis.fetch = (url) => {
-    if (url.includes('googleapis')) {
-      return odpoved({ items: [{ volumeInfo: { title: 'Test', authors: ['A. Autor'] } }] });
+    if (url.includes('knihovny.cz')) {
+      return odpoved({ records: [{ title: 'Test /', authors: { primary: { 'Novák, Jan': {} } } }] });
     }
-    if (url.includes('openlibrary')) return vypadek();
-    return odpoved([{ cover_medium_url: 'https://obalky/x.jpg' }]);
+    if (url.includes('googleapis')) return vypadek();
+    return odpoved({ 'ISBN:9788073355067': { title: 'Test', cover: { medium: 'https://ol/x.jpg' } } });
   };
   const kniha = await najdiKnihu('9788073355067');
-  t(kniha.nazev === 'Test' && kniha.autor === 'A. Autor', 'text z Google Books');
-  t(kniha.obalka === 'https://obalky/x.jpg', 'obálka z českého zdroje');
+  t(kniha.nazev === 'Test' && kniha.autor === 'Jan Novák', 'text z českého katalogu', kniha.autor);
+  t(kniha.obalka === 'https://ol/x.jpg', 'obálka z Open Library', kniha.obalka);
+  t(kniha.zdroj === 'Knihovny.cz, Open Library', 'uvedou se oba přispěvatelé', kniha.zdroj);
   t(kniha.nalezeno && !kniha.nedostupne, 'označeno jako nalezené');
   t(kniha.selhalyZdroje.length === 1, 'výpadek jednoho zdroje ostatním nevadí');
 }
@@ -159,6 +160,15 @@ nadpis('Český katalog (Knihovny.cz)');
 }
 
 {
+  // Tečka za iniciálou ke jménu patří, koncová katalogizační tečka ne.
+  globalThis.fetch = (url) => url.includes('knihovny.cz')
+    ? odpoved({ records: [{ title: 'Kniha', authors: { primary: { 'Novák, J.': {} } } }] })
+    : Promise.reject(new Error('jiný zdroj'));
+  const kniha = await najdiKnihu('9788073355067');
+  t(kniha.autor === 'J. Novák', 'iniciála si nechá tečku', kniha.autor);
+}
+
+{
   // Instituce jako autor se nesmí přehazovat.
   globalThis.fetch = (url) => url.includes('knihovny.cz')
     ? odpoved({ records: [{ title: 'Sborník', authors: { primary: { 'Univerzita Karlova, Filozofická fakulta': {} } } }] })
@@ -179,29 +189,45 @@ nadpis('Český katalog (Knihovny.cz)');
   t(kniha.nazev === 'Zná to jen Google', 'prázdný výsledek katalogu nevadí ostatním');
 }
 
+nadpis('Náhradní obálka');
+{
+  const { nahradniObalka } = await import('../js/lookup.js');
+  // Bez default=false vrací Open Library u neznámé knihy průhledný 1×1 px,
+  // který se tváří jako úspěšně načtený obrázek.
+  t(nahradniObalka('9788073355067').includes('default=false'),
+    'u neznámé knihy se vyžádá poctivá chyba, ne prázdný obrázek');
+  t(nahradniObalka('9788073355067').includes('9788073355067'), 'adresa obsahuje ISBN');
+}
+
 nadpis('Hlášení o zdrojích');
 {
   // Přesně situace pozorovaná na telefonu: jeden zdroj odpoví a knihu nezná,
   // dva selžou — a je potřeba vědět které a proč, ne jen kolik.
   globalThis.fetch = (url) => {
-    if (url.includes('googleapis') || url.includes('knihovny.cz')) {
-      return odpoved({ totalItems: 0 });
-    }
+    if (url.includes('knihovny.cz')) return odpoved({ resultCount: 0 });
     if (url.includes('openlibrary')) return Promise.reject(new TypeError('Failed to fetch'));
     return Promise.reject(Object.assign(new Error('přerušeno'), { name: 'AbortError' }));
   };
   const kniha = await najdiKnihu('9788073355067');
   t(kniha.selhalyZdroje.includes('Open Library (nedostupný)'),
     'zablokované spojení se pojmenuje', kniha.selhalyZdroje.join(', '));
-  t(kniha.selhalyZdroje.includes('Obálky knih (nestihl odpovědět)'),
+  t(kniha.selhalyZdroje.includes('Google Books (nestihl odpovědět)'),
     'vypršení času se pojmenuje', kniha.selhalyZdroje.join(', '));
   t(!kniha.nedostupne, 'a nehlásí se úplný výpadek, když jeden zdroj odpověděl');
 }
 
 {
+  // Vyčerpaná kvóta Google Books je běžný stav a nesmí vypadat jako chyba sítě.
   globalThis.fetch = () => Promise.resolve({ ok: false, status: 429 });
   const kniha = await najdiKnihu('9788073355067');
-  t(kniha.selhalyZdroje.every((z) => z.includes('HTTP 429')), 'u odmítnutí serverem se ukáže kód',
+  t(kniha.selhalyZdroje.every((z) => z.includes('vyčerpaný limit dotazů')),
+    'limit dotazů se popíše lidsky, ne jako HTTP 429', kniha.selhalyZdroje[0]);
+}
+
+{
+  globalThis.fetch = () => Promise.resolve({ ok: false, status: 503 });
+  const kniha = await najdiKnihu('9788073355067');
+  t(kniha.selhalyZdroje[0].includes('HTTP 503'), 'jiné chyby serveru se ukážou i s kódem',
     kniha.selhalyZdroje[0]);
 }
 
@@ -216,8 +242,9 @@ nadpis('Hlášení o zdrojích');
   t(adresy.every((u) => !u.includes('978-80')), 'pomlčky se do dotazů nedostanou');
   t(adresy.some((u) => u.includes('isbn%3A9788073355067')), 'Google dostane isbn:<13 číslic>');
   t(adresy.some((u) => u.includes('ISBN%3A9788073355067')), 'Open Library dostane ISBN:<13 číslic>');
-  t(adresy.some((u) => u.includes('9788073355067%22')), 'Obálky knih dostanou holé číslo');
   t(adresy.some((u) => u.includes('lookfor=9788073355067')), 'Knihovny.cz dostanou holé číslo');
+  t(!adresy.some((u) => u.includes('obalkyknih')),
+    'Obálky knih se neptáme — z prohlížeče se z nich číst nedá');
 }
 
 console.log(selhani === 0 ? '\nVŠE PROŠLO' : `\n${selhani} testů selhalo`);
