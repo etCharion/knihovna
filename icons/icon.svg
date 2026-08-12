@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Otevřená kniha s čárovým kódem">
+  <rect width="512" height="512" fill="#1f3a5f"/>
+  <rect x="64" y="128" width="182" height="264" fill="#f4f1ea"/>
+  <rect x="266" y="128" width="182" height="264" fill="#f4f1ea"/>
+  <rect x="246" y="118" width="20" height="284" fill="#c85a3c"/>
+  <g fill="#1f3a5f">
+    <rect x="96" y="176" width="84" height="12"/>
+    <rect x="96" y="212" width="118" height="12"/>
+    <rect x="96" y="248" width="118" height="12"/>
+    <rect x="96" y="284" width="84" height="12"/>
+    <rect x="96" y="320" width="118" height="12"/>
+    <rect x="96" y="356" width="118" height="12"/>
+    <rect x="292" y="190" width="6" height="130"/>
+    <rect x="306" y="190" width="12" height="130"/>
+    <rect x="326" y="190" width="6" height="130"/>
+    <rect x="340" y="190" width="18" height="130"/>
+    <rect x="366" y="190" width="6" height="130"/>
+    <rect x="380" y="190" width="10" height="130"/>
+    <rect x="398" y="190" width="14" height="130"/>
+    <rect x="420" y="190" width="6" height="130"/>
+  </g>
+</svg>

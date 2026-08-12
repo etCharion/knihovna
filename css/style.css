@@ -1,0 +1,323 @@
+/* Knihovna — mobilní skener knih.
+   Vzhled je dělaný nejdřív pro telefon, na širší displeje se jen rozšíří. */
+
+:root {
+  --pozadi: #f4f1ea;
+  --karta: #ffffff;
+  --text: #24211c;
+  --text-slaby: #6b6459;
+  --ram: #ded7c9;
+  --hlavni: #1f3a5f;
+  --hlavni-text: #ffffff;
+  --uspech: #1d6b3f;
+  --varovani: #8a5a00;
+  --chyba: #9b2226;
+  --stin: 0 1px 3px rgba(0, 0, 0, .08), 0 4px 16px rgba(0, 0, 0, .05);
+  --radius: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pozadi: #16181c;
+    --karta: #1e2126;
+    --text: #e8e6e1;
+    --text-slaby: #9a958c;
+    --ram: #32363d;
+    --hlavni: #4a7fb5;
+    --hlavni-text: #0d1015;
+    --uspech: #6ec48f;
+    --varovani: #e0b060;
+    --chyba: #e88b8e;
+    --stin: 0 1px 3px rgba(0, 0, 0, .4);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 0 3rem;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  background: var(--pozadi);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+}
+
+main { padding: 0 .75rem; }
+
+/* ------------------------------------------------------------ hlavička */
+
+.hlavicka {
+  padding: max(1rem, env(safe-area-inset-top)) 1rem 1rem;
+  background: var(--hlavni);
+  color: var(--hlavni-text);
+  margin-bottom: 1rem;
+}
+
+.hlavicka h1 { margin: 0; font-size: 1.4rem; }
+.podtitul { margin: .25rem 0 0; font-size: .9rem; opacity: .85; }
+
+/* ------------------------------------------------------------ karty */
+
+.karta {
+  background: var(--karta);
+  border: 1px solid var(--ram);
+  border-radius: var(--radius);
+  box-shadow: var(--stin);
+  padding: 1rem;
+  margin: 0 auto 1rem;
+  max-width: 1100px;
+}
+
+.karta h2 { margin: 0; font-size: 1.1rem; }
+
+/* ------------------------------------------------------------ kamera */
+
+.kamera {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: .75rem;
+}
+
+.kamera video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Rámeček, do kterého se míří — čistě vizuální vodítko. */
+.hledacek {
+  position: absolute;
+  inset: 30% 10%;
+  border: 3px solid rgba(255, 255, 255, .9);
+  border-radius: 8px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .35);
+}
+
+.hledacek::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: #e63946;
+  opacity: .9;
+}
+
+/* ------------------------------------------------------------ tlačítka */
+
+.tlacitka {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+.tlacitko {
+  flex: 1 1 auto;
+  min-height: 48px;            /* pohodlný cíl pro palec */
+  padding: .6rem 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--karta);
+  border: 1px solid var(--ram);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.tlacitko:active { transform: translateY(1px); }
+.tlacitko:disabled { opacity: .5; cursor: default; }
+
+.tlacitko.hlavni {
+  background: var(--hlavni);
+  color: var(--hlavni-text);
+  border-color: var(--hlavni);
+  font-weight: 600;
+  flex-basis: 100%;
+}
+
+.tlacitko.nebezpecne { color: var(--chyba); }
+.tlacitko.aktivni { background: var(--varovani); color: #fff; border-color: var(--varovani); }
+
+.ikona-tlacitko {
+  min-width: 36px;
+  min-height: 36px;
+  font-size: 1rem;
+  color: var(--text-slaby);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ikona-tlacitko:hover { color: var(--chyba); background: rgba(155, 34, 38, .1); }
+
+/* ------------------------------------------------------------ formuláře */
+
+.stav {
+  margin: 0 0 .75rem;
+  font-size: .9rem;
+  color: var(--text-slaby);
+  min-height: 1.5em;
+}
+
+.rucne summary {
+  cursor: pointer;
+  font-size: .95rem;
+  color: var(--hlavni);
+  padding: .5rem 0;
+}
+
+.radek-formulare { display: flex; gap: .5rem; margin-top: .5rem; }
+
+input[type="text"],
+input[type="search"] {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: .5rem .75rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--pozadi);
+  border: 1px solid var(--ram);
+  border-radius: 10px;
+}
+
+.radek-formulare .tlacitko { flex: 0 0 auto; }
+.napoveda { margin: .5rem 0 0; font-size: .82rem; color: var(--text-slaby); }
+
+/* ------------------------------------------------------------ tabulka */
+
+.zahlavi-tabulky {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+.zahlavi-tabulky h2 { flex: 1 1 auto; }
+.zahlavi-tabulky input { flex: 1 1 12rem; }
+
+.pocet {
+  display: inline-block;
+  min-width: 1.75rem;
+  padding: 0 .45rem;
+  font-size: .85rem;
+  text-align: center;
+  color: var(--hlavni-text);
+  background: var(--hlavni);
+  border-radius: 999px;
+}
+
+.prazdno {
+  padding: 1.5rem 0;
+  text-align: center;
+  color: var(--text-slaby);
+}
+
+/* Na úzkém displeji se tabulka posouvá do strany místo mačkání sloupců. */
+.obal-tabulky {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9rem;
+}
+
+th, td {
+  padding: .55rem .5rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--ram);
+}
+
+th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: var(--text-slaby);
+  background: var(--karta);
+  white-space: nowrap;
+}
+
+th[data-radit] { cursor: pointer; user-select: none; }
+th[data-radit]:hover { color: var(--text); }
+th[data-smer="nahoru"]::after { content: " ▲"; }
+th[data-smer="dolu"]::after { content: " ▼"; }
+
+td { min-width: 5rem; }
+td.isbn { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-slaby); }
+
+.sloupec-obalka { width: 44px; min-width: 44px; padding-right: 0; }
+.sloupec-obalka img { width: 36px; height: 52px; object-fit: cover; border-radius: 3px; background: var(--pozadi); }
+.bez-obalky { display: inline-block; width: 36px; text-align: center; opacity: .5; }
+.sloupec-akce { width: 40px; min-width: 40px; }
+
+tr.nacita-se { opacity: .55; }
+
+.upravitelne { min-width: 8rem; cursor: text; border-radius: 4px; }
+.upravitelne:focus { outline: 2px solid var(--hlavni); outline-offset: -2px; background: var(--pozadi); }
+.upravitelne:empty::before { content: attr(data-prazdny); color: var(--text-slaby); font-style: italic; }
+
+.odznak {
+  display: inline-block;
+  padding: 0 .35rem;
+  font-size: .75rem;
+  color: var(--hlavni-text);
+  background: var(--text-slaby);
+  border-radius: 999px;
+}
+
+/* ------------------------------------------------------------ hláška */
+
+.hlaska {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 10;
+  width: min(92%, 34rem);
+  padding: .75rem 1rem;
+  font-size: .92rem;
+  color: #fff;
+  background: #333;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .3);
+}
+
+.hlaska.uspech { background: var(--uspech); color: #fff; }
+.hlaska.varovani { background: var(--varovani); color: #fff; }
+.hlaska.chyba { background: var(--chyba); color: #fff; }
+
+/* ------------------------------------------------------------ patička */
+
+.paticka {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  font-size: .8rem;
+  color: var(--text-slaby);
+  text-align: center;
+}
+
+@media (min-width: 700px) {
+  .kamera { max-width: 520px; aspect-ratio: 16 / 10; }
+  .tlacitko.hlavni { flex-basis: auto; }
+}

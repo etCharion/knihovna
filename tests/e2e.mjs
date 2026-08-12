@@ -1,0 +1,222 @@
+/**
+ * Automatický test celé aplikace ve skutečném prohlížeči.
+ *
+ * Spuštění:
+ *   python3 -m http.server 8765          (v kořeni projektu, v jiném okně)
+ *   node tests/e2e.mjs
+ *
+ * Skenování se testuje „nafilmovaným“ čárovým kódem: Chromiu se místo kamery
+ * podstrčí video se skutečným EAN-13 kódem, takže se ověří i čtečka.
+ *
+ * Dotazy do databází knih se v testu podvrhují — test tak nezávisí
+ * na připojení ani na limitech cizích služeb.
+ */
+
+import { chromium } from 'playwright';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const KOREN = dirname(dirname(fileURLToPath(import.meta.url)));
+const ADRESA = process.env.ADRESA || 'http://localhost:8765/';
+const DOCASNY = mkdtempSync(join(tmpdir(), 'knihovna-test-'));
+const VIDEO = join(DOCASNY, 'carovy-kod.y4m');
+const ISBN_VE_VIDEU = '9780306406157';
+
+let selhani = 0;
+const t = (ok, popis, detail = '') => {
+  if (!ok) selhani++;
+  console.log(`${ok ? '✓' : '✗ SELHALO'} ${popis}${detail ? ' → ' + detail : ''}`);
+};
+
+if (!existsSync(VIDEO)) {
+  execFileSync('python3', [join(KOREN, 'tests', 'vytvor-testovaci-video.py'), VIDEO], {
+    stdio: 'inherit',
+  });
+}
+
+/** Podvržená odpověď Google Books — stejný tvar, jaký vrací služba doopravdy. */
+const ODPOVED = {
+  items: [{ volumeInfo: {
+    title: 'Structure and Interpretation of Computer Programs',
+    subtitle: 'Second Edition',
+    authors: ['Harold Abelson', 'Gerald Jay Sussman'],
+    publisher: 'MIT Press',
+    publishedDate: '1996-07-25',
+    pageCount: 657,
+    language: 'en',
+    imageLinks: { thumbnail: 'http://books.google.com/books/content?id=x&img=1' },
+  }}],
+};
+
+const prohlizec = await chromium.launch({
+  channel: 'chromium', // plné Chromium; „headless shell“ neumí kameru
+  args: [
+    '--use-fake-device-for-media-stream',
+    `--use-file-for-fake-video-capture=${VIDEO}`,
+    '--autoplay-policy=no-user-gesture-required',
+  ],
+});
+
+const kontext = await prohlizec.newContext({
+  permissions: ['camera'],
+  viewport: { width: 390, height: 844 }, // rozměry běžného telefonu
+  isMobile: true,
+  hasTouch: true,
+});
+await kontext.grantPermissions(['camera'], { origin: new URL(ADRESA).origin });
+
+const stranka = await kontext.newPage();
+const chybyKonzole = [];
+stranka.on('console', (m) => m.type() === 'error' && chybyKonzole.push(m.text()));
+stranka.on('pageerror', (e) => chybyKonzole.push('pageerror: ' + e.message));
+
+await stranka.route('**/books/v1/volumes**', (route) =>
+  route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ODPOVED) }));
+for (const vzor of ['**/openlibrary.org/**', '**/obalkyknih.cz/**',
+                    '**/covers.openlibrary.org/**', '**/books.google.com/**']) {
+  await stranka.route(vzor, (r) => r.abort());
+}
+
+await stranka.goto(ADRESA, { waitUntil: 'networkidle' });
+t((await stranka.title()).includes('Knihovna'), 'stránka se načetla');
+
+/* ------------------------------------------------ ruční zadání a dohledání */
+
+await stranka.locator('.rucne summary').click();
+await stranka.fill('#vstup-isbn', '978-0-306-40615-7');
+await stranka.click('#form-rucne button[type=submit]');
+await stranka.waitForSelector('#tabulka:not([hidden]) tbody tr', { timeout: 10000 });
+
+const prvni = stranka.locator('tbody tr').first();
+t((await prvni.locator('td').nth(1).innerText()).includes('Structure and Interpretation'),
+  'název se dohledal a zobrazil');
+t((await prvni.locator('td').nth(2).innerText()).includes('Harold Abelson'), 'autor se dohledal');
+t((await prvni.locator('td').nth(3).innerText()) === '1996', 'rok se vytáhl z data vydání');
+t((await prvni.locator('td').nth(4).innerText()) === 'MIT Press', 'vydavatel');
+t((await prvni.locator('td.isbn').innerText()) === '978-0306406157', 'ISBN se zobrazuje s prefixem');
+t((await stranka.locator('#pocet').innerText()) === '1', 'počítadlo ukazuje jednu knihu');
+
+/* ------------------------------------------------------------ neplatný kód */
+
+await stranka.fill('#vstup-isbn', '1234567890123');
+await stranka.click('#form-rucne button[type=submit]');
+await stranka.waitForTimeout(300);
+t((await stranka.locator('#hlaska').innerText()).includes('platné ISBN'), 'neplatné ISBN se odmítne');
+t((await stranka.locator('tbody tr').count()) === 1, 'neplatný záznam se nepřidal');
+
+/* ------------------------------------------------------------- duplicita */
+
+await stranka.fill('#vstup-isbn', ISBN_VE_VIDEU);
+await stranka.click('#form-rucne button[type=submit]');
+await stranka.waitForTimeout(500);
+t((await stranka.locator('tbody tr').count()) === 1, 'stejná kniha nevytvoří druhý řádek');
+t((await stranka.locator('.odznak').innerText()) === '2×', 'místo toho přibude kus');
+
+/* ------------------------------------------------------- úpravy a hledání */
+
+const poznamka = prvni.locator('td.upravitelne').nth(2);
+await poznamka.click();
+await poznamka.fill('půjčeno Petrovi');
+await stranka.locator('#hledat').click(); // odklik jinam uloží
+await stranka.waitForTimeout(200);
+t(await stranka.evaluate(() =>
+    JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0].poznamka === 'půjčeno Petrovi'),
+  'poznámka napsaná v tabulce se uložila');
+
+await stranka.fill('#hledat', 'abelson');
+await stranka.waitForTimeout(200);
+t((await stranka.locator('tbody tr').count()) === 1, 'hledání podle autora knihu najde');
+await stranka.fill('#hledat', 'nesmysl-xyz');
+await stranka.waitForTimeout(200);
+t((await stranka.locator('tbody tr').count()) === 0, 'hledání bez shody nic nevrátí');
+await stranka.fill('#hledat', '');
+
+/* ------------------------------------------------------ skenování kamerou */
+
+await stranka.evaluate(() => localStorage.clear());
+await stranka.reload({ waitUntil: 'networkidle' });
+await stranka.click('#btn-skenovat');
+try {
+  await stranka.waitForSelector('#tabulka:not([hidden]) tbody tr', { timeout: 25000 });
+  t((await prvni.locator('td').nth(1).innerText()).includes('Structure and Interpretation'),
+    'kamera přečetla čárový kód a kniha se uložila');
+  t(await stranka.locator('#video').isVisible(), 'obraz z kamery je vidět');
+} catch {
+  t(false, 'kamera přečetla čárový kód', await stranka.locator('#stav').innerText());
+}
+
+/* --------------------------------------------------- záloha, obnova, CSV */
+
+odklikavejDialogy(stranka);
+await stranka.evaluate(() => {
+  localStorage.setItem('knihovna.knihy.v1', JSON.stringify([
+    { id: 'a', isbn: '9788024268705', nazev: 'Česká kniha s háčky',
+      autor: 'Jan Novák; Eva Dvořáková', rok: '2015', vydavatel: 'Karolinum',
+      poznamka: 'text s ; středníkem a "uvozovkami"', kusu: 3, pridano: '2026-08-12' },
+  ]));
+});
+await stranka.reload({ waitUntil: 'networkidle' });
+
+const [zalohaJson] = await Promise.all([stranka.waitForEvent('download'), stranka.click('#btn-json')]);
+const cestaJson = join(DOCASNY, 'zaloha.json');
+await zalohaJson.saveAs(cestaJson);
+t(zalohaJson.suggestedFilename().startsWith('knihovna-'), 'záloha má datum v názvu',
+  zalohaJson.suggestedFilename());
+
+const [zalohaCsv] = await Promise.all([stranka.waitForEvent('download'), stranka.click('#btn-csv')]);
+const cestaCsv = join(DOCASNY, 'export.csv');
+await zalohaCsv.saveAs(cestaCsv);
+
+await stranka.click('#btn-smazat-vse');
+await stranka.waitForTimeout(200);
+t((await stranka.locator('tbody tr').count()) === 0, 'mazání vyprázdní tabulku');
+
+await stranka.setInputFiles('#soubor-import', cestaJson);
+await stranka.waitForTimeout(400);
+t((await stranka.locator('tbody tr').count()) === 1, 'záloha se nahraje zpět');
+t((await stranka.locator('tbody tr').first().locator('td').nth(1).innerText()).includes('háčky'),
+  'diakritika přežila zálohu i obnovu');
+t(await stranka.evaluate(() =>
+    JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0].kusu === 3), 'počet kusů se zachoval');
+
+await stranka.setInputFiles('#soubor-import', cestaJson);
+await stranka.waitForTimeout(400);
+t((await stranka.locator('tbody tr').count()) === 1, 'opakovaný import knihu nezdvojí');
+
+const csv = readFileSync(cestaCsv, 'utf8');
+t(csv.startsWith('﻿'), 'CSV má BOM, aby Excel poznal diakritiku');
+t(csv.replace(/^﻿/, '').split('\r\n')[0].startsWith('ISBN;Název;Autor'),
+  'CSV má českou hlavičku oddělenou středníky');
+t(csv.includes('"text s ; středníkem a ""uvozovkami"""'), 'CSV zaobalilo středník i uvozovky');
+
+/* ------------------------------------------------------------- offline */
+
+await stranka.waitForTimeout(500);
+await kontext.setOffline(true);
+try {
+  await stranka.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
+  t((await stranka.locator('h1').innerText()).includes('Knihovna'), 'aplikace se načte i bez signálu');
+  t((await stranka.locator('tbody tr').count()) === 1, 'tabulka je offline k dispozici');
+  t(await stranka.evaluate(async () => !!(await caches.match('./vendor/zxing.min.js'))),
+    'čtečka kódů je uložená pro offline');
+} catch (chyba) {
+  t(false, 'aplikace se načte i bez signálu', chyba.message.split('\n')[0]);
+}
+await kontext.setOffline(false);
+
+/* ------------------------------------------------------------- závěr */
+
+const vazne = chybyKonzole.filter((c) => !/favicon|net::ERR_FAILED|Failed to load resource/i.test(c));
+t(vazne.length === 0, 'v konzoli nejsou chyby', vazne.join(' | '));
+
+await prohlizec.close();
+console.log(selhani === 0 ? '\nVŠE PROŠLO' : `\n${selhani} testů selhalo`);
+process.exit(selhani ? 1 : 0);
+
+/** Potvrzovací dialogy (mazání) v testu odklikáváme automaticky. */
+function odklikavejDialogy(str) {
+  str.on('dialog', (d) => d.accept());
+}

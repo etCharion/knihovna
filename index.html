@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Knihovna — skener knih</title>
+<meta name="description" content="Naskenujte čárový kód knihy, aplikace sama dohledá ISBN, autora a název a uloží je do tabulky.">
+<meta name="theme-color" content="#1f3a5f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Knihovna">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="hlavicka">
+  <h1>📚 Knihovna</h1>
+  <p class="podtitul">Naskenuj čárový kód, zbytek si aplikace najde sama.</p>
+</header>
+
+<main>
+
+  <!-- ------------------------------------------------ skenování -->
+  <section class="karta" id="sekce-skener">
+    <div class="kamera" id="kamera" hidden>
+      <video id="video" playsinline muted></video>
+      <div class="hledacek" aria-hidden="true"></div>
+    </div>
+
+    <div class="tlacitka">
+      <button id="btn-skenovat" class="tlacitko hlavni">📷 Spustit skenování</button>
+      <button id="btn-svetlo" class="tlacitko" hidden>🔦 Světlo</button>
+    </div>
+
+    <p class="stav" id="stav" role="status" aria-live="polite">
+      Aplikace potřebuje přístup ke kameře. Data zůstávají jen ve vašem telefonu.
+    </p>
+
+    <details class="rucne">
+      <summary>Zadat ISBN ručně</summary>
+      <form id="form-rucne" class="radek-formulare">
+        <input
+          id="vstup-isbn"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="978-80-…"
+          aria-label="ISBN knihy">
+        <button type="submit" class="tlacitko">Vyhledat</button>
+      </form>
+      <p class="napoveda">Hodí se, když je čárový kód poškozený nebo kniha žádný nemá.</p>
+    </details>
+  </section>
+
+  <!-- ------------------------------------------------ tabulka -->
+  <section class="karta">
+    <div class="zahlavi-tabulky">
+      <h2>Moje knihy <span class="pocet" id="pocet">0</span></h2>
+      <input id="hledat" type="search" placeholder="Hledat v tabulce…" aria-label="Hledat v tabulce">
+    </div>
+
+    <div class="tlacitka">
+      <button id="btn-csv" class="tlacitko">⬇️ Export CSV</button>
+      <button id="btn-json" class="tlacitko">⬇️ Záloha JSON</button>
+      <button id="btn-import" class="tlacitko">⬆️ Načíst zálohu</button>
+      <button id="btn-smazat-vse" class="tlacitko nebezpecne">🗑️ Vymazat vše</button>
+      <input id="soubor-import" type="file" accept=".json,application/json" hidden>
+    </div>
+
+    <p class="prazdno" id="prazdno">Zatím tu nic není. Naskenujte první knihu.</p>
+
+    <div class="obal-tabulky">
+      <table id="tabulka" hidden>
+        <thead>
+          <tr>
+            <th class="sloupec-obalka"></th>
+            <th data-radit="nazev">Název</th>
+            <th data-radit="autor">Autor</th>
+            <th data-radit="rok">Rok</th>
+            <th data-radit="vydavatel">Vydavatel</th>
+            <th data-radit="isbn">ISBN</th>
+            <th>Poznámka</th>
+            <th class="sloupec-akce"></th>
+          </tr>
+        </thead>
+        <tbody id="telo-tabulky"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer class="paticka">
+  <p>Údaje se dohledávají přes Google Books, Open Library a Obálky knih.
+     Tabulka je uložená jen v tomto zařízení — zálohu udělejte exportem.</p>
+</footer>
+
+<div id="hlaska" class="hlaska" role="status" aria-live="polite" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+node_modules/
+package-lock.json
+
+# testovací video s čárovým kódem se generuje skriptem, nepatří do repozitáře
+*.y4m
+
+.DS_Store
+Thumbs.db

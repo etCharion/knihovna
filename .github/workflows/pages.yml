@@ -1,0 +1,40 @@
+name: Nasazení na GitHub Pages
+
+on:
+  push:
+  workflow_dispatch:
+
+# Umožní workflow publikovat na Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Běží vždy jen jedno nasazení; rozdělaná se nechají doběhnout.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  nasazeni:
+    # Publikuje se jen výchozí větev repozitáře — ať už se jmenuje main, nebo jinak.
+    # Pushe do vedlejších větví se tak na živý web nedostanou.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.nasad.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Aplikace je čistě statická, nic se nekompiluje — nahraje se repozitář tak, jak je.
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - id: nasad
+        uses: actions/deploy-pages@v4
