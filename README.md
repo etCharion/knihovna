@@ -30,10 +30,19 @@ registrace, žádný API klíč.
 
 1. V repozitáři na GitHubu otevřete **Settings → Pages**.
 2. V sekci **Build and deployment** nastavte **Source** na **GitHub Actions**.
-3. Hotovo. Po každém pushi do větve `main` se stránka sama nasadí; průběh
-   uvidíte v záložce **Actions**.
+3. Přejděte do záložky **Actions**, vyberte poslední běh *Nasazení na GitHub
+   Pages* a klepněte na **Re-run all jobs**.
 
 Adresa aplikace pak bude `https://<vaše-jméno>.github.io/knihovna/`.
+Od té chvíle se stránka po každé změně nasadí sama.
+
+> **Než Pages zapnete, bude nasazení v Actions červené** — hlásí
+> „Get Pages site failed“. Není to chyba v projektu: zapnout Pages může jen
+> majitel repozitáře přes nastavení, workflow to za vás udělat nesmí.
+> Po kroku 2 už vše proběhne.
+
+Publikuje se vždy jen **výchozí větev** repozitáře, ať už se jmenuje `main`,
+nebo jinak. Pushe do vedlejších větví se na živý web nedostanou.
 
 ### Přidání na plochu telefonu
 
