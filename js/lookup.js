@@ -15,7 +15,21 @@
 
 import { ocisti } from './isbn.js';
 
-const TIMEOUT_MS = 8000;
+// Na mobilních datech bývají odpovědi pomalé, proto raději delší strpení.
+const TIMEOUT_MS = 12000;
+
+/**
+ * Převede technickou chybu na něco, co jde ukázat uživateli.
+ *
+ * Rozlišuje tři případy, protože každý znamená něco jiného: server odmítl
+ * (a řekl číslo), vypršel čas, nebo se spojení vůbec nenavázalo — což je
+ * typicky vypadlé připojení nebo server, který prohlížeči nedovolí se zeptat.
+ */
+function popisChyby(chyba) {
+  if (chyba?.name === 'AbortError') return 'nestihl odpovědět';
+  if (chyba?.message?.startsWith('HTTP')) return chyba.message;
+  return 'nedostupný';
+}
 
 /** Pole, která se z jednotlivých zdrojů skládají dohromady. */
 const POLE = ['nazev', 'autor', 'vydavatel', 'rok', 'stran', 'jazyk', 'obalka'];
@@ -150,7 +164,8 @@ export async function najdiKnihu(isbnVstup) {
     const zdroj = ZDROJE[poradi];
 
     if (odpoved.status === 'rejected') {
-      selhaly.push(`${zdroj.nazev}: ${odpoved.reason?.message || 'chyba'}`);
+      selhaly.push(`${zdroj.nazev} (${popisChyby(odpoved.reason)})`);
+      console.warn(`Zdroj ${zdroj.nazev} selhal:`, odpoved.reason);
       return;
     }
     nekdoOdpovedel = true;

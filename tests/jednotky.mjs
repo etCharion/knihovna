@@ -116,6 +116,30 @@ const vypadek = () => Promise.reject(new Error('síť'));
   t(!kniha.nalezeno && !kniha.nedostupne, 'databáze odpověděly, ale knihu neznají');
 }
 
+nadpis('Hlášení o zdrojích');
+{
+  // Přesně situace pozorovaná na telefonu: jeden zdroj odpoví a knihu nezná,
+  // dva selžou — a je potřeba vědět které a proč, ne jen kolik.
+  globalThis.fetch = (url) => {
+    if (url.includes('googleapis')) return odpoved({ totalItems: 0 });
+    if (url.includes('openlibrary')) return Promise.reject(new TypeError('Failed to fetch'));
+    return Promise.reject(Object.assign(new Error('přerušeno'), { name: 'AbortError' }));
+  };
+  const kniha = await najdiKnihu('9788073355067');
+  t(kniha.selhalyZdroje[0] === 'Open Library (nedostupný)',
+    'zablokované spojení se pojmenuje', kniha.selhalyZdroje[0]);
+  t(kniha.selhalyZdroje[1] === 'Obálky knih (nestihl odpovědět)',
+    'vypršení času se pojmenuje', kniha.selhalyZdroje[1]);
+  t(!kniha.nedostupne, 'a nehlásí se úplný výpadek, když jeden zdroj odpověděl');
+}
+
+{
+  globalThis.fetch = () => Promise.resolve({ ok: false, status: 429 });
+  const kniha = await najdiKnihu('9788073355067');
+  t(kniha.selhalyZdroje.every((z) => z.includes('HTTP 429')), 'u odmítnutí serverem se ukáže kód',
+    kniha.selhalyZdroje[0]);
+}
+
 {
   // Databáze pracují s holými číslicemi; pomlčky jsou jen pro člověka.
   const adresy = [];

@@ -274,11 +274,17 @@ async function zpracujKod(kod) {
       nastavStav(`Uloženo z: ${kniha.zdroj}. Můžete skenovat dál.`);
     } else if (kniha.nedostupne) {
       oznam('Databáze knih neodpověděly — údaje doplníme později.', 'chyba');
-      nastavStav(`ISBN ${naFormat(isbn)} je uložené, ale databáze nebyly k zastižení. Zkontrolujte připojení; údaje můžete dopsat ručně.`);
+      nastavStav(
+        `ISBN ${naFormat(isbn)} je uložené, ale žádná databáze neodpověděla ` +
+        `(${kniha.selhalyZdroje.join(', ')}). Zkontrolujte připojení; údaje můžete dopsat ručně.`
+      );
     } else {
       oznam('Kniha se nenašla — doplňte údaje ručně v tabulce.', 'varovani');
+      const selhaly = kniha.selhalyZdroje?.length
+        ? ` Neodpověděly: ${kniha.selhalyZdroje.join(', ')}.`
+        : '';
       nastavStav(
-        `ISBN ${naFormat(isbn)} databáze neznají${kniha.selhalyZdroje?.length ? ` (a ${kniha.selhalyZdroje.length} z nich neodpověděla)` : ''}. ` +
+        `ISBN ${naFormat(isbn)} databáze neznají.${selhaly} ` +
         'Řádek je v tabulce — název a autora dopište klepnutím. Zkontrolujte i samotné číslo, klepnutím jde opravit.'
       );
     }

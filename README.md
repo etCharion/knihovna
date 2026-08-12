@@ -129,8 +129,12 @@ název a autora dopíšete klepnutím do buňky. Aplikace přitom rozlišuje dv�
 situace a napíše, o kterou jde:
 
 - **databáze knihu neznají** — typicky starší nebo malonákladová česká vydání;
-- **databáze neodpověděly** — vypadlé připojení nebo vyčerpaný limit dotazů;
-  tady má smysl to za chvíli zkusit znovu.
+- **databáze neodpověděly** — vypadlé připojení, vyčerpaný limit dotazů, nebo
+  server, který se prohlížeče nepustí; tady má smysl to za chvíli zkusit znovu.
+
+Hláška vždy jmenuje, který zdroj selhal a proč (`nedostupný`, `nestihl
+odpovědět`, `HTTP 429`), takže jde poznat, jestli je problém na straně knihy,
+sítě, nebo konkrétní služby. Podrobnosti jsou i v konzoli prohlížeče.
 
 Když se kniha nenajde, zkontrolujte i samotné číslo — skener se občas splete
 a klepnutím na ISBN v tabulce ho opravíte.
