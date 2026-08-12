@@ -108,7 +108,7 @@ stranka.on('console', (m) => m.type() === 'error' && chybyKonzole.push(m.text())
 stranka.on('pageerror', (e) => chybyKonzole.push('pageerror: ' + e.message));
 
 await stranka.route('**/books/v1/volumes**', odpovezJakoGoogleBooks);
-for (const vzor of ['**/openlibrary.org/**', '**/obalkyknih.cz/**',
+for (const vzor of ['**/openlibrary.org/**', '**/obalkyknih.cz/**', '**/knihovny.cz/**',
                     '**/covers.openlibrary.org/**', '**/books.google.com/**']) {
   await stranka.route(vzor, (r) => r.abort());
 }
@@ -377,7 +377,7 @@ const strankaOcr = await kontextOcr.newPage();
 
 // Hlídá se, odkud se tahá kód. Dotazy do databází knih a obrázky obálek
 // z cizích serverů jsou v pořádku — o ty tu nejde.
-const DATOVE_ZDROJE = ['googleapis.com', 'openlibrary.org', 'obalkyknih.cz'];
+const DATOVE_ZDROJE = ['googleapis.com', 'openlibrary.org', 'obalkyknih.cz', 'knihovny.cz'];
 const zvenku = [];
 strankaOcr.on('request', (r) => {
   const url = new URL(r.url());
@@ -386,7 +386,8 @@ strankaOcr.on('request', (r) => {
   if (jeKod && !jeDatovyZdroj && url.origin !== new URL(ADRESA).origin) zvenku.push(url.host);
 });
 await strankaOcr.route('**/books/v1/volumes**', odpovezJakoGoogleBooks);
-for (const vzor of ['**/openlibrary.org/**', '**/obalkyknih.cz/**', '**/covers.openlibrary.org/**']) {
+for (const vzor of ['**/openlibrary.org/**', '**/obalkyknih.cz/**', '**/knihovny.cz/**',
+                    '**/covers.openlibrary.org/**']) {
   await strankaOcr.route(vzor, (r) => r.abort());
 }
 

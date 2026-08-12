@@ -116,9 +116,16 @@ název a autora, jiný má obálku. Výpadek jednoho zdroje tak nezastaví ostat
 
 | Zdroj | K čemu je nejlepší |
 |---|---|
-| [Google Books](https://developers.google.com/books) | nejširší záběr, zahraniční i mnoho českých titulů |
+| [Knihovny.cz](https://www.knihovny.cz/) | **české knihy** — katalogy zhruba stovky českých knihoven včetně Národní knihovny |
+| [Google Books](https://developers.google.com/books) | nejširší záběr, zahraniční tituly |
 | [Open Library](https://openlibrary.org/dev/docs/api/books) | starší a anglicky psané knihy |
 | [Obálky knih](https://www.obalkyknih.cz/) | obálky českých vydání (bibliografii dodává jen někdy) |
+
+České zdroje jsou v pořadí první, takže když má knihu víc katalogů, přednost
+dostane český záznam — se správnou diakritikou a českým názvem. Knihovnické
+záznamy se přitom upraví pro běžné čtení: z názvu se odstraní katalogizační
+interpunkce (`Název : podtitul /`) a autor se z tvaru `Novák, Jan, 1970-`
+převede na `Jan Novák`.
 
 Všechny jsou veřejné a bez klíče. U Google Books se navíc, když strukturované
 hledání podle ISBN nic nevrátí, zkusí totéž číslo ještě jako obyčejné klíčové

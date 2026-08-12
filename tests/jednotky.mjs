@@ -116,20 +116,85 @@ const vypadek = () => Promise.reject(new Error('síť'));
   t(!kniha.nalezeno && !kniha.nedostupne, 'databáze odpověděly, ale knihu neznají');
 }
 
+nadpis('Český katalog (Knihovny.cz)');
+{
+  // Odpověď má tvar, jaký vrací VuFind: autoři jako objekt s klíči podle jmen,
+  // název s katalogizační interpunkcí, rozsah jako popis „253 s. : il. ; 21 cm“.
+  let adresa = '';
+  globalThis.fetch = (url) => {
+    if (!url.includes('knihovny.cz')) return Promise.reject(new Error('jiný zdroj'));
+    adresa = url;
+    return odpoved({
+      resultCount: 1,
+      records: [{
+        title: 'Tajemství staré truhly : román /',
+        authors: {
+          primary: { 'Svobodová, Petra, 1970-': { role: ['aut'] } },
+          secondary: { 'Novák, Jan': { role: ['ill'] } },
+        },
+        publishers: ['Fragment,'],
+        publicationDates: ['2006'],
+        languages: ['cze'],
+        physicalDescriptions: ['253 s. : il. ; 21 cm'],
+      }],
+      status: 'OK',
+    });
+  };
+
+  const kniha = await najdiKnihu('9788073355067');
+  t(kniha.nazev === 'Tajemství staré truhly : román', 'z názvu zmizí katalogizační lomítko',
+    kniha.nazev);
+  t(kniha.autor === 'Petra Svobodová, Jan Novák', 'jména se otočí a letopočty zmizí',
+    kniha.autor);
+  t(kniha.vydavatel === 'Fragment', 'z nakladatele zmizí koncová čárka', kniha.vydavatel);
+  t(kniha.rok === '2006', 'rok vydání');
+  t(kniha.stran === '253', 'počet stran se vytáhne z popisu rozsahu', kniha.stran);
+  t(kniha.jazyk === 'cs', 'kód jazyka se převede z cze na cs', kniha.jazyk);
+  t(kniha.zdroj === 'Knihovny.cz', 'jako zdroj je uvedený katalog', kniha.zdroj);
+
+  t(adresa.includes('type=ISN'), 'hledá se typem pro ISBN');
+  t(adresa.includes('lookfor=9788073355067'), 'hledá se podle holého čísla');
+  t(adresa.includes('field%5B%5D=title') && adresa.includes('field%5B%5D=authors'),
+    'vyžádaná pole jsou v dotazu — jinak by se vrátil jen identifikátor');
+}
+
+{
+  // Instituce jako autor se nesmí přehazovat.
+  globalThis.fetch = (url) => url.includes('knihovny.cz')
+    ? odpoved({ records: [{ title: 'Sborník', authors: { primary: { 'Univerzita Karlova, Filozofická fakulta': {} } } }] })
+    : Promise.reject(new Error('jiný zdroj'));
+  const kniha = await najdiKnihu('9788073355067');
+  t(kniha.autor === 'Univerzita Karlova, Filozofická fakulta', 'název instituce zůstane, jak je',
+    kniha.autor);
+}
+
+{
+  // Když katalog knihu nemá, nesmí to shodit ostatní zdroje.
+  globalThis.fetch = (url) => url.includes('knihovny.cz')
+    ? odpoved({ resultCount: 0, status: 'OK' })
+    : url.includes('googleapis')
+      ? odpoved({ items: [{ volumeInfo: { title: 'Zná to jen Google' } }] })
+      : Promise.reject(new Error('jiný zdroj'));
+  const kniha = await najdiKnihu('9788073355067');
+  t(kniha.nazev === 'Zná to jen Google', 'prázdný výsledek katalogu nevadí ostatním');
+}
+
 nadpis('Hlášení o zdrojích');
 {
   // Přesně situace pozorovaná na telefonu: jeden zdroj odpoví a knihu nezná,
   // dva selžou — a je potřeba vědět které a proč, ne jen kolik.
   globalThis.fetch = (url) => {
-    if (url.includes('googleapis')) return odpoved({ totalItems: 0 });
+    if (url.includes('googleapis') || url.includes('knihovny.cz')) {
+      return odpoved({ totalItems: 0 });
+    }
     if (url.includes('openlibrary')) return Promise.reject(new TypeError('Failed to fetch'));
     return Promise.reject(Object.assign(new Error('přerušeno'), { name: 'AbortError' }));
   };
   const kniha = await najdiKnihu('9788073355067');
-  t(kniha.selhalyZdroje[0] === 'Open Library (nedostupný)',
-    'zablokované spojení se pojmenuje', kniha.selhalyZdroje[0]);
-  t(kniha.selhalyZdroje[1] === 'Obálky knih (nestihl odpovědět)',
-    'vypršení času se pojmenuje', kniha.selhalyZdroje[1]);
+  t(kniha.selhalyZdroje.includes('Open Library (nedostupný)'),
+    'zablokované spojení se pojmenuje', kniha.selhalyZdroje.join(', '));
+  t(kniha.selhalyZdroje.includes('Obálky knih (nestihl odpovědět)'),
+    'vypršení času se pojmenuje', kniha.selhalyZdroje.join(', '));
   t(!kniha.nedostupne, 'a nehlásí se úplný výpadek, když jeden zdroj odpověděl');
 }
 
@@ -152,6 +217,7 @@ nadpis('Hlášení o zdrojích');
   t(adresy.some((u) => u.includes('isbn%3A9788073355067')), 'Google dostane isbn:<13 číslic>');
   t(adresy.some((u) => u.includes('ISBN%3A9788073355067')), 'Open Library dostane ISBN:<13 číslic>');
   t(adresy.some((u) => u.includes('9788073355067%22')), 'Obálky knih dostanou holé číslo');
+  t(adresy.some((u) => u.includes('lookfor=9788073355067')), 'Knihovny.cz dostanou holé číslo');
 }
 
 console.log(selhani === 0 ? '\nVŠE PROŠLO' : `\n${selhani} testů selhalo`);

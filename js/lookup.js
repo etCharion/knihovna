@@ -51,6 +51,36 @@ function rok(text) {
   return nalez ? nalez[0] : '';
 }
 
+/**
+ * Knihovnické katalogy zapisují název podle norem pro katalogizaci:
+ * „Název : podtitul /“ — koncová interpunkce patří k záznamu, ne k titulu.
+ */
+function uklidNazev(text) {
+  return String(text || '').replace(/\s*[/:;,]\s*$/, '').trim();
+}
+
+/**
+ * Katalogy uvádějí autory jako „Novák, Jan, 1970-“. Letopočty jsou pro
+ * odlišení jmenovců, do tabulky nepatří; a jméno se otočí do běžného
+ * pořadí, aby sloupec vypadal stejně jako u ostatních zdrojů.
+ */
+function uklidAutora(jmeno) {
+  const bezLet = String(jmeno || '')
+    .replace(/,?\s*\d{3,4}\s*-\s*\d{0,4}\.?\s*$/, '')
+    .replace(/[,.]\s*$/, '')
+    .trim();
+
+  const casti = bezLet.split(',');
+  if (casti.length === 2) {
+    const [prijmeni, jmena] = casti.map((c) => c.trim());
+    // Jen u obyčejných osobních jmen — u institucí a jmen s čárkami uvnitř ne.
+    if (prijmeni && jmena && jmena.split(/\s+/).length <= 3 && !/\s/.test(prijmeni)) {
+      return `${jmena} ${prijmeni}`;
+    }
+  }
+  return bezLet;
+}
+
 function zGoogleBooks(polozka) {
   if (!polozka?.title) return null;
   return {
@@ -77,6 +107,44 @@ async function googleBooks(isbn) {
     return zGoogleBooks(data?.items?.[0]?.volumeInfo);
   };
   return (await dotaz(`isbn:${isbn}`)) || (await dotaz(isbn));
+}
+
+/**
+ * Knihovny.cz — Centrální portál knihoven, který sdružuje katalogy zhruba
+ * stovky českých knihoven včetně Národní knihovny. U českých titulů je to
+ * zdaleka nejúplnější zdroj: co u nás vyšlo s ISBN, tam ve většině případů je.
+ *
+ * Portál běží na VuFindu, jehož API posílá hlavičku Access-Control-Allow-Origin,
+ * takže se na něj dá ptát rovnou z prohlížeče. Bez výslovného výčtu polí by
+ * vrátilo jen identifikátor záznamu, proto ten seznam v dotazu.
+ */
+async function knihovnyCz(isbn) {
+  const pole = ['title', 'authors', 'publishers', 'publicationDates', 'languages',
+                'physicalDescriptions'];
+  const parametry = new URLSearchParams({ lookfor: isbn, type: 'ISN', limit: '1' });
+  for (const p of pole) parametry.append('field[]', p);
+
+  const data = await ziskej(`https://www.knihovny.cz/api/v1/search?${parametry}`);
+  const zaznam = data?.records?.[0];
+  if (!zaznam?.title) return null;
+
+  // Autoři přicházejí jako objekt, kde klíče jsou jména: { primary: { "Novák, Jan": {…} } }
+  const autori = [
+    ...Object.keys(zaznam.authors?.primary || {}),
+    ...Object.keys(zaznam.authors?.secondary || {}),
+  ];
+  // „253 s. : il. ; 21 cm“ → 253
+  const stran = String(zaznam.physicalDescriptions?.[0] || '').match(/(\d+)\s*(?:s|str)\b/i);
+
+  return {
+    nazev: uklidNazev(zaznam.title),
+    autor: autori.map(uklidAutora).filter(Boolean).join(', '),
+    vydavatel: uklidNazev(zaznam.publishers?.[0] || ''),
+    rok: rok(zaznam.publicationDates?.[0]),
+    stran: stran ? stran[1] : '',
+    jazyk: (zaznam.languages?.[0] || '').replace(/^cze$/, 'cs'),
+    obalka: '',
+  };
 }
 
 /** Open Library — dobrý doplněk, hlavně u starších a anglických knih. */
@@ -129,7 +197,13 @@ async function obalkyKnih(isbn) {
   };
 }
 
+/**
+ * Pořadí rozhoduje jen při shodě: u každého pole vyhraje první zdroj, který
+ * ho vyplnil. České katalogy jsou proto první — většina skenovaných knih
+ * bude česká a jejich záznamy mají správnou diakritiku i české názvy.
+ */
 const ZDROJE = [
+  { nazev: 'Knihovny.cz', hledej: knihovnyCz },
   { nazev: 'Google Books', hledej: googleBooks },
   { nazev: 'Open Library', hledej: openLibrary },
   { nazev: 'Obálky knih', hledej: obalkyKnih },
