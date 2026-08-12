@@ -37,9 +37,13 @@ if (!existsSync(VIDEO)) {
   });
 }
 
-/** Podvržená odpověď Google Books — stejný tvar, jaký vrací služba doopravdy. */
-const ODPOVED = {
-  items: [{ volumeInfo: {
+/**
+ * Podvržené odpovědi Google Books — stejný tvar, jaký vrací služba doopravdy.
+ * Každé ISBN má jinou knihu, aby šlo poznat, že se po opravě čísla údaje
+ * opravdu načetly znovu.
+ */
+const KNIHOVNA = {
+  '9780306406157': {
     title: 'Structure and Interpretation of Computer Programs',
     subtitle: 'Second Edition',
     authors: ['Harold Abelson', 'Gerald Jay Sussman'],
@@ -48,8 +52,26 @@ const ODPOVED = {
     pageCount: 657,
     language: 'en',
     imageLinks: { thumbnail: 'http://books.google.com/books/content?id=x&img=1' },
-  }}],
+  },
+  '9788024268705': {
+    title: 'Kniha z Karolina',
+    authors: ['Jan Novák'],
+    publisher: 'Karolinum',
+    publishedDate: '2015',
+    language: 'cs',
+  },
 };
+
+/** Vrátí knihu podle ISBN v dotazu, nebo prázdný výsledek jako skutečná služba. */
+function odpovezJakoGoogleBooks(route) {
+  const isbn = (new URL(route.request().url()).searchParams.get('q') || '').replace('isbn:', '');
+  const kniha = KNIHOVNA[isbn];
+  return route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify(kniha ? { items: [{ volumeInfo: kniha }] } : { totalItems: 0 }),
+  });
+}
 
 const prohlizec = await chromium.launch({
   channel: 'chromium', // plné Chromium; „headless shell“ neumí kameru
@@ -73,8 +95,7 @@ const chybyKonzole = [];
 stranka.on('console', (m) => m.type() === 'error' && chybyKonzole.push(m.text()));
 stranka.on('pageerror', (e) => chybyKonzole.push('pageerror: ' + e.message));
 
-await stranka.route('**/books/v1/volumes**', (route) =>
-  route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ODPOVED) }));
+await stranka.route('**/books/v1/volumes**', odpovezJakoGoogleBooks);
 for (const vzor of ['**/openlibrary.org/**', '**/obalkyknih.cz/**',
                     '**/covers.openlibrary.org/**', '**/books.google.com/**']) {
   await stranka.route(vzor, (r) => r.abort());
@@ -117,7 +138,9 @@ t((await stranka.locator('.odznak').innerText()) === '2×', 'místo toho přibud
 
 /* ------------------------------------------------------- úpravy a hledání */
 
-const poznamka = prvni.locator('td.upravitelne').nth(2);
+// Upravitelné buňky jsou název, autor, ISBN a poznámka; ISBN má vlastní
+// obsluhu, takže se pro jistotu vylučuje podle třídy.
+const poznamka = prvni.locator('td.upravitelne:not(.isbn)').nth(2);
 await poznamka.click();
 await poznamka.fill('půjčeno Petrovi');
 await stranka.locator('#hledat').click(); // odklik jinam uloží
@@ -133,6 +156,52 @@ await stranka.fill('#hledat', 'nesmysl-xyz');
 await stranka.waitForTimeout(200);
 t((await stranka.locator('tbody tr').count()) === 0, 'hledání bez shody nic nevrátí');
 await stranka.fill('#hledat', '');
+
+/* ------------------------------------------------------- oprava ISBN */
+
+const bunkaIsbn = prvni.locator('td.isbn');
+
+// Neplatné číslo se musí odmítnout a v buňce zůstane to původní.
+await bunkaIsbn.click();
+await bunkaIsbn.fill('123');
+await stranka.locator('#hledat').click();
+await stranka.waitForTimeout(300);
+t((await stranka.locator('#hlaska').innerText()).includes('platné ISBN'), 'neplatná oprava ISBN se odmítne');
+t((await bunkaIsbn.innerText()) === '978-0306406157', 'po odmítnutí zůstane původní ISBN',
+  await bunkaIsbn.innerText());
+
+// Oprava na jinou knihu: údaje se musí načíst znovu, ne zůstat po té staré.
+await bunkaIsbn.click();
+await bunkaIsbn.fill('978-80-242-6870-5');
+await stranka.locator('#hledat').click();
+await stranka.waitForFunction(
+  () => document.querySelector('tbody tr td:nth-child(2)')?.textContent.includes('Karolina'),
+  null, { timeout: 10000 }).catch(() => {});
+t((await prvni.locator('td').nth(1).innerText()).includes('Kniha z Karolina'),
+  'po opravě ISBN se dohledaly nové údaje', await prvni.locator('td').nth(1).innerText());
+t((await prvni.locator('td').nth(4).innerText()) === 'Karolinum', 'vyměnil se i vydavatel');
+t(await stranka.evaluate(() => {
+    const k = JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0];
+    return k.isbn === '9788024268705' && k.poznamka === 'půjčeno Petrovi' && k.kusu === 2;
+  }), 'oprava zachovala poznámku i počet kusů');
+
+// Oprava na ISBN, které v tabulce už je, by dvě knihy slila v jednu.
+// Nová kniha se vkládá na začátek tabulky, opravuje se tedy zase první řádek.
+await stranka.fill('#vstup-isbn', '9780306406157');
+await stranka.click('#form-rucne button[type=submit]');
+await stranka.waitForTimeout(800);
+t((await stranka.locator('tbody tr').count()) === 2, 'do tabulky přibyla druhá kniha');
+
+const noveIsbn = stranka.locator('tbody tr').first().locator('td.isbn');
+t((await noveIsbn.innerText()) === '978-0306406157', 'nová kniha je nahoře');
+await noveIsbn.click();
+await noveIsbn.fill('978-80-242-6870-5');
+await stranka.locator('#hledat').click();
+await stranka.waitForTimeout(400);
+t((await stranka.locator('#hlaska').innerText()).includes('už v tabulce je'),
+  'oprava na už existující ISBN se odmítne');
+t((await noveIsbn.innerText()) === '978-0306406157', 'a číslo zůstane nezměněné');
+t((await stranka.locator('tbody tr').count()) === 2, 'nic se nesloučilo ani neztratilo');
 
 /* ------------------------------------------------------ skenování kamerou */
 
@@ -207,12 +276,73 @@ try {
 }
 await kontext.setOffline(false);
 
-/* ------------------------------------------------------------- závěr */
-
 const vazne = chybyKonzole.filter((c) => !/favicon|net::ERR_FAILED|Failed to load resource/i.test(c));
 t(vazne.length === 0, 'v konzoli nejsou chyby', vazne.join(' | '));
 
 await prohlizec.close();
+
+/* ------------------------------------- čtení ISBN z čísla (kniha bez kódu) */
+
+// Falešná kamera se nastavuje při startu prohlížeče, takže druhé video
+// znamená druhý prohlížeč.
+const VIDEO_CISLO = join(DOCASNY, 'cislo.y4m');
+if (!existsSync(VIDEO_CISLO)) {
+  execFileSync('node', [join(KOREN, 'tests', 'vytvor-video-s-cislem.mjs'), VIDEO_CISLO], {
+    stdio: 'inherit',
+  });
+}
+
+const prohlizecOcr = await chromium.launch({
+  channel: 'chromium',
+  args: [
+    '--use-fake-device-for-media-stream',
+    `--use-file-for-fake-video-capture=${VIDEO_CISLO}`,
+    '--autoplay-policy=no-user-gesture-required',
+  ],
+});
+const kontextOcr = await prohlizecOcr.newContext({
+  permissions: ['camera'],
+  viewport: { width: 390, height: 844 },
+  isMobile: true,
+  hasTouch: true,
+});
+const strankaOcr = await kontextOcr.newPage();
+
+// Hlídá se, odkud se tahá kód. Obrázky obálek z cizích serverů jsou
+// v pořádku, o ty tu nejde.
+const zvenku = [];
+strankaOcr.on('request', (r) => {
+  const url = new URL(r.url());
+  const jeKod = ['script', 'fetch', 'xhr', 'other'].includes(r.resourceType());
+  if (jeKod && url.origin !== new URL(ADRESA).origin) zvenku.push(url.host);
+});
+await strankaOcr.route('**/books/v1/volumes**', odpovezJakoGoogleBooks);
+for (const vzor of ['**/openlibrary.org/**', '**/obalkyknih.cz/**', '**/covers.openlibrary.org/**']) {
+  await strankaOcr.route(vzor, (r) => r.abort());
+}
+
+await strankaOcr.goto(ADRESA, { waitUntil: 'networkidle' });
+await strankaOcr.click('#btn-skenovat');
+await strankaOcr.waitForTimeout(1500);
+t(await strankaOcr.locator('#btn-cislo').isVisible(), 'tlačítko pro čtení čísla se objeví s kamerou');
+
+await strankaOcr.click('#btn-cislo');
+try {
+  await strankaOcr.waitForSelector('#tabulka:not([hidden]) tbody tr', { timeout: 60000 });
+  const radekOcr = strankaOcr.locator('tbody tr').first();
+  t((await radekOcr.locator('td.isbn').innerText()) === '978-8024268705',
+    'z vytištěného čísla se přečetlo správné ISBN', await radekOcr.locator('td.isbn').innerText());
+  t((await radekOcr.locator('td').nth(1).innerText()).includes('Kniha z Karolina'),
+    'a kniha se podle něj dohledala');
+} catch {
+  t(false, 'z vytištěného čísla se přečetlo správné ISBN', await strankaOcr.locator('#stav').innerText());
+}
+
+// Rozpoznávání textu je přibalené — nesmí se tahat z cizího serveru.
+const ciziHosty = [...new Set(zvenku)].filter((h) => !h.includes('googleapis'));
+t(ciziHosty.length === 0, 'OCR se načetlo z aplikace, ne z cizího CDN', ciziHosty.join(', '));
+
+await prohlizecOcr.close();
 console.log(selhani === 0 ? '\nVŠE PROŠLO' : `\n${selhani} testů selhalo`);
 process.exit(selhani ? 1 : 0);
 

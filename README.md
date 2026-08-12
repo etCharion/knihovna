@@ -13,11 +13,15 @@ registrace, žádný API klíč.
 ## Co aplikace umí
 
 - **Skenování kamerou** — namíříte na čárový kód (EAN-13) na zadní straně knihy.
+- **Přečtení ISBN z vytištěného čísla** — pro knihy, které čárový kód nemají:
+  zaměříte řádek s číslem a klepnete na *Přečíst číslo ISBN*.
 - **Automatické dohledání údajů** — název, autor, vydavatel, rok, počet stran,
   jazyk i obálka.
 - **Tabulka knih** s hledáním a řazením podle sloupců.
 - **Ruční zadání ISBN**, když je kód poškozený nebo chybí.
-- **Úpravy přímo v tabulce** — klepnutím na název, autora nebo poznámku.
+- **Úpravy přímo v tabulce** — klepnutím na název, autora, poznámku i **ISBN**.
+  Když skener přečte číslo špatně, přepíšete ho a údaje o knize se dohledají
+  znovu.
 - **Export do CSV** (otevře se rovnou v Excelu) a **zálohu do JSON**.
 - **Počítání kusů** — druhý sken téže knihy nevytvoří duplicitu, jen přičte kus.
 - **Chod bez signálu** — po prvním načtení funguje aplikace i offline
@@ -61,6 +65,26 @@ Aplikace se pak spouští jako samostatná ikona bez adresního řádku.
 4. Kniha se během chvilky objeví v tabulce i s údaji.
 5. Skenujte dál — knihovnu tak projdete kus po kuse.
 6. Na konci klepněte na **Export CSV** a máte tabulku v Excelu.
+
+### Kniha bez čárového kódu
+
+Starší tituly čárový kód často nemají, číslo ISBN ale bývá vytištěné v tiráži
+nebo na zadní straně. Zaměřte řádek s číslem do rámečku a klepněte na
+**🔢 Přečíst číslo ISBN** — aplikace číslo přečte z obrázku.
+
+Rozpoznaný text nebývá dokonalý, ale ISBN má kontrolní číslici, takže se
+špatně přečtené číslo pozná a neuloží. Když to nevyjde, jděte blíž, přisviťte
+🔦 a zkuste to znovu, nebo číslo zadejte ručně.
+
+> Rozpoznávání textu si při **prvním** použití stáhne asi 7 MB (na Wi-Fi
+> pár vteřin). Pak už se používá z paměti telefonu a funguje i offline.
+> Kdo skenuje jen čárové kódy, nestáhne z toho nic.
+
+### Špatně přečtené ISBN
+
+Klepněte na číslo v tabulce, přepište ho a potvrďte (Enter, nebo klepnutí
+jinam). Údaje o knize se dohledají znovu podle opraveného čísla — poznámka
+a počet kusů zůstanou zachované. Klávesa Esc úpravu zruší.
 
 > **Kameru pouští prohlížeč jen na HTTPS.** Na GitHub Pages to platí
 > automaticky. Při zkoušení na počítači musí adresa být `localhost`,
@@ -113,12 +137,14 @@ index.html               rozhraní aplikace
 css/style.css            vzhled (mobil na prvním místě, světlý i tmavý režim)
 js/app.js                propojení všech částí a obsluha tabulky
 js/scanner.js            kamera a čtení čárových kódů
+js/ocr.js                čtení ISBN z vytištěného čísla
 js/lookup.js             dohledání knihy v online databázích
 js/isbn.js               ověření a převody ISBN
 js/storage.js            ukládání, export do CSV a JSON
 sw.js                    offline režim
 manifest.webmanifest     nastavení pro přidání na plochu
 vendor/zxing.min.js      čtečka kódů pro prohlížeče bez vlastní podpory
+vendor/tesseract/        rozpoznávání textu (načítá se až při použití)
 tests/e2e.mjs            automatický test v prohlížeči
 .github/workflows/       automatické nasazení na GitHub Pages
 ```
@@ -131,16 +157,17 @@ python3 -m http.server 8000
 # a otevřít http://localhost:8000
 ```
 
-Knihovna ZXing je uložená přímo v repozitáři (`vendor/`), ne načítaná z cizího
-CDN — aplikace tak funguje offline hned od prvního spuštění a při skenování
-nic neodchází na servery třetích stran.
+Čtečka kódů (ZXing) i rozpoznávání textu (Tesseract) jsou uložené přímo
+v repozitáři ve `vendor/`, ne načítané z cizího CDN — aplikace tak funguje
+offline a při skenování nic neodchází na servery třetích stran. ZXing (330 kB)
+se načítá rovnou, Tesseract (7 MB) až když si někdo řekne o čtení čísla.
 
 ### Testy
 
-Sada testů projede celou aplikaci ve skutečném prohlížeči, včetně skenování:
-Chromiu se místo kamery podstrčí video s opravdovým čárovým kódem, takže se
-ověří i čtečka. Dotazy do databází knih se podvrhují, test proto nezávisí na
-připojení.
+Sada testů projede celou aplikaci ve skutečném prohlížeči, včetně obojího
+skenování: Chromiu se místo kamery podstrčí jednou video s opravdovým čárovým
+kódem, podruhé video s vytištěným číslem ISBN. Dotazy do databází knih se
+podvrhují, test proto nezávisí na připojení.
 
 ```bash
 npm install          # jen poprvé, kvůli Playwrightu

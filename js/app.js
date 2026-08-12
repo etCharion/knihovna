@@ -4,6 +4,7 @@
 
 import { jeKnizniKod, normalizuj, naFormat } from './isbn.js';
 import { najdiKnihu, nahradniObalka } from './lookup.js';
+import * as ocr from './ocr.js';
 import * as skener from './scanner.js';
 import * as ulozne from './storage.js';
 
@@ -13,6 +14,7 @@ const video = prvek('video');
 const kamera = prvek('kamera');
 const btnSkenovat = prvek('btn-skenovat');
 const btnSvetlo = prvek('btn-svetlo');
+const btnCislo = prvek('btn-cislo');
 const stav = prvek('stav');
 const hlaska = prvek('hlaska');
 const telo = prvek('telo-tabulky');
@@ -97,6 +99,82 @@ function bunkaKUprave(kniha, pole, zastupnyText) {
   return td;
 }
 
+/** Pole, která patří ke knize samotné — po opravě ISBN se dohledávají znovu. */
+const POLE_O_KNIZE = ['nazev', 'autor', 'rok', 'vydavatel', 'stran', 'jazyk', 'obalka', 'zdroj'];
+
+/**
+ * Buňka s ISBN, kterou jde přepsat, když skener přečetl číslo špatně.
+ *
+ * Po opravě se údaje o knize načtou znovu — ty původní patřily jinému
+ * číslu, takže by po opravě zůstaly viset u nesprávné knihy.
+ */
+function bunkaIsbn(kniha) {
+  const td = document.createElement('td');
+  td.className = 'isbn upravitelne';
+  td.contentEditable = 'true';
+  td.dataset.prazdny = 'ISBN';
+  td.textContent = naFormat(kniha.isbn);
+
+  const vratPuvodni = () => {
+    td.textContent = naFormat(kniha.isbn);
+  };
+
+  td.addEventListener('keydown', (udalost) => {
+    if (udalost.key === 'Enter') {
+      udalost.preventDefault();
+      td.blur();
+    } else if (udalost.key === 'Escape') {
+      vratPuvodni();
+      td.blur();
+    }
+  });
+
+  td.addEventListener('blur', async () => {
+    const zadane = td.textContent.trim();
+    const nove = normalizuj(zadane);
+
+    if (!nove) {
+      oznam('To není platné ISBN — zkontrolujte číslice.', 'chyba');
+      return vratPuvodni();
+    }
+    if (nove === kniha.isbn) return vratPuvodni();
+    if (!jeKnizniKod(nove)) {
+      oznam('Číslo nezačíná na 978 ani 979, takže to není kniha.', 'chyba');
+      return vratPuvodni();
+    }
+    if (ulozne.podleIsbn(nove)) {
+      oznam('Kniha s tímto ISBN už v tabulce je.', 'varovani');
+      return vratPuvodni();
+    }
+
+    const prazdneUdaje = Object.fromEntries(POLE_O_KNIZE.map((pole) => [pole, '']));
+    ulozne.uprav(kniha.id, { isbn: nove, ...prazdneUdaje });
+    cekaSeNaVyhledani.add(nove);
+    nastavStav(`Opraveno na ${naFormat(nove)}, hledám údaje …`);
+    vykresli();
+
+    try {
+      const nalezena = await najdiKnihu(nove);
+      if (nalezena.nalezeno) {
+        ulozne.uprav(kniha.id, Object.fromEntries(POLE_O_KNIZE.map((p) => [p, nalezena[p]])));
+        oznam(`✓ ${nalezena.nazev}${nalezena.autor ? ' — ' + nalezena.autor : ''}`, 'uspech');
+        nastavStav(`Údaje načteny znovu z: ${nalezena.zdroj}.`);
+      } else if (nalezena.nedostupne) {
+        oznam('ISBN opraveno, ale databáze neodpověděly.', 'chyba');
+        nastavStav('Údaje se nepodařilo načíst — zkontrolujte připojení a opravu ISBN zopakujte.');
+      } else {
+        oznam('ISBN opraveno, kniha se ale nenašla — doplňte údaje ručně.', 'varovani');
+        nastavStav(`ISBN ${naFormat(nove)} se v databázích nenašlo.`);
+      }
+    } finally {
+      cekaSeNaVyhledani.delete(nove);
+      vykresli();
+    }
+  });
+
+  return td;
+}
+
 function radek(kniha) {
   const tr = document.createElement('tr');
   if (cekaSeNaVyhledani.has(kniha.isbn)) tr.classList.add('nacita-se');
@@ -129,7 +207,7 @@ function radek(kniha) {
   tr.appendChild(bunkaKUprave(kniha, 'autor', 'Doplňte autora'));
   tr.appendChild(bunka(kniha.rok));
   tr.appendChild(bunka(kniha.vydavatel));
-  tr.appendChild(bunka(naFormat(kniha.isbn), 'isbn'));
+  tr.appendChild(bunkaIsbn(kniha));
   tr.appendChild(bunkaKUprave(kniha, 'poznamka', 'Poznámka'));
 
   const tdAkce = document.createElement('td');
@@ -216,8 +294,10 @@ async function zpracujKod(kod) {
 async function prepniSkenovani() {
   if (skener.jeSpusten()) {
     skener.zastav(video);
+    ocr.uklid();                 // rozpoznávání textu si drží hodně paměti
     kamera.hidden = true;
     btnSvetlo.hidden = true;
+    btnCislo.hidden = true;
     btnSkenovat.textContent = '📷 Spustit skenování';
     nastavStav('Skenování zastaveno.');
     return;
@@ -231,7 +311,8 @@ async function prepniSkenovani() {
     await skener.spust(video, zpracujKod);
     btnSkenovat.textContent = '⏹ Zastavit';
     btnSvetlo.hidden = !skener.maSvetlo();
-    nastavStav('Namiřte kód na knize do rámečku.');
+    btnCislo.hidden = false;
+    nastavStav('Namiřte čárový kód do rámečku. Kniha žádný nemá? Zaměřte na řádek s číslem ISBN a klepněte na „Přečíst číslo ISBN“.');
   } catch (chyba) {
     kamera.hidden = true;
     console.error(chyba);
@@ -265,6 +346,42 @@ btnSvetlo.addEventListener('click', async () => {
 });
 
 btnSkenovat.addEventListener('click', prepniSkenovani);
+
+/* ------------------------------------------------- přečtení ISBN z čísla */
+
+/**
+ * Pro knihy bez čárového kódu: vyfotí se rámeček a z obrázku se přečte
+ * vytištěné číslo ISBN. Trvá to pár vteřin, proto se to spouští klepnutím
+ * a ne průběžně jako čtení čárových kódů.
+ */
+btnCislo.addEventListener('click', async () => {
+  if (!skener.jeSpusten()) return;
+
+  btnCislo.disabled = true;
+  const puvodniPopis = btnCislo.textContent;
+  btnCislo.textContent = '⏳ Čtu…';
+
+  try {
+    const { isbn, text } = await ocr.prectiIsbnZObrazu(video, nastavStav);
+
+    if (isbn) {
+      await zpracujKod(isbn);
+    } else if (text) {
+      oznam('Číslo ISBN se v obrázku nenašlo.', 'varovani');
+      nastavStav(`Přečteno „${text.replace(/\s+/g, ' ').slice(0, 40)}“, ale platné ISBN v tom není. Zkuste jít blíž, přisvítit, nebo číslo zadat ručně.`);
+    } else {
+      oznam('Z obrázku se nepodařilo nic přečíst.', 'varovani');
+      nastavStav('Namiřte na řádek s číslem ISBN, držte telefon v klidu a zkuste to znovu.');
+    }
+  } catch (chyba) {
+    console.error(chyba);
+    oznam('Rozpoznávání textu selhalo.', 'chyba');
+    nastavStav(chyba.message || 'Rozpoznávání textu se nepodařilo spustit.');
+  } finally {
+    btnCislo.disabled = false;
+    btnCislo.textContent = puvodniPopis;
+  }
+});
 
 /* ------------------------------------------------------------ ruční zadání */
 

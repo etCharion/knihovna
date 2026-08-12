@@ -6,9 +6,15 @@
  * offline funguje skenování a už uložená tabulka.
  */
 
-const VERZE = 'knihovna-v1';
+const VERZE = 'knihovna-v2';
 
-/** Soubory aplikace — bez nich by se nespustila. */
+/**
+ * Soubory aplikace — bez nich by se nespustila, proto se stahují dopředu.
+ *
+ * Rozpoznávání textu (vendor/tesseract/, skoro 7 MB) tu schválně není:
+ * stáhne se teprve tomu, kdo si o čtení čísla řekne, a do cache se uloží
+ * až tehdy — viz obsluha fetch níže.
+ */
 const ZAKLAD = [
   './',
   './index.html',
@@ -16,6 +22,7 @@ const ZAKLAD = [
   './js/app.js',
   './js/isbn.js',
   './js/lookup.js',
+  './js/ocr.js',
   './js/scanner.js',
   './js/storage.js',
   './manifest.webmanifest',
