@@ -150,18 +150,25 @@ export async function spust(video, onKod) {
 
   const hlaseni = omezOpakovani(onKod);
 
-  if (await nativniPodpora()) {
-    try {
-      video.srcObject = stream;
-      await video.play();
-      stopka = await dekodujNativne(video, hlaseni);
-    } catch (chyba) {
-      // Prohlížeč se k funkci hlásí, ale nefunguje — pořád zbývá ZXing.
-      console.warn('Nativní čtečka selhala, přepínám na ZXing.', chyba);
+  try {
+    if (await nativniPodpora()) {
+      try {
+        video.srcObject = stream;
+        await video.play();
+        stopka = await dekodujNativne(video, hlaseni);
+      } catch (chyba) {
+        // Prohlížeč se k funkci hlásí, ale nefunguje — pořád zbývá ZXing.
+        console.warn('Nativní čtečka selhala, přepínám na ZXing.', chyba);
+        stopka = await dekodujZxing(video, hlaseni);
+      }
+    } else {
       stopka = await dekodujZxing(video, hlaseni);
     }
-  } else {
-    stopka = await dekodujZxing(video, hlaseni);
+  } catch (chyba) {
+    // Kamera už běží; kdyby se čtečka nerozjela, musí se vypnout,
+    // jinak by telefonu svítila kontrolka a ubývala baterka.
+    zastav(video);
+    throw chyba;
   }
 
   bezi = true;
