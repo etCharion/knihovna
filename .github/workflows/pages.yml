@@ -27,10 +27,13 @@ jobs:
       name: github-pages
       url: ${{ steps.nasad.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Aplikace je čistě statická, nic se nekompiluje — nahraje se repozitář tak, jak je.
+      # enablement zapne Pages samo, takže není potřeba nic proklikávat v nastavení.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
