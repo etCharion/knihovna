@@ -60,12 +60,24 @@ const KNIHOVNA = {
     publishedDate: '2015',
     language: 'cs',
   },
+  // Kód z reálného skenu — hlídá se na něm dělení pomlčkami i tvar dotazu.
+  '9788073355067': {
+    title: 'Český titul se sedmičkovým prefixem',
+    authors: ['Petra Svobodová'],
+    publisher: 'Fragment',
+    publishedDate: '2006',
+    language: 'cs',
+  },
 };
+
+/** Dotazy, které aplikace poslala do Google Books — kontroluje se jejich tvar. */
+const dotazyNaGoogle = [];
 
 /** Vrátí knihu podle ISBN v dotazu, nebo prázdný výsledek jako skutečná služba. */
 function odpovezJakoGoogleBooks(route) {
-  const isbn = (new URL(route.request().url()).searchParams.get('q') || '').replace('isbn:', '');
-  const kniha = KNIHOVNA[isbn];
+  const dotaz = new URL(route.request().url()).searchParams.get('q') || '';
+  dotazyNaGoogle.push(dotaz);
+  const kniha = KNIHOVNA[dotaz.replace('isbn:', '')];
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -117,7 +129,7 @@ t((await prvni.locator('td').nth(1).innerText()).includes('Structure and Interpr
 t((await prvni.locator('td').nth(2).innerText()).includes('Harold Abelson'), 'autor se dohledal');
 t((await prvni.locator('td').nth(3).innerText()) === '1996', 'rok se vytáhl z data vydání');
 t((await prvni.locator('td').nth(4).innerText()) === 'MIT Press', 'vydavatel');
-t((await prvni.locator('td.isbn').innerText()) === '978-0306406157', 'ISBN se zobrazuje s prefixem');
+t((await prvni.locator('td.isbn').innerText()) === '978-0-306-40615-7', 'ISBN se zobrazuje se správnými pomlčkami');
 t((await stranka.locator('#pocet').innerText()) === '1', 'počítadlo ukazuje jednu knihu');
 
 /* ------------------------------------------------------------ neplatný kód */
@@ -167,7 +179,7 @@ await bunkaIsbn.fill('123');
 await stranka.locator('#hledat').click();
 await stranka.waitForTimeout(300);
 t((await stranka.locator('#hlaska').innerText()).includes('platné ISBN'), 'neplatná oprava ISBN se odmítne');
-t((await bunkaIsbn.innerText()) === '978-0306406157', 'po odmítnutí zůstane původní ISBN',
+t((await bunkaIsbn.innerText()) === '978-0-306-40615-7', 'po odmítnutí zůstane původní ISBN',
   await bunkaIsbn.innerText());
 
 // Oprava na jinou knihu: údaje se musí načíst znovu, ne zůstat po té staré.
@@ -193,15 +205,39 @@ await stranka.waitForTimeout(800);
 t((await stranka.locator('tbody tr').count()) === 2, 'do tabulky přibyla druhá kniha');
 
 const noveIsbn = stranka.locator('tbody tr').first().locator('td.isbn');
-t((await noveIsbn.innerText()) === '978-0306406157', 'nová kniha je nahoře');
+t((await noveIsbn.innerText()) === '978-0-306-40615-7', 'nová kniha je nahoře');
 await noveIsbn.click();
 await noveIsbn.fill('978-80-242-6870-5');
 await stranka.locator('#hledat').click();
 await stranka.waitForTimeout(400);
 t((await stranka.locator('#hlaska').innerText()).includes('už v tabulce je'),
   'oprava na už existující ISBN se odmítne');
-t((await noveIsbn.innerText()) === '978-0306406157', 'a číslo zůstane nezměněné');
+t((await noveIsbn.innerText()) === '978-0-306-40615-7', 'a číslo zůstane nezměněné');
 t((await stranka.locator('tbody tr').count()) === 2, 'nic se nesloučilo ani neztratilo');
+
+/* ------------------------------------- konkrétní kód z reálného skenu */
+
+// Zadává se s pomlčkami tak, jak je vytištěný na knize.
+dotazyNaGoogle.length = 0;
+await stranka.fill('#vstup-isbn', '978-80-7335-506-7');
+await stranka.click('#form-rucne button[type=submit]');
+await stranka.waitForFunction(
+  () => document.querySelector('tbody tr td:nth-child(2)')?.textContent.includes('sedmičkovým'),
+  null, { timeout: 10000 }).catch(() => {});
+
+const ceska = stranka.locator('tbody tr').first();
+t((await ceska.locator('td').nth(1).innerText()).includes('sedmičkovým'),
+  '978-80-7335-506-7 projde vyhledáním', await ceska.locator('td').nth(1).innerText());
+t((await ceska.locator('td.isbn').innerText()) === '978-80-7335-506-7',
+  'a zobrazí se přesně tak, jak je vytištěný na knize',
+  await ceska.locator('td.isbn').innerText());
+
+// Databáze knih pomlčky neberou — do dotazu musí jít holé číslice.
+t(dotazyNaGoogle.length > 0, 'dotaz do databáze odešel');
+t(dotazyNaGoogle.every((d) => !d.includes('-')), 'dotaz neobsahuje pomlčky',
+  dotazyNaGoogle.join(' | '));
+t(dotazyNaGoogle.includes('isbn:9788073355067'), 'dotaz má tvar isbn:<13 číslic>',
+  dotazyNaGoogle.join(' | '));
 
 /* ------------------------------------------------------ skenování kamerou */
 
@@ -220,6 +256,31 @@ try {
 /* --------------------------------------------------- záloha, obnova, CSV */
 
 odklikavejDialogy(stranka);
+
+/* --------------------------------------------- úklid duplicit v datech */
+
+// Takhle vypadají data ze zálohy z jiného telefonu nebo ze starší verze:
+// tři záznamy, ale jen dvě různé knihy.
+await stranka.evaluate(() => {
+  localStorage.setItem('knihovna.knihy.v1', JSON.stringify([
+    { id: 'a', isbn: '9788024268705', nazev: 'Kniha z Karolina', autor: 'Jan Novák',
+      poznamka: 'první výtisk', kusu: 2, pridano: '2026-08-01' },
+    { id: 'b', isbn: '9788024268705', nazev: '', autor: 'Jan Novák', vydavatel: 'Karolinum',
+      poznamka: 'druhý výtisk', kusu: 1, pridano: '2026-08-05' },
+    { id: 'c', isbn: '9780306406157', nazev: 'Jiná kniha', kusu: 1, pridano: '2026-08-06' },
+  ]));
+});
+await stranka.reload({ waitUntil: 'networkidle' });
+
+t((await stranka.locator('tbody tr').count()) === 2, 'duplicitní ISBN se při načtení sloučilo');
+const slouceny = await stranka.evaluate(() =>
+  JSON.parse(localStorage.getItem('knihovna.knihy.v1')).find((k) => k.isbn === '9788024268705'));
+t(slouceny.kusu === 3, 'počty kusů se sečetly', String(slouceny.kusu));
+t(slouceny.nazev === 'Kniha z Karolina', 'zachoval se vyplněný název');
+t(slouceny.vydavatel === 'Karolinum', 'a doplnil se údaj, který měl jen druhý záznam');
+t(slouceny.poznamka === 'první výtisk; druhý výtisk', 'obě poznámky zůstaly', slouceny.poznamka);
+
+
 await stranka.evaluate(() => {
   localStorage.setItem('knihovna.knihy.v1', JSON.stringify([
     { id: 'a', isbn: '9788024268705', nazev: 'Česká kniha s háčky',
@@ -260,6 +321,12 @@ t(csv.startsWith('﻿'), 'CSV má BOM, aby Excel poznal diakritiku');
 t(csv.replace(/^﻿/, '').split('\r\n')[0].startsWith('ISBN;Název;Autor'),
   'CSV má českou hlavičku oddělenou středníky');
 t(csv.includes('"text s ; středníkem a ""uvozovkami"""'), 'CSV zaobalilo středník i uvozovky');
+
+// Holé 13místné číslo si Excel přepíše na 9,78807E+12; s pomlčkami je to text.
+const radekCsv = csv.replace(/^﻿/, '').split('\r\n')[1];
+t(radekCsv.startsWith('978-80-242-6870-5;'), 'CSV má ISBN s pomlčkami, aby ho Excel nebral jako číslo',
+  radekCsv.slice(0, 30));
+t(!/^9788024268705/.test(radekCsv), 'a ne jako holé číslo');
 
 /* ------------------------------------------------------------- offline */
 
@@ -308,13 +375,15 @@ const kontextOcr = await prohlizecOcr.newContext({
 });
 const strankaOcr = await kontextOcr.newPage();
 
-// Hlídá se, odkud se tahá kód. Obrázky obálek z cizích serverů jsou
-// v pořádku, o ty tu nejde.
+// Hlídá se, odkud se tahá kód. Dotazy do databází knih a obrázky obálek
+// z cizích serverů jsou v pořádku — o ty tu nejde.
+const DATOVE_ZDROJE = ['googleapis.com', 'openlibrary.org', 'obalkyknih.cz'];
 const zvenku = [];
 strankaOcr.on('request', (r) => {
   const url = new URL(r.url());
   const jeKod = ['script', 'fetch', 'xhr', 'other'].includes(r.resourceType());
-  if (jeKod && url.origin !== new URL(ADRESA).origin) zvenku.push(url.host);
+  const jeDatovyZdroj = DATOVE_ZDROJE.some((h) => url.hostname.endsWith(h));
+  if (jeKod && !jeDatovyZdroj && url.origin !== new URL(ADRESA).origin) zvenku.push(url.host);
 });
 await strankaOcr.route('**/books/v1/volumes**', odpovezJakoGoogleBooks);
 for (const vzor of ['**/openlibrary.org/**', '**/obalkyknih.cz/**', '**/covers.openlibrary.org/**']) {
@@ -330,7 +399,7 @@ await strankaOcr.click('#btn-cislo');
 try {
   await strankaOcr.waitForSelector('#tabulka:not([hidden]) tbody tr', { timeout: 60000 });
   const radekOcr = strankaOcr.locator('tbody tr').first();
-  t((await radekOcr.locator('td.isbn').innerText()) === '978-8024268705',
+  t((await radekOcr.locator('td.isbn').innerText()) === '978-80-242-6870-5',
     'z vytištěného čísla se přečetlo správné ISBN', await radekOcr.locator('td.isbn').innerText());
   t((await radekOcr.locator('td').nth(1).innerText()).includes('Kniha z Karolina'),
     'a kniha se podle něj dohledala');

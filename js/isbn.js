@@ -1,3 +1,5 @@
+import isbn3 from '../vendor/isbn3.min.js';
+
 /**
  * Práce s ISBN / EAN kódy knih.
  *
@@ -71,15 +73,22 @@ export function jeKnizniKod(kod) {
 }
 
 /**
- * Zápis pro zobrazení v tabulce.
+ * Zápis ISBN s pomlčkami tak, jak se tiskne v knihách:
+ * prefix – skupina země – nakladatel – titul – kontrolní číslice,
+ * například 9788073355067 → 978-80-7335-506-7.
  *
- * Úplné dělení ISBN pomlčkami (skupina – nakladatel – titul – kontrola) se řídí
- * rozsahy, které se u každého nakladatele liší a vyžadovaly by rozsáhlou tabulku.
- * Odhadovat je by znamenalo vypisovat ISBN špatně, což je v knižní evidenci horší
- * než neoddělovat vůbec. Odděluje se proto jen prefix 978/979, který platí vždy.
+ * Kde přesně pomlčky patří, se u každého nakladatele liší a řídí se to
+ * oficiálními rozsahy agentury ISBN. Ty jsou v přibalené knihovně isbn3
+ * (vendor/), protože odhadovat je by znamenalo tisknout ISBN špatně.
+ *
+ * Pomlčky mají i praktický vedlejší efekt: Excel takový zápis bere jako text,
+ * kdežto holé třináctimístné číslo si přepíše na 9,78807E+12.
  */
 export function naFormat(isbn13) {
   const k = ocisti(isbn13);
   if (!/^\d{13}$/.test(k)) return k;
-  return `${k.slice(0, 3)}-${k.slice(3)}`;
+
+  // Nová nebo dosud nepřidělená čísla (typicky prefix 979) v rozsazích být
+  // nemusí. Pak se oddělí aspoň prefix, který platí vždy.
+  return isbn3.hyphenate(k) || `${k.slice(0, 3)}-${k.slice(3)}`;
 }

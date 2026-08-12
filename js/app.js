@@ -277,7 +277,10 @@ async function zpracujKod(kod) {
       nastavStav(`ISBN ${naFormat(isbn)} je uložené, ale databáze nebyly k zastižení. Zkontrolujte připojení; údaje můžete dopsat ručně.`);
     } else {
       oznam('Kniha se nenašla — doplňte údaje ručně v tabulce.', 'varovani');
-      nastavStav(`ISBN ${naFormat(isbn)} se v databázích nenašlo. Řádek je v tabulce, název a autora dopište klepnutím.`);
+      nastavStav(
+        `ISBN ${naFormat(isbn)} databáze neznají${kniha.selhalyZdroje?.length ? ` (a ${kniha.selhalyZdroje.length} z nich neodpověděla)` : ''}. ` +
+        'Řádek je v tabulce — název a autora dopište klepnutím. Zkontrolujte i samotné číslo, klepnutím jde opravit.'
+      );
     }
   } catch (chyba) {
     console.error(chyba);
@@ -424,8 +427,12 @@ prvek('soubor-import').addEventListener('change', async (udalost) => {
     const data = JSON.parse(await soubor.text());
     if (!Array.isArray(data)) throw new Error('Soubor nemá očekávaný tvar.');
     const pridano = ulozne.importuj(data);
+    const slouceno = ulozne.uklidDuplicity();
     vykresli();
-    oznam(`Načteno ${pridano} nových knih.`, 'uspech');
+    oznam(
+      `Načteno ${pridano} nových knih${slouceno ? `, sloučeno ${slouceno} duplicit` : ''}.`,
+      'uspech'
+    );
   } catch (chyba) {
     console.error(chyba);
     oznam('Soubor se nepodařilo načíst.', 'chyba');
@@ -466,6 +473,13 @@ document.querySelectorAll('th[data-radit]').forEach((zahlavi) => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && skener.jeSpusten()) prepniSkenovani();
 });
+
+// Data mohla vzniknout ve starší verzi aplikace nebo přijít ze zálohy
+// z jiného telefonu — dvojí záznamy o téže knize se hned na začátku sloučí.
+const slouceneNaStartu = ulozne.uklidDuplicity();
+if (slouceneNaStartu) {
+  oznam(`Sloučeno ${slouceneNaStartu} duplicitních záznamů podle ISBN.`, 'varovani');
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

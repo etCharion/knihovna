@@ -6,7 +6,7 @@
  * offline funguje skenování a už uložená tabulka.
  */
 
-const VERZE = 'knihovna-v2';
+const VERZE = 'knihovna-v3';
 
 /**
  * Soubory aplikace — bez nich by se nespustila, proto se stahují dopředu.
@@ -30,6 +30,7 @@ const ZAKLAD = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './vendor/zxing.min.js',
+  './vendor/isbn3.min.js',
 ];
 
 self.addEventListener('install', (udalost) => {

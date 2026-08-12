@@ -24,6 +24,9 @@ registrace, žádný API klíč.
   znovu.
 - **Export do CSV** (otevře se rovnou v Excelu) a **zálohu do JSON**.
 - **Počítání kusů** — druhý sken téže knihy nevytvoří duplicitu, jen přičte kus.
+  Duplicity, které se do tabulky dostaly jinudy (ze zálohy z jiného telefonu
+  nebo ze starší verze), se při načtení sloučí a kusy se sečtou.
+- **ISBN se správnými pomlčkami** — `978-80-7335-506-7`, ne `9788073355067`.
 - **Chod bez signálu** — po prvním načtení funguje aplikace i offline
   (dohledávání údajů pochopitelně internet potřebuje) a jde ji přidat na
   plochu telefonu jako běžnou appku.
@@ -92,19 +95,45 @@ a počet kusů zůstanou zachované. Klávesa Esc úpravu zruší.
 
 ---
 
+## Zápis ISBN a export do Excelu
+
+V tabulce i v CSV se ISBN píše s pomlčkami tak, jak je vytištěné v knize —
+`978-80-7335-506-7`. Kam pomlčky patří, se u každého nakladatele liší a řídí
+se to oficiálními rozsahy agentury ISBN; aplikace je má přibalené, takže
+nehádá.
+
+Má to i praktický důvod: **holé třináctimístné číslo si Excel vyloží jako
+číslo** a zobrazí `9,78807E+12`. Se pomlčkami je to text a zůstane čitelné.
+
+Do databází knih se naopak posílá vždy holých 13 číslic bez pomlček — v tomhle
+tvaru je vyhledávání očekává. V záloze do JSON jsou také holé číslice, aby se
+s nimi dalo dál pracovat.
+
 ## Kde se údaje o knihách berou
 
-Zdroje se zkoušejí popořadě, dokud některý knihu nenajde:
+Aplikace se zeptá **všech zdrojů naráz** a odpovědi složí dohromady: jeden zná
+název a autora, jiný má obálku. Výpadek jednoho zdroje tak nezastaví ostatní.
 
 | Zdroj | K čemu je nejlepší |
 |---|---|
 | [Google Books](https://developers.google.com/books) | nejširší záběr, zahraniční i mnoho českých titulů |
 | [Open Library](https://openlibrary.org/dev/docs/api/books) | starší a anglicky psané knihy |
-| [Obálky knih](https://www.obalkyknih.cz/) | české tituly, hlavně regionální vydání |
+| [Obálky knih](https://www.obalkyknih.cz/) | obálky českých vydání (bibliografii dodává jen někdy) |
 
-Všechny jsou veřejné a bez klíče. Když kniha nikde není (týká se hlavně
-starších českých vydání před rokem 1990), řádek se do tabulky přesto založí
-s vyplněným ISBN — název a autora dopíšete klepnutím do buňky.
+Všechny jsou veřejné a bez klíče. U Google Books se navíc, když strukturované
+hledání podle ISBN nic nevrátí, zkusí totéž číslo ještě jako obyčejné klíčové
+slovo — řada českých titulů má ISBN jen v popisu a jinak by se nenašla.
+
+Když kniha nikde není, řádek se do tabulky přesto založí s vyplněným ISBN —
+název a autora dopíšete klepnutím do buňky. Aplikace přitom rozlišuje dvě
+situace a napíše, o kterou jde:
+
+- **databáze knihu neznají** — typicky starší nebo malonákladová česká vydání;
+- **databáze neodpověděly** — vypadlé připojení nebo vyčerpaný limit dotazů;
+  tady má smysl to za chvíli zkusit znovu.
+
+Když se kniha nenajde, zkontrolujte i samotné číslo — skener se občas splete
+a klepnutím na ISBN v tabulce ho opravíte.
 
 ---
 
@@ -144,7 +173,9 @@ js/storage.js            ukládání, export do CSV a JSON
 sw.js                    offline režim
 manifest.webmanifest     nastavení pro přidání na plochu
 vendor/zxing.min.js      čtečka kódů pro prohlížeče bez vlastní podpory
+vendor/isbn3.min.js      oficiální rozsahy pro dělení ISBN pomlčkami
 vendor/tesseract/        rozpoznávání textu (načítá se až při použití)
+tests/jednotky.mjs       rychlé testy bez prohlížeče
 tests/e2e.mjs            automatický test v prohlížeči
 .github/workflows/       automatické nasazení na GitHub Pages
 ```
@@ -164,15 +195,20 @@ se načítá rovnou, Tesseract (7 MB) až když si někdo řekne o čtení čís
 
 ### Testy
 
-Sada testů projede celou aplikaci ve skutečném prohlížeči, včetně obojího
-skenování: Chromiu se místo kamery podstrčí jednou video s opravdovým čárovým
-kódem, podruhé video s vytištěným číslem ISBN. Dotazy do databází knih se
-podvrhují, test proto nezávisí na připojení.
+Testy jsou dvě sady. `tests/jednotky.mjs` běží v Node během vteřiny a kontroluje
+dělení ISBN, vytahování čísla z rozpoznaného textu, slučování duplicit
+a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
+skutečném prohlížeči včetně obojího skenování: Chromiu se místo kamery
+podstrčí jednou video s opravdovým čárovým kódem, podruhé video s vytištěným
+číslem ISBN. Dotazy do databází knih se podvrhují, testy proto nezávisí
+na připojení.
 
 ```bash
 npm install          # jen poprvé, kvůli Playwrightu
-npm start            # v jednom okně
-npm test             # ve druhém
+npm run test:jednotky   # rychlé testy, prohlížeč nepotřebují
+
+npm start            # pro test v prohlížeči: v jednom okně
+npm test             # a ve druhém (spustí obě sady)
 ```
 
 ---
