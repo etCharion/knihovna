@@ -67,11 +67,7 @@
     </div>
 
     <div class="tlacitka">
-      <button id="btn-csv" class="tlacitko">⬇️ Export CSV</button>
-      <button id="btn-json" class="tlacitko">⬇️ Záloha JSON</button>
-      <button id="btn-import" class="tlacitko">⬆️ Načíst zálohu</button>
       <button id="btn-smazat-vse" class="tlacitko nebezpecne">🗑️ Vymazat vše</button>
-      <input id="soubor-import" type="file" accept=".json,application/json" hidden>
     </div>
 
     <p class="prazdno" id="prazdno">Zatím tu nic není. Naskenujte první knihu.</p>
@@ -95,12 +91,63 @@
     </div>
   </section>
 
+  <!-- ------------------------------------------------ záloha -->
+  <section class="karta" id="sekce-zaloha">
+    <h2>Záloha</h2>
+    <p class="stav" id="stav-zalohy" role="status" aria-live="polite">
+      Tabulka je uložená jen v tomhle zařízení.
+    </p>
+
+    <div class="tlacitka">
+      <button id="btn-sdilet" class="tlacitko hlavni" hidden>
+        📤 Odeslat zálohu (Disk, e-mail…)
+      </button>
+      <button id="btn-email" class="tlacitko">✉️ Poslat e-mailem</button>
+      <button id="btn-slozka" class="tlacitko" hidden>📁 Zálohovat do složky…</button>
+      <button id="btn-slozka-vypnout" class="tlacitko nebezpecne" hidden>Vypnout složku</button>
+    </div>
+
+    <div class="tlacitka">
+      <button id="btn-csv" class="tlacitko">⬇️ Export CSV</button>
+      <button id="btn-json" class="tlacitko">⬇️ Záloha JSON</button>
+      <button id="btn-import" class="tlacitko">⬆️ Načíst zálohu</button>
+      <input id="soubor-import" type="file" accept=".json,application/json" hidden>
+    </div>
+
+    <details class="rozbalovaci">
+      <summary>Jak seznam dostat na Disk Google nebo do e-mailu</summary>
+      <p class="napoveda">
+        <strong>Odeslat zálohu</strong> otevře v telefonu systémovou nabídku sdílení.
+        Vyberete v ní Disk, Gmail, WhatsApp nebo uložení do souborů — tabulka jde
+        jako skutečná příloha (CSV i JSON). Na počítači tlačítko nebývá, prohlížeče
+        tam sdílení souborů většinou neumí.
+      </p>
+      <p class="napoveda">
+        <strong>Poslat e-mailem</strong> otevře rozepsanou zprávu se seznamem knih
+        v textu a soubory zálohy stáhne, abyste je mohli přiložit. Příponu k e-mailu
+        za vás web přidat nesmí, proto ten dvojí krok.
+      </p>
+      <p class="napoveda">
+        <strong>Zálohovat do složky</strong> (Chrome nebo Edge na počítači) je jediná
+        možnost, u které se nemusíte na nic pamatovat: jednou vyberete složku —
+        ideálně tu, kterou synchronizuje Disk Google nebo OneDrive — a aplikace do ní
+        po každé změně sama zapíše zálohu. Vedle přepisovaného souboru drží
+        v podsložce <code>zalohy/</code> i jednu kopii na každý den.
+      </p>
+      <p class="napoveda">
+        <strong>Záloha JSON</strong> je ta, kterou jde tlačítkem <strong>Načíst
+        zálohu</strong> nahrát zpátky do aplikace. CSV je na čtení v Excelu.
+      </p>
+    </details>
+  </section>
+
 </main>
 
 <footer class="paticka">
   <p>Údaje se dohledávají v katalogu Knihovny.cz a dále přes Google Books
      a Open Library.
-     Tabulka je uložená jen v tomto zařízení — zálohu udělejte exportem.</p>
+     Tabulka je uložená jen v tomto zařízení — zálohu pošlete na Disk, e-mailem
+     nebo do složky v počítači.</p>
 </footer>
 
 <div id="hlaska" class="hlaska" role="status" aria-live="polite" hidden></div>

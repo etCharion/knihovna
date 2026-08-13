@@ -23,6 +23,9 @@ registrace, žádný API klíč.
   Když skener přečte číslo špatně, přepíšete ho a údaje o knize se dohledají
   znovu.
 - **Export do CSV** (otevře se rovnou v Excelu) a **zálohu do JSON**.
+- **Zálohu mimo telefon** — odeslání na Disk Google či do e-mailu přes systémovou
+  nabídku sdílení, rozepsaný e-mail se seznamem, nebo **automatický zápis do
+  složky** v počítači (viz [Zálohování](#zálohování--jak-dostat-seznam-mimo-telefon)).
 - **Počítání kusů** — druhý sken téže knihy nevytvoří duplicitu, jen přičte kus.
   Duplicity, které se do tabulky dostaly jinudy (ze zálohy z jiného telefonu
   nebo ze starší verze), se při načtení sloučí a kusy se sečtou.
@@ -68,6 +71,8 @@ Aplikace se pak spouští jako samostatná ikona bez adresního řádku.
 4. Kniha se během chvilky objeví v tabulce i s údaji.
 5. Skenujte dál — knihovnu tak projdete kus po kuse.
 6. Na konci klepněte na **Export CSV** a máte tabulku v Excelu.
+7. Aby seznam přežil ztrátu telefonu, pošlete si ho z karty **Záloha** na Disk
+   Google nebo e-mailem — viz [Zálohování](#zálohování--jak-dostat-seznam-mimo-telefon).
 
 ### Kniha bez čárového kódu
 
@@ -183,9 +188,71 @@ a klepnutím na ISBN v tabulce ho opravíte.
 v daném telefonu. Z toho plyne pár praktických věcí:
 
 - Údaje se **nesynchronizují** mezi telefonem a počítačem.
-- Vymazání dat prohlížeče smaže i tabulku → **dělejte si zálohy** tlačítkem
-  *Záloha JSON*. Zpátky ji nahrajete přes *Načíst zálohu*.
+- Vymazání dat prohlížeče smaže i tabulku → **dělejte si zálohy** (viz níže).
 - Na internet odchází jen samotné ISBN, a to do výše uvedených databází.
+
+---
+
+## Zálohování — jak dostat seznam mimo telefon
+
+Karta **Záloha** pod tabulkou nabízí čtyři cesty. Všechny fungují bez serveru,
+bez registrace a bez API klíče — aplikace je pořád jen statická stránka, data
+tedy putují výhradně tam, kam je pošlete sami. Nahoře na kartě je vždy vidět,
+**kdy záloha proběhla naposledy** a jestli se od té doby tabulka změnila.
+
+| Tlačítko | Co udělá | Kde funguje |
+|---|---|---|
+| **📤 Odeslat zálohu** | otevře systémovou nabídku sdílení — Disk Google, Gmail, WhatsApp, Soubory… Tabulka jde jako **skutečná příloha** (CSV i JSON). | telefony (Android, iPhone); na počítači se tlačítko nezobrazí |
+| **✉️ Poslat e-mailem** | otevře rozepsanou zprávu se **seznamem knih přímo v textu** a stáhne oba soubory, abyste je mohli přiložit. | všude |
+| **📁 Zálohovat do složky** | jednou vyberete složku a aplikace do ní **sama po každé změně** zapíše zálohu. | Chrome a Edge na počítači |
+| **⬇️ Export CSV / Záloha JSON** | stáhne soubor do zařízení. | všude |
+
+### Na Disk Google
+
+**Z telefonu:** *Odeslat zálohu* → v nabídce sdílení vyberte **Disk**. Zvolíte
+složku a je hotovo. Stejnou cestou jde záloha poslat do Gmailu jako příloha.
+
+**Z počítače:** mějte nainstalovaný *Disk Google pro počítač* (nebo OneDrive,
+Dropbox — cokoliv, co synchronizuje složku) a v aplikaci klepněte na
+**📁 Zálohovat do složky**. Vyberete synchronizovanou složku a od té chvíle se
+záloha zapisuje sama po každé změně tabulky — do cloudu ji pak vynese
+synchronizace. Ve složce vzniknou:
+
+```
+knihovna-zaloha.json     aktuální stav, přepisuje se
+knihovna-zaloha.csv      totéž pro Excel
+zalohy/knihovna-2026-08-13.json   jedna kopie na každý den
+```
+
+Denní kopie tam jsou schválně: kdyby se tabulka poškodila nebo omylem vymazala,
+přepisovaná záloha by tu chybu jen věrně zkopírovala. Ze stejného důvodu se
+**prázdná tabulka nikdy nezapisuje** — kdyby prohlížeč sám uklidil úložiště,
+aplikace by se spustila prázdná a jinak by tím zálohu přepsala.
+
+> Po každém novém otevření aplikace se prohlížeč jednou zeptá, jestli smí do
+> složky psát — je to jeho bezpečnostní pojistka, kterou stránka obejít nemůže.
+> Tlačítko v takovém případě říká *Povolit zápis do složky*.
+
+### Proč aplikace neumí poslat e-mail sama
+
+Odeslat poštu z prohlížeče bez serveru nejde a **přílohu k `mailto:` zprávě
+webová stránka přidat nesmí** — je to bezpečnostní pravidlo prohlížečů, ne
+opomenutí. Proto *Poslat e-mailem* vypíše seznam do textu zprávy (i ten je
+plnohodnotná záloha, dá se z něj přečíst, co v knihovně bylo) a soubory zároveň
+stáhne, abyste je přiložili klepnutím.
+
+Kdyby měla záloha odcházet na e-mail **sama, bez ťuknutí** (třeba každý večer),
+musela by aplikace mít kam poslat data — nejlevněji vlastní *Google Apps
+Script* nasazený jako webová aplikace, který zprávu odešle za vás. Znamená to
+ale jednu službu navíc a přístup k datům mimo telefon; proto to tu není a
+plánovanou zálohu zastává složka synchronizovaná Diskem.
+
+### Obnovení ze zálohy
+
+**Načíst zálohu** vezme soubor **JSON** (ten z tlačítka *Záloha JSON*,
+z nabídky sdílení, nebo `knihovna-zaloha.json` ze složky) a sloučí ho se
+stávající tabulkou — podle ISBN pozná, co už v ní je, takže se starší záloha dá
+nahrát bez obav. CSV je určené ke čtení v Excelu, zpátky se nenačítá.
 
 ---
 
@@ -193,9 +260,13 @@ v daném telefonu. Z toho plyne pár praktických věcí:
 
 | Zařízení | Stav |
 |---|---|
-| Android — Chrome, Edge | plná podpora, čtení kódů zajišťuje přímo prohlížeč |
-| iPhone / iPad — Safari 15+ | funguje; na čtení kódů se stáhne knihovna ZXing |
-| Počítač — Chrome, Edge, Firefox, Safari | funguje s webkamerou i ručním zadáním |
+| Android — Chrome, Edge | plná podpora, čtení kódů zajišťuje přímo prohlížeč; záloha přes nabídku sdílení |
+| iPhone / iPad — Safari 15+ | funguje; na čtení kódů se stáhne knihovna ZXing; záloha přes nabídku sdílení |
+| Počítač — Chrome, Edge | funguje s webkamerou i ručním zadáním; navíc **automatická záloha do složky** |
+| Počítač — Firefox, Safari | funguje; zálohuje se stažením souboru nebo e-mailem |
+
+Tlačítka, která prohlížeč neumí, se nezobrazují — nabídne se vždy jen to, co
+v daném zařízení opravdu funguje.
 
 ---
 
@@ -210,6 +281,7 @@ js/ocr.js                čtení ISBN z vytištěného čísla
 js/lookup.js             dohledání knihy v online databázích
 js/isbn.js               ověření a převody ISBN
 js/storage.js            ukládání, export do CSV a JSON
+js/zaloha.js             sdílení, e-mail a automatická záloha do složky
 sw.js                    offline režim
 manifest.webmanifest     nastavení pro přidání na plochu
 vendor/zxing.min.js      čtečka kódů pro prohlížeče bez vlastní podpory
@@ -237,8 +309,8 @@ se načítá rovnou, Tesseract (7 MB) až když si někdo řekne o čtení čís
 ### Testy
 
 Testy jsou tři sady. `tests/jednotky.mjs` běží v Node během vteřiny a kontroluje
-dělení ISBN, vytahování čísla z rozpoznaného textu, slučování duplicit
-a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
+dělení ISBN, vytahování čísla z rozpoznaného textu, slučování duplicit,
+sestavení e-mailové zálohy a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
 skutečném prohlížeči včetně obojího skenování: Chromiu se místo kamery
 podstrčí jednou video s opravdovým čárovým kódem, podruhé video s vytištěným
 číslem ISBN. `tests/aktualizace.mjs` hlídá, že se nová verze aplikace opravdu
