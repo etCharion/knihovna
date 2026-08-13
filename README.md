@@ -1,9 +1,9 @@
 # 📚 Knihovna — skener knih
 
 Webová aplikace, která přes kameru telefonu přečte čárový kód na knize, sama
-na internetu dohledá **ISBN, autora, název a další údaje** a uloží je do
-tabulky. Běží jako statická stránka na GitHub Pages — žádný server, žádná
-registrace, žádný API klíč.
+na internetu dohledá **ISBN, autora, název a další údaje**, ukáže je ke kontrole
+a po potvrzení uloží do tabulky. Běží jako statická stránka na GitHub Pages —
+žádný server, žádná registrace, žádný API klíč.
 
 **Živá aplikace:** `https://etcharion.github.io/knihovna/`
 *(odkaz začne fungovat po zapnutí Pages — viz Zprovoznění níže)*
@@ -17,15 +17,20 @@ registrace, žádný API klíč.
   zaměříte řádek s číslem a klepnete na *Přečíst číslo ISBN*.
 - **Automatické dohledání údajů** — název, autor, vydavatel, rok, počet stran,
   jazyk i obálka.
+- **Potvrzení u každé knihy** — nic se neuloží samo. Načtená kniha se ukáže
+  v nabídce, kde jde opravit ISBN a vyhledat znovu, upravit údaje, vybrat
+  poličku — a teprve pak ji přidat, nebo zahodit.
+- **Poličky** — kniha se ukládá s místem, kde stojí, takže jde zpětně dohledat.
+  Tabulka se dá podle poličky filtrovat a knihu jde kdykoliv přeřadit jinam.
 - **Tabulka knih** s hledáním a řazením podle sloupců.
 - **Ruční zadání ISBN**, když je kód poškozený nebo chybí.
 - **Úpravy přímo v tabulce** — klepnutím na název, autora, poznámku i **ISBN**.
   Když skener přečte číslo špatně, přepíšete ho a údaje o knize se dohledají
   znovu.
 - **Export do CSV** (otevře se rovnou v Excelu) a **zálohu do JSON**.
-- **Počítání kusů** — druhý sken téže knihy nevytvoří duplicitu, jen přičte kus.
-  Duplicity, které se do tabulky dostaly jinudy (ze zálohy z jiného telefonu
-  nebo ze starší verze), se při načtení sloučí a kusy se sečtou.
+- **Počítání kusů** — druhý sken téže knihy na téže poličce nevytvoří duplicitu,
+  jen přičte kus. Duplicity, které se do tabulky dostaly jinudy (ze zálohy
+  z jiného telefonu nebo ze starší verze), se při načtení sloučí a kusy sečtou.
 - **ISBN se správnými pomlčkami** — `978-80-7335-506-7`, ne `9788073355067`.
 - **Chod bez signálu** — po prvním načtení funguje aplikace i offline
   (dohledávání údajů pochopitelně internet potřebuje) a jde ji přidat na
@@ -65,9 +70,43 @@ Aplikace se pak spouští jako samostatná ikona bez adresního řádku.
 1. Otevřete stránku v telefonu a klepněte na **Spustit skenování**.
 2. Prohlížeč se poprvé zeptá na **přístup ke kameře** — je potřeba povolit.
 3. Namiřte čárový kód knihy do rámečku. Po přečtení telefon pípne a zavibruje.
-4. Kniha se během chvilky objeví v tabulce i s údaji.
+4. Objeví se **nabídka s dohledanými údaji**. Zkontrolujte je a klepněte na
+   *Přidat do knihovny* — teprve tím se kniha uloží.
 5. Skenujte dál — knihovnu tak projdete kus po kuse.
 6. Na konci klepněte na **Export CSV** a máte tabulku v Excelu.
+
+### Potvrzení u každé knihy
+
+Skener se občas splete: přečte kód sousední knihy nebo číslo, které knize vůbec
+nepatří. Proto se **nic neukládá samo**. Po každém načtení se otevře nabídka:
+
+- **ISBN** — když je číslo špatně, přepište ho a klepněte na *🔎 Vyhledat*.
+  Údaje se dohledají znovu podle opraveného čísla.
+- **Název, autor, rok, vydavatel, poznámka** — dají se upravit ještě před
+  uložením; to se hodí hlavně u knih, které databáze neznají.
+- **Polička** — kam kniha patří (viz níže).
+- **Přidat do knihovny** knihu uloží, **Zahodit** (nebo klávesa Esc) ji zahodí
+  a nic se neuloží. Pak můžete skenovat dál.
+
+Když ten samý titul na dané poličce už máte, nabídka to napíše a místo nové
+knihy přičte další kus. A když stojí na jiné poličce, řekne na které.
+
+### Poličky
+
+Aby šlo zpětně dohledat, **kde která kniha stojí**, ukládá se ke knize polička —
+prostý název místa, třeba *Obývák — horní řada* nebo *Ložnice*.
+
+- Poličku pro skenování vyberete nahoře v **Skenuji do poličky**; nová se založí
+  volbou *➕ Nová polička…* nebo ve **Spravovat poličky**.
+- Volba se pamatuje, takže celou polici projdete jedním skenem za druhým.
+  U každé knihy jde v nabídce ještě změnit.
+- V tabulce je sloupec **Polička** — přeřazení knihy jinam je jedno klepnutí.
+- Nad tabulkou se dá **filtrovat podle poličky**; hledání polička taky bere.
+- Tentýž titul na dvou poličkách jsou **dva řádky** — dva výtisky na dvou
+  místech. Opakovaný sken na téže poličce přičte kus, jako dřív.
+- Zrušení poličky knihy nemaže, jen je nechá bez zařazení. Přejmenování se
+  promítne i do knih. Poličky přežijí i *Vymazat vše*.
+- Polička jde i do exportu CSV a do zálohy JSON.
 
 ### Kniha bez čárového kódu
 
@@ -83,11 +122,13 @@ Rozpoznaný text nebývá dokonalý, ale ISBN má kontrolní číslici, takže s
 > pár vteřin). Pak už se používá z paměti telefonu a funguje i offline.
 > Kdo skenuje jen čárové kódy, nestáhne z toho nic.
 
-### Špatně přečtené ISBN
+### Špatně přečtené ISBN u už uložené knihy
 
-Klepněte na číslo v tabulce, přepište ho a potvrďte (Enter, nebo klepnutí
-jinam). Údaje o knize se dohledají znovu podle opraveného čísla — poznámka
-a počet kusů zůstanou zachované. Klávesa Esc úpravu zruší.
+Nejjednodušší je opravit číslo hned v nabídce, ještě než se kniha uloží.
+U knihy, která už v tabulce je, klepněte na číslo, přepište ho a potvrďte
+(Enter, nebo klepnutí jinam). Údaje o knize se dohledají znovu podle opraveného
+čísla — poznámka, polička i počet kusů zůstanou zachované. Klávesa Esc
+úpravu zruší.
 
 > **Kameru pouští prohlížeč jen na HTTPS.** Na GitHub Pages to platí
 > automaticky. Při zkoušení na počítači musí adresa být `localhost`,
@@ -130,9 +171,9 @@ Všechny jsou veřejné a bez klíče. U Google Books se navíc, když strukturo
 hledání podle ISBN nic nevrátí, zkusí totéž číslo ještě jako obyčejné klíčové
 slovo — řada českých titulů má ISBN jen v popisu a jinak by se nenašla.
 
-Když kniha nikde není, řádek se do tabulky přesto založí s vyplněným ISBN —
-název a autora dopíšete klepnutím do buňky. Aplikace přitom rozlišuje dvě
-situace a napíše, o kterou jde:
+Když kniha nikde není, nabídka se přesto otevře s vyplněným ISBN — název
+a autora dopíšete rovnou v ní (nebo později klepnutím do buňky v tabulce).
+Aplikace přitom rozlišuje dvě situace a napíše, o kterou jde:
 
 - **databáze knihu neznají** — typicky starší nebo malonákladová česká vydání;
 - **databáze neodpověděly** — vypadlé připojení, vyčerpaný limit dotazů, nebo
@@ -172,8 +213,8 @@ CORS, odpovídá ve formátu JSONP a přístup pouští jen registrovaným kniho
 určená knihovnám s vlastním katalogem. U českých knih proto někdy chybí
 obálka, i když se název a autor najdou.
 
-Když se kniha nenajde, zkontrolujte i samotné číslo — skener se občas splete
-a klepnutím na ISBN v tabulce ho opravíte.
+Když se kniha nenajde, zkontrolujte i samotné číslo — skener se občas splete.
+Opravit ho jde přímo v nabídce, ještě než se kniha uloží.
 
 ---
 
@@ -183,9 +224,11 @@ a klepnutím na ISBN v tabulce ho opravíte.
 v daném telefonu. Z toho plyne pár praktických věcí:
 
 - Údaje se **nesynchronizují** mezi telefonem a počítačem.
-- Vymazání dat prohlížeče smaže i tabulku → **dělejte si zálohy** tlačítkem
-  *Záloha JSON*. Zpátky ji nahrajete přes *Načíst zálohu*.
+- Vymazání dat prohlížeče smaže i tabulku a poličky → **dělejte si zálohy**
+  tlačítkem *Záloha JSON*. Zpátky ji nahrajete přes *Načíst zálohu*; poličky
+  se ze zálohy obnoví spolu s knihami.
 - Na internet odchází jen samotné ISBN, a to do výše uvedených databází.
+  Názvy poliček zůstávají v telefonu.
 
 ---
 
@@ -209,7 +252,7 @@ js/scanner.js            kamera a čtení čárových kódů
 js/ocr.js                čtení ISBN z vytištěného čísla
 js/lookup.js             dohledání knihy v online databázích
 js/isbn.js               ověření a převody ISBN
-js/storage.js            ukládání, export do CSV a JSON
+js/storage.js            ukládání, poličky, export do CSV a JSON
 sw.js                    offline režim
 manifest.webmanifest     nastavení pro přidání na plochu
 vendor/zxing.min.js      čtečka kódů pro prohlížeče bez vlastní podpory
@@ -237,11 +280,11 @@ se načítá rovnou, Tesseract (7 MB) až když si někdo řekne o čtení čís
 ### Testy
 
 Testy jsou tři sady. `tests/jednotky.mjs` běží v Node během vteřiny a kontroluje
-dělení ISBN, vytahování čísla z rozpoznaného textu, slučování duplicit
-a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
-skutečném prohlížeči včetně obojího skenování: Chromiu se místo kamery
-podstrčí jednou video s opravdovým čárovým kódem, podruhé video s vytištěným
-číslem ISBN. `tests/aktualizace.mjs` hlídá, že se nová verze aplikace opravdu
+dělení ISBN, vytahování čísla z rozpoznaného textu, slučování duplicit,
+práci s poličkami a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou
+aplikaci ve skutečném prohlížeči včetně obojího skenování a potvrzovací
+nabídky: Chromiu se místo kamery podstrčí jednou video s opravdovým čárovým
+kódem, podruhé video s vytištěným číslem ISBN. `tests/aktualizace.mjs` hlídá, že se nová verze aplikace opravdu
 dostane k uživateli a že přitom nepřestane fungovat offline režim. Dotazy do
 databází knih se podvrhují, testy proto nezávisí na připojení.
 
@@ -264,5 +307,10 @@ kamera v jiných prohlížečích na iOS bývá omezená.
 **Kód se nedaří přečíst.** Zkuste zapnout **🔦 Světlo**, jít o kousek dál
 (zhruba 15–20 cm) a vyhnout se odleskům na lesklé obálce.
 
-**Kniha se nenašla.** Zkontrolujte ISBN v tabulce; když sedí, kniha v databázích
-prostě není — dopište název a autora ručně.
+**Kniha se nenašla.** Zkontrolujte ISBN v nabídce a případně vyhledejte znovu;
+když číslo sedí, kniha v databázích prostě není — dopište název a autora ručně
+a přidejte ji.
+
+**Nejde naskenovat další knihu.** Nejdřív dořešte tu načtenou — přidejte ji,
+nebo zahoďte. Dokud je nabídka otevřená, další kódy se ignorují, aby se
+rozdělaná kniha neztratila.
