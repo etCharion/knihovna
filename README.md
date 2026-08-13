@@ -22,7 +22,8 @@ registrace, žádný API klíč.
 - **Úpravy přímo v tabulce** — klepnutím na název, autora, poznámku i **ISBN**.
   Když skener přečte číslo špatně, přepíšete ho a údaje o knize se dohledají
   znovu.
-- **Export do CSV** (otevře se rovnou v Excelu) a **zálohu do JSON**.
+- **Export do CSV připravený pro import** do školního knihovního systému
+  (otevře se rovnou v Excelu) a **zálohu do JSON**.
 - **Počítání kusů** — druhý sken téže knihy nevytvoří duplicitu, jen přičte kus.
   Duplicity, které se do tabulky dostaly jinudy (ze zálohy z jiného telefonu
   nebo ze starší verze), se při načtení sloučí a kusy se sečtou.
@@ -67,7 +68,8 @@ Aplikace se pak spouští jako samostatná ikona bez adresního řádku.
 3. Namiřte čárový kód knihy do rámečku. Po přečtení telefon pípne a zavibruje.
 4. Kniha se během chvilky objeví v tabulce i s údaji.
 5. Skenujte dál — knihovnu tak projdete kus po kuse.
-6. Na konci klepněte na **Export CSV** a máte tabulku v Excelu.
+6. Na konci klepněte na **Export CSV** a máte tabulku v Excelu — se sloupci
+   pojmenovanými tak, jak je čeká import do knihovního systému.
 
 ### Kniha bez čárového kódu
 
@@ -95,7 +97,31 @@ a počet kusů zůstanou zachované. Klávesa Esc úpravu zruší.
 
 ---
 
-## Zápis ISBN a export do Excelu
+## Export do CSV a import do knihovního systému
+
+Sloupce v exportu se jmenují **přesně jako pole, která nabízí knihovní systém
+při importu**, takže se při párování sloupců nemusí nic dohledávat:
+
+| Sloupec v CSV | Odkud se bere |
+|---|---|
+| Unikátní identifikátor definice knihy (ISBN) | z čárového kódu nebo z tištěného čísla |
+| Autor | dohledáno podle ISBN |
+| Název | dohledáno podle ISBN |
+| Rok vydání (titul) | dohledáno podle ISBN |
+| Vydavatelství (titul) | dohledáno podle ISBN |
+| Počet | kolikrát se kniha naskenovala |
+| Poznámka | co si k řádku napíšete v tabulce |
+
+Pořadí je dané: **ISBN, autor, název**, pak zbytek.
+
+Další pole, která systém při importu nabízí — cena, signatura, umístění,
+kategorie, přírůstkové číslo, způsob pořízení a podobně — v exportu **nejsou**.
+Z ISBN se dohledat nedají a prázdný sloupec by při párování polí jen mátl; kdo
+je potřebuje, dopíše si je v Excelu. Počet stran, jazyk a zdroj údajů aplikace
+zná, ale odpovídající pole importu nemají — zůstávají proto jen v záloze do
+JSON, ve které je uložené úplně všechno.
+
+### Zápis ISBN
 
 V tabulce i v CSV se ISBN píše s pomlčkami tak, jak je vytištěné v knize —
 `978-80-7335-506-7`. Kam pomlčky patří, se u každého nakladatele liší a řídí
