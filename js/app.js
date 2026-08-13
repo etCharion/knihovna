@@ -239,25 +239,43 @@ function bunka(text, trida) {
   return td;
 }
 
-/** Buňka, kterou jde přepsat přímo v tabulce — pro ruční doplnění a opravy. */
-function bunkaKUprave(kniha, pole, zastupnyText) {
-  const td = document.createElement('td');
-  td.contentEditable = 'true';
-  td.className = 'upravitelne';
-  td.textContent = kniha[pole] || '';
-  td.dataset.prazdny = zastupnyText;
-  td.addEventListener('blur', () => {
-    const nova = td.textContent.trim();
+/**
+ * Text, který jde přepsat přímo v tabulce — pro ruční doplnění a opravy.
+ *
+ * Upravitelný je vždycky jen tenhle prvek, ne celá buňka. Do buňky totiž může
+ * patřit i něco dalšího (odznak s počtem kusů) a to by se při uložení stalo
+ * součástí zapsané hodnoty — přesně tak se dřív do názvů dostávalo „3×“.
+ */
+function poleKUprave(kniha, pole, zastupnyText) {
+  const prvek = document.createElement('span');
+  prvek.contentEditable = 'true';
+  prvek.className = 'upravitelne';
+  prvek.dataset.pole = pole;
+  prvek.dataset.prazdny = zastupnyText;
+  prvek.textContent = kniha[pole] || '';
+  prvek.addEventListener('blur', () => {
+    const nova = prvek.textContent.trim();
     if (nova !== (kniha[pole] || '')) {
       ulozne.uprav(kniha.id, { [pole]: nova });
       kniha[pole] = nova;
     }
   });
-  td.addEventListener('keydown', (udalost) => {
+  prvek.addEventListener('keydown', (udalost) => {
     if (udalost.key === 'Enter') {
       udalost.preventDefault();
-      td.blur();
+      prvek.blur();
     }
+  });
+  return prvek;
+}
+
+/** Buňka s upravitelným textem. Klepnutí kamkoliv do buňky začne psát. */
+function bunkaKUprave(kniha, pole, zastupnyText) {
+  const td = document.createElement('td');
+  const prvek = poleKUprave(kniha, pole, zastupnyText);
+  td.appendChild(prvek);
+  td.addEventListener('click', (udalost) => {
+    if (udalost.target === td) prvek.focus();
   });
   return td;
 }
@@ -273,27 +291,34 @@ const POLE_O_KNIZE = ['nazev', 'autor', 'rok', 'vydavatel', 'stran', 'jazyk', 'o
  */
 function bunkaIsbn(kniha) {
   const td = document.createElement('td');
-  td.className = 'isbn upravitelne';
-  td.contentEditable = 'true';
-  td.dataset.prazdny = 'ISBN';
-  td.textContent = naFormat(kniha.isbn);
+  td.className = 'isbn';
+  const prvek = document.createElement('span');
+  prvek.className = 'upravitelne';
+  prvek.contentEditable = 'true';
+  prvek.dataset.pole = 'isbn';
+  prvek.dataset.prazdny = 'ISBN';
+  prvek.textContent = naFormat(kniha.isbn);
+  td.appendChild(prvek);
+  td.addEventListener('click', (udalost) => {
+    if (udalost.target === td) prvek.focus();
+  });
 
   const vratPuvodni = () => {
-    td.textContent = naFormat(kniha.isbn);
+    prvek.textContent = naFormat(kniha.isbn);
   };
 
-  td.addEventListener('keydown', (udalost) => {
+  prvek.addEventListener('keydown', (udalost) => {
     if (udalost.key === 'Enter') {
       udalost.preventDefault();
-      td.blur();
+      prvek.blur();
     } else if (udalost.key === 'Escape') {
       vratPuvodni();
-      td.blur();
+      prvek.blur();
     }
   });
 
-  td.addEventListener('blur', async () => {
-    const zadane = td.textContent.trim();
+  prvek.addEventListener('blur', async () => {
+    const zadane = prvek.textContent.trim();
     const nove = normalizuj(zadane);
 
     if (!nove) {
@@ -389,11 +414,14 @@ function radek(kniha) {
   tdObalka.appendChild(obrazek);
   tr.appendChild(tdObalka);
 
+  // Odznak s počtem kusů patří do buňky vedle názvu, ne dovnitř upravitelné
+  // části — jinak by se při klepnutí do buňky uložil jako součást názvu.
   const tdNazev = bunkaKUprave(kniha, 'nazev', 'Doplňte název');
   if (Number(kniha.kusu) > 1) {
     const odznak = document.createElement('span');
     odznak.className = 'odznak';
     odznak.textContent = `${kniha.kusu}×`;
+    odznak.title = `Počet kusů: ${kniha.kusu}`;
     tdNazev.appendChild(document.createTextNode(' '));
     tdNazev.appendChild(odznak);
   }
@@ -891,6 +919,16 @@ document.addEventListener('visibilitychange', () => {
 const slouceneNaStartu = ulozne.uklidDuplicity();
 if (slouceneNaStartu) {
   oznam(`Sloučeno ${slouceneNaStartu} duplicitních záznamů podle ISBN.`, 'varovani');
+}
+
+// Starší verze uměla nechtěně zapsat odznak s počtem kusů do názvu („3×“).
+const opraveneNazvy = ulozne.uklidNazvy();
+if (opraveneNazvy) {
+  oznam(
+    `U ${opraveneNazvy} knih${opraveneNazvy === 1 ? 'y' : ''} se z názvu odstranil ` +
+    'počet kusů — název prosím doplňte.',
+    'varovani'
+  );
 }
 
 // Poličky ze zálohy z jiného telefonu se objeví u knih, ale v seznamu chybí.

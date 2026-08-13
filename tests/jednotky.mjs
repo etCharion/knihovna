@@ -10,6 +10,7 @@ import { najdiKnihu } from '../js/lookup.js';
 
 // Ukládání pracuje s localStorage prohlížeče; v Node ho zastoupí tahle
 // drobná náhrada, aby šlo testovat poličky bez spouštění prohlížeče.
+// Modul se proto načítá až za ní — bez localStorage by při prvním dotazu spadl.
 const pamet = new Map();
 globalThis.localStorage = {
   getItem: (klic) => (pamet.has(klic) ? pamet.get(klic) : null),
@@ -19,7 +20,7 @@ globalThis.localStorage = {
 };
 
 const ulozne = await import('../js/storage.js');
-const { slucDuplicity } = ulozne;
+const { doCsv, opravNazvySOdznakem, slucDuplicity, SLOUPCE } = ulozne;
 
 let selhani = 0;
 const t = (ok, popis, detail = '') => {
@@ -167,11 +168,81 @@ nadpis('Poličky');
 
   const znovu = ulozne.importuj([{ isbn: '9788073355067', nazev: 'Kniha', policka: 'Sklep' }]);
   t(znovu === 0, 'opakovaný import téhož záznamu nic nepřidá');
-
-  const csv = ulozne.doCsv();
-  t(csv.includes('Polička'), 'CSV má sloupec s poličkou');
-  t(csv.includes(';Chodba;') || csv.includes(';Chodba'), 'a polička je v řádku knihy');
   localStorage.clear();
+}
+
+/* -------------------------------------- název pokažený odznakem s kusy */
+
+nadpis('Odznak v názvu');
+{
+  const knihy = [
+    { isbn: '111', nazev: '3×', kusu: 3 },
+    { isbn: '222', nazev: 'Kniha z Karolina 2×', kusu: 2 },
+    { isbn: '333', nazev: 'Kniha z Karolina', kusu: 2 },
+    { isbn: '444', nazev: '3× Vraždy v Orient expresu', kusu: 1 },
+  ];
+  const opraveno = opravNazvySOdznakem(knihy);
+  t(opraveno === 2, 'opraví se jen zasažené názvy', String(opraveno));
+  t(knihy[0].nazev === '', 'z názvu, který byl jen odznak, zbude prázdno', `„${knihy[0].nazev}“`);
+  t(knihy[1].nazev === 'Kniha z Karolina', 'jinde se odznak odřízne od názvu', knihy[1].nazev);
+  t(knihy[2].nazev === 'Kniha z Karolina', 'nedotčený název zůstane');
+  t(knihy[3].nazev === '3× Vraždy v Orient expresu', 'číslo uvnitř názvu se nesmí sáhnout',
+    knihy[3].nazev);
+}
+
+/* ------------------------------------------------------- export do CSV */
+
+nadpis('Export do CSV');
+{
+  const csv = doCsv([
+    { isbn: '9788024268705', nazev: 'Kniha z Karolina', autor: 'Jan Novák', rok: '2015',
+      vydavatel: 'Karolinum', poznamka: 'půjčeno Petrovi', kusu: 3, pridano: '2026-08-12',
+      zdroj: 'Knihovny.cz', stran: '253', jazyk: 'cs', policka: 'Obývák dole' },
+    { isbn: '9780306406157', nazev: 'Bez kusů', autor: '' },
+  ]);
+  const radky = csv.replace(/^﻿/, '').split('\r\n');
+  const hlavicka = radky[0].split(';');
+  const prvni = radky[1].split(';');
+  const hodnota = (popis) => prvni[hlavicka.indexOf(popis)];
+
+  t(csv.startsWith('﻿'), 'CSV má BOM kvůli diakritice v Excelu');
+  t(hlavicka[0] === 'Unikátní identifikátor definice knihy (ISBN)',
+    'první sloupec je ISBN pod názvem, který čeká import', hlavicka[0]);
+  t(hlavicka[1] === 'Autor' && hlavicka[2] === 'Název', 'pak autor a název',
+    hlavicka.slice(1, 3).join(', '));
+  t(hlavicka.join(';') ===
+      'Unikátní identifikátor definice knihy (ISBN);Autor;Název;Rok vydání (titul);' +
+      'Vydavatelství (titul);Počet;Polička;Poznámka',
+    'názvy sloupců odpovídají polím importu', hlavicka.join(';'));
+
+  // Kvůli tomuhle celá změna vznikla: pod hlavičkou musí stát ten údaj,
+  // který slibuje — ne třeba počet kusů v názvu.
+  t(hodnota('Název') === 'Kniha z Karolina', 'pod „Název“ je název', hodnota('Název'));
+  t(hodnota('Autor') === 'Jan Novák', 'pod „Autor“ je autor', hodnota('Autor'));
+  t(hodnota('Počet') === '3', 'pod „Počet“ je počet kusů', hodnota('Počet'));
+  t(hodnota('Rok vydání (titul)') === '2015', 'rok vydání');
+  t(hodnota('Vydavatelství (titul)') === 'Karolinum', 'vydavatelství');
+  t(hodnota('Polička') === 'Obývák dole', 'polička, aby se kniha dala najít na místě',
+    hodnota('Polička'));
+  t(hodnota('Poznámka') === 'půjčeno Petrovi', 'poznámka');
+
+  // Holé třináctimístné číslo si Excel přepíše na 9,78807E+12.
+  t(hodnota('Unikátní identifikátor definice knihy (ISBN)') === '978-80-242-6870-5',
+    'ISBN jde do CSV s pomlčkami',
+    hodnota('Unikátní identifikátor definice knihy (ISBN)'));
+
+  t(radky[2].split(';')[hlavicka.indexOf('Počet')] === '1',
+    'chybějící počet kusů znamená jeden kus', radky[2]);
+
+  // Prázdné sloupce by při párování polí importu jen mátly.
+  t(!hlavicka.includes('Zdroj údajů') && !hlavicka.includes('Přidáno'),
+    'vnitřní údaje aplikace v exportu nejsou', hlavicka.join(';'));
+  t(SLOUPCE.every((s) =>
+      ['isbn', 'autor', 'nazev', 'rok', 'vydavatel', 'kusu', 'policka', 'poznamka']
+        .includes(s.klic)),
+    'exportuje se jen to, co aplikace umí vyplnit',
+    SLOUPCE.map((s) => s.klic).join(', '));
+  t(radky.length === 3, 'řádek na knihu a jedna hlavička', String(radky.length));
 }
 
 /* ------------------------------------------------ dohledávání ve zdrojích */

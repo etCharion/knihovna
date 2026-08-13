@@ -166,6 +166,9 @@ t((await prvni.locator('td').nth(2).innerText()).includes('Harold Abelson'), 'au
 t((await prvni.locator('td').nth(3).innerText()) === '1996', 'rok se vytáhl z data vydání');
 t((await prvni.locator('td').nth(4).innerText()) === 'MIT Press', 'vydavatel');
 t((await prvni.locator('td.isbn').innerText()) === '978-0-306-40615-7', 'ISBN se zobrazuje se správnými pomlčkami');
+t((await prvni.locator('td').nth(1).innerText()).trim() ===
+  (await stranka.evaluate(() => JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0].nazev)),
+  'v buňce s názvem je přesně to, co je uložené');
 t((await stranka.locator('#pocet').innerText()) === '1', 'počítadlo ukazuje jednu knihu');
 
 /* ------------------------------------------------------------ neplatný kód */
@@ -238,11 +241,26 @@ await stranka.waitForTimeout(300);
 t((await stranka.locator('tbody tr').count()) === 1, 'stejná kniha nevytvoří druhý řádek');
 t((await stranka.locator('.odznak').innerText()) === '2×', 'místo toho přibude kus');
 
+/* ------------------------------ odznak s počtem kusů se nesmí dostat do názvu */
+
+// Dřív se odznak kreslil dovnitř upravitelné buňky, takže se při prvním
+// klepnutí uložil jako součást názvu a v exportu pak místo názvu stálo „2×“.
+const nazev = prvni.locator('[data-pole=nazev]');
+await nazev.click();
+await stranka.locator('#hledat').click(); // odklik jinam uloží
+await stranka.waitForTimeout(200);
+const nazevPoKliknuti = await stranka.evaluate(() =>
+  JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0].nazev);
+t(!nazevPoKliknuti.includes('×'), 'klepnutí do názvu tam nezapíše počet kusů', nazevPoKliknuti);
+t(nazevPoKliknuti.includes('Structure and Interpretation'), 'a název zůstane celý',
+  nazevPoKliknuti);
+t((await stranka.locator('.odznak').innerText()) === '2×', 'odznak přitom v tabulce zůstane');
+
 /* ------------------------------------------------------- úpravy a hledání */
 
-// Upravitelné buňky jsou název, autor, ISBN a poznámka; ISBN má vlastní
-// obsluhu, takže se pro jistotu vylučuje podle třídy.
-const poznamka = prvni.locator('td.upravitelne:not(.isbn)').nth(2);
+// Upravitelné texty v řádku jsou název, autor, ISBN a poznámka; každý má
+// v atributu data-pole, o který údaj jde.
+const poznamka = prvni.locator('[data-pole=poznamka]');
 await poznamka.click();
 await poznamka.fill('půjčeno Petrovi');
 await stranka.locator('#hledat').click(); // odklik jinam uloží
@@ -261,7 +279,7 @@ await stranka.fill('#hledat', '');
 
 /* ------------------------------------------------------- oprava ISBN */
 
-const bunkaIsbn = prvni.locator('td.isbn');
+const bunkaIsbn = prvni.locator('[data-pole=isbn]');
 
 // Neplatné číslo se musí odmítnout a v buňce zůstane to původní.
 await bunkaIsbn.click();
@@ -293,7 +311,7 @@ await pridejRucne(stranka, '9780306406157');
 await stranka.waitForTimeout(300);
 t((await stranka.locator('tbody tr').count()) === 2, 'do tabulky přibyla druhá kniha');
 
-const noveIsbn = stranka.locator('tbody tr').first().locator('td.isbn');
+const noveIsbn = stranka.locator('tbody tr').first().locator('[data-pole=isbn]');
 t((await noveIsbn.innerText()) === '978-0-306-40615-7', 'nová kniha je nahoře');
 await noveIsbn.click();
 await noveIsbn.fill('978-80-242-6870-5');
@@ -487,8 +505,13 @@ t((await stranka.locator('tbody tr').count()) === 1, 'opakovaný import knihu ne
 
 const csv = readFileSync(cestaCsv, 'utf8');
 t(csv.startsWith('﻿'), 'CSV má BOM, aby Excel poznal diakritiku');
-t(csv.replace(/^﻿/, '').split('\r\n')[0].startsWith('ISBN;Název;Autor'),
-  'CSV má českou hlavičku oddělenou středníky');
+
+// Hlavička se jmenuje přesně jako pole, do kterých se tabulka nahrává
+// ve školním systému — jinak by se sloupce musely párovat ručně.
+const hlavickaCsv = csv.replace(/^﻿/, '').split('\r\n')[0];
+t(hlavickaCsv === 'Unikátní identifikátor definice knihy (ISBN);Autor;Název;' +
+  'Rok vydání (titul);Vydavatelství (titul);Počet;Polička;Poznámka',
+  'CSV má hlavičku s názvy polí importu, oddělenou středníky', hlavickaCsv);
 t(csv.includes('"text s ; středníkem a ""uvozovkami"""'), 'CSV zaobalilo středník i uvozovky');
 
 // Holé 13místné číslo si Excel přepíše na 9,78807E+12; s pomlčkami je to text.
@@ -496,6 +519,8 @@ const radekCsv = csv.replace(/^﻿/, '').split('\r\n')[1];
 t(radekCsv.startsWith('978-80-242-6870-5;'), 'CSV má ISBN s pomlčkami, aby ho Excel nebral jako číslo',
   radekCsv.slice(0, 30));
 t(!/^9788024268705/.test(radekCsv), 'a ne jako holé číslo');
+t(radekCsv.includes(';Česká kniha s háčky;2015;Karolinum;3;'),
+  'a údaje stojí ve sloupcích, které je slibují', radekCsv);
 
 /* ------------------------------------------------------------- offline */
 

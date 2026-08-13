@@ -12,25 +12,36 @@ const KLIC_POLICKY = 'knihovna.policky.v1';
 const KLIC_AKTIVNI = 'knihovna.policka-aktivni.v1';
 
 /**
- * Sloupce tabulky — pořadí platí i pro export do CSV.
+ * Sloupce exportu do CSV.
+ *
+ * Názvy sloupců jsou přesně ty, které nabízí školní knihovní systém při
+ * importu (pole titulu i exempláře) — při párování sloupců se pak nemusí nic
+ * dohledávat, názvy sedí na první pohled. Pořadí je ISBN, autor, název, tedy
+ * od nejjistějšího údaje k těm ostatním.
+ *
+ * Jsou tu jen údaje, které aplikace opravdu má. Cenu, signaturu, přírůstkové
+ * číslo ani kategorii z ISBN dohledat nejde a prázdný sloupec by při importu
+ * jen mátl — kdo je potřebuje, dopíše si je v Excelu.
+ *
+ * Výjimkou je polička: tu aplikace zná, protože si ji uživatel u skenování
+ * nastavil. Sloupec se jmenuje po ní, ne po poli systému — jak přesně se
+ * umístění v importu jmenuje, se liší, a při párování se to dá vybrat ručně
+ * (nebo sloupec přeskočit).
  *
  * ISBN se do CSV zapisuje s pomlčkami. Holé třináctimístné číslo si Excel
- * vyloží jako číslo a zobrazí ho jako 9,78807E+12; se pomlčkami je to text
+ * vyloží jako číslo a zobrazí ho jako 9,78807E+12; s pomlčkami je to text
  * a zůstane čitelné. V záloze do JSON se naopak drží holé číslice, aby se
  * s nimi dalo dál počítat.
  */
 export const SLOUPCE = [
-  { klic: 'isbn', popis: 'ISBN', doCsv: naFormat },
-  { klic: 'nazev', popis: 'Název' },
+  { klic: 'isbn', popis: 'Unikátní identifikátor definice knihy (ISBN)', doCsv: naFormat },
   { klic: 'autor', popis: 'Autor' },
-  { klic: 'rok', popis: 'Rok' },
-  { klic: 'vydavatel', popis: 'Vydavatel' },
-  { klic: 'stran', popis: 'Stran' },
-  { klic: 'jazyk', popis: 'Jazyk' },
+  { klic: 'nazev', popis: 'Název' },
+  { klic: 'rok', popis: 'Rok vydání (titul)' },
+  { klic: 'vydavatel', popis: 'Vydavatelství (titul)' },
+  { klic: 'kusu', popis: 'Počet', doCsv: (kusu) => Number(kusu) || 1 },
   { klic: 'policka', popis: 'Polička' },
   { klic: 'poznamka', popis: 'Poznámka' },
-  { klic: 'zdroj', popis: 'Zdroj údajů' },
-  { klic: 'pridano', popis: 'Přidáno' },
 ];
 
 function nacti() {
@@ -213,6 +224,38 @@ export function slucDuplicity(knihy) {
 }
 
 /**
+ * Odznak s počtem kusů („3×“) se dřív kreslil přímo dovnitř upravitelné buňky
+ * s názvem. Buňka se ukládá tak, jak ji uživatel opustí, takže se odznak při
+ * prvním klepnutí do buňky uložil jako součást názvu — v tabulce i v exportu
+ * pak místo názvu stálo „3×“. Buňka je opravená (odznak je vedle upravitelné
+ * části, ne v ní), tohle uklidí záznamy, které tak už vznikly.
+ *
+ * Odstraňuje se jen koncové „číslo ×“ — v žádném skutečném názvu knihy takový
+ * konec nedává smysl, kdežto uvnitř názvu klidně být může („3× Vraždy“).
+ */
+const ODZNAK_NA_KONCI = /\s*\d+\s*×$/;
+
+export function opravNazvySOdznakem(knihy) {
+  let opraveno = 0;
+
+  for (const kniha of knihy) {
+    if (!ODZNAK_NA_KONCI.test(kniha.nazev || '')) continue;
+    kniha.nazev = kniha.nazev.replace(ODZNAK_NA_KONCI, '').trim();
+    opraveno++;
+  }
+
+  return opraveno;
+}
+
+/** Opraví názvy v uložených datech. Vrací, kolika řádků se to týkalo. */
+export function uklidNazvy() {
+  const knihy = nacti();
+  const opraveno = opravNazvySOdznakem(knihy);
+  if (opraveno) uloz(knihy);
+  return opraveno;
+}
+
+/**
  * Uklidí duplicity v uložených datech. Vrací, kolik řádků ubylo,
  * aby šlo uživateli říct, jestli se vůbec něco stalo.
  */
@@ -347,11 +390,10 @@ function bunkaCsv(hodnota) {
  * rovnou správně rozsloupcované a s diakritikou.
  */
 export function doCsv(knihy = nacti()) {
-  const hlavicka = [...SLOUPCE.map((s) => s.popis), 'Kusů'];
-  const radky = knihy.map((kniha) => [
-    ...SLOUPCE.map((s) => (s.doCsv ? s.doCsv(kniha[s.klic]) : kniha[s.klic])),
-    kniha.kusu ?? 1,
-  ]);
+  const hlavicka = SLOUPCE.map((s) => s.popis);
+  const radky = knihy.map((kniha) =>
+    SLOUPCE.map((s) => (s.doCsv ? s.doCsv(kniha[s.klic]) : kniha[s.klic]))
+  );
   const text = [hlavicka, ...radky].map((r) => r.map(bunkaCsv).join(';')).join('\r\n');
   return '﻿' + text;
 }

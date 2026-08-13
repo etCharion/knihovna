@@ -323,7 +323,12 @@ td.isbn { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--
 
 tr.nacita-se { opacity: .55; }
 
-.upravitelne { min-width: 8rem; cursor: text; border-radius: 4px; }
+/* Upravitelný je jen text v buňce, ne celá buňka — vedle něj bývá odznak
+   s počtem kusů a ten se do zapsané hodnoty plést nesmí. */
+.upravitelne { display: inline-block; cursor: text; border-radius: 4px; }
+/* Prázdné pole potřebuje šířku, aby se do něj dalo trefit prstem. Vyplněné
+   se drží textu, ať se odznak s počtem kusů vejde vedle názvu. */
+.upravitelne:empty { min-width: 8rem; }
 .upravitelne:focus { outline: 2px solid var(--hlavni); outline-offset: -2px; background: var(--pozadi); }
 .upravitelne:empty::before { content: attr(data-prazdny); color: var(--text-slaby); font-style: italic; }
 
