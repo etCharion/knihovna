@@ -486,6 +486,55 @@ await stranka.locator('tbody tr').first().locator('.ikona-tlacitko').click();
 await stranka.waitForTimeout(200);
 t((await stranka.locator('tbody tr').count()) === 1, 'časopis se dá smazat');
 
+/* ------------------------------- kniha z doby před ISBN (číslo ČNB) */
+
+// Do systému ISBN se Československo zapojilo až v roce 1989; starší knihy
+// mají jen číslo České národní bibliografie. Katalogy jsou v testu odstřižené,
+// jde o to, že číslo projde a řádek vznikne se správně prázdným ISBN.
+await zadejIsbn(stranka, 'cnb000123456');
+await pockejNaNabidku(stranka);
+t((await stranka.locator('#nabidka-isbn').inputValue()) === 'cnb000123456',
+  'ČNB projde jako platné číslo', await stranka.locator('#nabidka-isbn').inputValue());
+
+await stranka.fill('#nabidka-nazev', 'Traktor v socialistickém zemědělství');
+await stranka.fill('#nabidka-rok', '1974');
+await stranka.click('#btn-pridat');
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+
+const staraKniha = stranka.locator('tbody tr').first();
+t((await staraKniha.locator('td').nth(1).innerText()).includes('Traktor'),
+  'kniha bez ISBN se do tabulky uloží', await staraKniha.locator('td').nth(1).innerText());
+t((await staraKniha.locator('td.isbn [data-pole=isbn]').innerText()).trim() === '',
+  'pole pro ISBN u ní zůstane prázdné',
+  `„${await staraKniha.locator('td.isbn [data-pole=isbn]').innerText()}“`);
+t((await staraKniha.locator('td.isbn .odznak-cnb').innerText()) === 'cnb000123456',
+  'a ČNB stojí vedle něj', await staraKniha.locator('td.isbn .odznak-cnb').innerText());
+
+// Druhý sken téže knihy nesmí založit další řádek — klíčem je ČNB.
+const radkuPred = await stranka.locator('tbody tr').count();
+await zadejIsbn(stranka, 'cnb000123456');
+await pockejNaNabidku(stranka);
+t(await stranka.locator('#nabidka-upozorneni').isVisible(),
+  'nabídka pozná, že tuhle knihu už knihovna má');
+await stranka.click('#btn-zahodit');
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+t((await stranka.locator('tbody tr').count()) === radkuPred,
+  'takže druhý řádek nevznikne', String(await stranka.locator('tbody tr').count()));
+
+// A do sloupce, který import čeká jako ISBN, se ČNB nesmí dostat.
+const [exportCnb] = await Promise.all([
+  stranka.waitForEvent('download'),
+  stranka.click('#btn-csv'),
+]);
+const cestaCnb = join(DOCASNY, 'cnb.csv');
+await exportCnb.saveAs(cestaCnb);
+t(!readFileSync(cestaCnb, 'utf8').includes('cnb000123456'),
+  'ČNB se do exportu pro knihovní systém neplete');
+
+stranka.once('dialog', (d) => d.accept());
+await staraKniha.locator('.ikona-tlacitko').click();
+await stranka.waitForTimeout(200);
+
 /* --------------------------------------- hledání podle názvu a autora */
 
 await stranka.evaluate(() => { document.querySelector('.rucne').open = true; });

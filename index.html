@@ -71,8 +71,8 @@
           autocapitalize="characters"
           autocorrect="off"
           spellcheck="false"
-          placeholder="978-80-… nebo 1234-5678"
-          aria-label="ISBN knihy nebo ISSN časopisu">
+          placeholder="978-80-…, 1234-5678, cnb…"
+          aria-label="ISBN knihy, ISSN časopisu nebo číslo ČNB">
         <button
           type="button"
           id="btn-klavesnice"
@@ -84,7 +84,8 @@
       </form>
       <p class="napoveda">
         Hodí se, když je čárový kód poškozený nebo kniha žádný nemá. Zadat jde
-        i <b>ISSN</b> časopisu (1234-5678). Končí číslo písmenem <b>X</b>?
+        i <b>ISSN</b> časopisu (1234-5678) nebo <b>ČNB</b> u knih vydaných před
+        rokem 1989 (cnb000123456). Končí číslo písmenem <b>X</b>?
         Klepněte na tlačítko <b>X</b> vedle pole a klávesnice se přepne na
         písmena. Číslo v tabulce jde kdykoliv přepsat klepnutím, údaje se pak
         dohledají znovu.
@@ -218,11 +219,11 @@
     <p class="poznamka-nabidky" id="nabidka-upozorneni" hidden></p>
 
     <div class="pole">
-      <label for="nabidka-isbn">ISBN / ISSN</label>
+      <label for="nabidka-isbn">ISBN / ISSN / ČNB</label>
       <div class="radek-formulare">
         <input id="nabidka-isbn" type="text" inputmode="numeric" autocomplete="off"
                autocapitalize="characters" autocorrect="off" spellcheck="false"
-               placeholder="978-80-… nebo 1234-5678">
+               placeholder="978-80-…, 1234-5678, cnb…">
         <button
           type="button"
           id="btn-klavesnice-nabidka"

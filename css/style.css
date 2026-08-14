@@ -414,6 +414,19 @@ tr.nacita-se { opacity: .55; }
 .upravitelne:focus { outline: 2px solid var(--hlavni); outline-offset: -2px; background: var(--pozadi); }
 .upravitelne:empty::before { content: attr(data-prazdny); color: var(--text-slaby); font-style: italic; }
 
+/* Číslo ČNB u knih z doby před ISBN — stojí vedle prázdného pole pro ISBN,
+   ne v něm, takže musí být na první pohled poznat, že to ISBN není. */
+.odznak-cnb {
+  display: inline-block;
+  padding: 0 .35rem;
+  font-size: .75rem;
+  color: var(--text-slaby);
+  background: var(--pozadi);
+  border: 1px solid var(--ram);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 .odznak {
   display: inline-block;
   padding: 0 .35rem;
