@@ -7,6 +7,7 @@ import { najdiKnihu, nahradniObalka } from './lookup.js';
 import * as ocr from './ocr.js';
 import * as skener from './scanner.js';
 import * as ulozne from './storage.js';
+import * as zaloha from './zaloha.js';
 
 const prvek = (id) => document.getElementById(id);
 
@@ -843,17 +844,41 @@ prvek('form-rucne').addEventListener('submit', async (udalost) => {
 /* ------------------------------------------------------- export a import */
 
 function casovaZnacka() {
-  return new Date().toISOString().slice(0, 10);
+  return zaloha.znacka();
+}
+
+/** Vrátí knihy k zálohování, nebo null (a zahlásí to), když není co zálohovat. */
+function knihyKZaloze() {
+  const knihy = ulozne.vsechny();
+  if (!knihy.length) {
+    oznam('Tabulka je prázdná.', 'varovani');
+    return null;
+  }
+  return knihy;
+}
+
+function stahniCsv(knihy) {
+  ulozne.stahni(ulozne.doCsv(knihy), `knihovna-${casovaZnacka()}.csv`, 'text/csv;charset=utf-8');
+}
+
+function stahniJson(knihy) {
+  ulozne.stahni(ulozne.doJson(knihy), `knihovna-${casovaZnacka()}.json`, 'application/json');
 }
 
 prvek('btn-csv').addEventListener('click', () => {
-  if (!ulozne.vsechny().length) return oznam('Tabulka je prázdná.', 'varovani');
-  ulozne.stahni(ulozne.doCsv(), `knihovna-${casovaZnacka()}.csv`, 'text/csv;charset=utf-8');
+  const knihy = knihyKZaloze();
+  if (!knihy) return;
+  stahniCsv(knihy);
+  zaloha.zaznamenejExport(knihy);
+  vykresliStavZalohy();
 });
 
 prvek('btn-json').addEventListener('click', () => {
-  if (!ulozne.vsechny().length) return oznam('Tabulka je prázdná.', 'varovani');
-  ulozne.stahni(ulozne.doJson(), `knihovna-${casovaZnacka()}.json`, 'application/json');
+  const knihy = knihyKZaloze();
+  if (!knihy) return;
+  stahniJson(knihy);
+  zaloha.zaznamenejExport(knihy);
+  vykresliStavZalohy();
 });
 
 prvek('btn-import').addEventListener('click', () => prvek('soubor-import').click());
@@ -888,6 +913,120 @@ prvek('btn-smazat-vse').addEventListener('click', () => {
   vykresli();
   oznam('Tabulka vymazána. Poličky zůstaly.', 'varovani');
 });
+
+/* ---------------------------------------------- záloha mimo zařízení */
+
+const btnSdilet = prvek('btn-sdilet');
+const btnEmail = prvek('btn-email');
+const btnSlozka = prvek('btn-slozka');
+const btnSlozkaVypnout = prvek('btn-slozka-vypnout');
+const stavZalohy = prvek('stav-zalohy');
+
+/** Popis stavu zálohy — kdy se zálohovalo naposledy a kam se ukládá automaticky. */
+async function vykresliStavZalohy() {
+  const vety = [zaloha.popisPosledniZalohy()];
+  const slozka = await zaloha.stavSlozky();
+
+  btnSlozka.hidden = !slozka.podporovano;
+  btnSlozkaVypnout.hidden = !slozka.jmeno;
+  btnSlozka.classList.toggle('aktivni', slozka.povoleno);
+
+  if (!slozka.jmeno) {
+    btnSlozka.textContent = '📁 Zálohovat do složky…';
+  } else if (slozka.povoleno) {
+    btnSlozka.textContent = `📁 Složka: ${slozka.jmeno}`;
+    vety.push(`Automatická záloha běží do složky ${slozka.jmeno}.`);
+  } else {
+    btnSlozka.textContent = '📁 Povolit zápis do složky';
+    vety.push(
+      `Automatická záloha do složky ${slozka.jmeno} čeká — prohlížeč se po ` +
+      'novém otevření aplikace musí na zápis znovu zeptat.'
+    );
+  }
+
+  stavZalohy.textContent = vety.join(' ');
+}
+
+btnSdilet.hidden = !zaloha.lzeSdilet();
+btnSdilet.addEventListener('click', async () => {
+  const knihy = knihyKZaloze();
+  if (!knihy) return;
+  try {
+    await zaloha.sdilej(knihy);
+    oznam('Záloha odeslána.', 'uspech');
+  } catch (chyba) {
+    // Zavřenou nabídku sdílení hlásí prohlížeč jako chybu — uživatel ji ale
+    // jen zrušil a hláška by ho zbytečně strašila.
+    if (chyba?.name === 'AbortError') return;
+    console.error(chyba);
+    oznam('Odeslání se nepodařilo.', 'chyba');
+  } finally {
+    vykresliStavZalohy();
+  }
+});
+
+btnEmail.addEventListener('click', () => {
+  const knihy = knihyKZaloze();
+  if (!knihy) return;
+
+  const adresa = prompt('Na jakou adresu zálohu poslat?', zaloha.adresaProZalohu());
+  if (adresa === null) return;          // zrušeno
+  if (adresa.trim()) zaloha.ulozAdresu(adresa.trim());
+
+  // Nejdřív soubory, pak zpráva — otevření pošty přepne aplikaci a stahování
+  // by se v tu chvíli mohlo přerušit.
+  stahniCsv(knihy);
+  stahniJson(knihy);
+  zaloha.posliEmailem(knihy, adresa.trim());
+  oznam('Zpráva je rozepsaná, soubory zálohy se stáhly — přiložte je.', 'uspech');
+  vykresliStavZalohy();
+});
+
+btnSlozka.addEventListener('click', async () => {
+  try {
+    const { jmeno, povoleno } = await zaloha.stavSlozky();
+
+    // Když složka vybraná je a chybí jen povolení k zápisu, nemá smysl
+    // otravovat s vybíráním znovu — stačí se zeptat na povolení.
+    if (jmeno && !povoleno) {
+      if (!(await zaloha.obnovPovoleni())) {
+        oznam('Zápis do složky nebyl povolen.', 'varovani');
+        return;
+      }
+      oznam(`Automatická záloha do složky ${jmeno} pokračuje.`, 'uspech');
+    } else {
+      const nova = await zaloha.vyberSlozku();
+      oznam(`Zálohy se budou ukládat do složky ${nova}.`, 'uspech');
+    }
+
+    zaloha.synchronizuj({ hned: true });
+  } catch (chyba) {
+    if (chyba?.name === 'AbortError') return;   // zavřené vybírání složky
+    console.error(chyba);
+    oznam('Složku se nepodařilo nastavit.', 'chyba');
+  } finally {
+    vykresliStavZalohy();
+  }
+});
+
+btnSlozkaVypnout.addEventListener('click', async () => {
+  await zaloha.vypniSlozku();
+  oznam('Automatická záloha do složky vypnuta.', 'varovani');
+  vykresliStavZalohy();
+});
+
+// Zápis do složky si řídí modul sám po každé změně tabulky; sem se hlásí
+// jen výsledek, aby šlo poznat, že záloha opravdu proběhla.
+zaloha.priZapisu((vysledek) => {
+  if (vysledek.ok) {
+    oznam(`Záloha uložena do složky ${vysledek.kam}.`, 'uspech');
+  } else {
+    oznam('Zápis zálohy do složky selhal — zkontrolujte, že složka pořád existuje.', 'chyba');
+  }
+  vykresliStavZalohy();
+});
+
+ulozne.priZmene(() => zaloha.synchronizuj());
 
 /* ------------------------------------------------------- hledání a řazení */
 
@@ -944,3 +1083,4 @@ if ('serviceWorker' in navigator) {
 }
 
 vykresli();
+vykresliStavZalohy();

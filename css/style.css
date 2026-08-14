@@ -170,6 +170,7 @@ main { padding: 0 .75rem; }
   min-height: 1.5em;
 }
 
+.rucne summary,
 .rozbalovaci summary {
   cursor: pointer;
   font-size: .95rem;
@@ -381,6 +382,22 @@ body.bez-posunu { overflow: hidden; }
   background: rgba(224, 176, 96, .12);
   border: 1px solid var(--varovani);
   border-radius: 8px;
+}
+
+/* ------------------------------------------------------------ záloha */
+
+#sekce-zaloha h2 { margin-bottom: .5rem; }
+
+/* Vypnutí složky je doplněk k tlačítku před ním — nemá se roztahovat
+   do celé šířky jako ostatní. */
+#btn-slozka-vypnout { flex: 0 0 auto; }
+
+.napoveda code {
+  padding: 0 .2em;
+  font-size: .95em;
+  background: var(--pozadi);
+  border: 1px solid var(--ram);
+  border-radius: 4px;
 }
 
 /* ------------------------------------------------------------ hláška */

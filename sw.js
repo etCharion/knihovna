@@ -25,6 +25,7 @@ const ZAKLAD = [
   './js/ocr.js',
   './js/scanner.js',
   './js/storage.js',
+  './js/zaloha.js',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',

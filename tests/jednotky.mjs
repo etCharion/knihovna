@@ -8,9 +8,10 @@ import { jeIsbn10, jeIsbn13, jeKnizniKod, isbn10Na13, naFormat, normalizuj } fro
 import { najdiIsbnVTextu } from '../js/ocr.js';
 import { najdiKnihu } from '../js/lookup.js';
 
-// Ukládání pracuje s localStorage prohlížeče; v Node ho zastoupí tahle
+// Ukládání i záloha pracují s localStorage prohlížeče; v Node ho zastoupí tahle
 // drobná náhrada, aby šlo testovat poličky bez spouštění prohlížeče.
-// Modul se proto načítá až za ní — bez localStorage by při prvním dotazu spadl.
+// Oba moduly se proto načítají až za ní — bez localStorage by při prvním
+// dotazu spadly.
 const pamet = new Map();
 globalThis.localStorage = {
   getItem: (klic) => (pamet.has(klic) ? pamet.get(klic) : null),
@@ -21,6 +22,7 @@ globalThis.localStorage = {
 
 const ulozne = await import('../js/storage.js');
 const { doCsv, opravNazvySOdznakem, slucDuplicity, SLOUPCE } = ulozne;
+const { mailtoOdkaz, popisPoctu, popisPosledniZalohy } = await import('../js/zaloha.js');
 
 let selhani = 0;
 const t = (ok, popis, detail = '') => {
@@ -169,6 +171,50 @@ nadpis('Poličky');
   const znovu = ulozne.importuj([{ isbn: '9788073355067', nazev: 'Kniha', policka: 'Sklep' }]);
   t(znovu === 0, 'opakovaný import téhož záznamu nic nepřidá');
   localStorage.clear();
+}
+
+/* ------------------------------------------------------------- záloha */
+
+nadpis('Záloha e-mailem');
+{
+  const knihy = [
+    { isbn: '9788073355067', nazev: 'Tajemství staré truhly', autor: 'Petra Svobodová',
+      rok: '2006', kusu: 2 },
+    { isbn: '9780306406157', nazev: 'Structure and Interpretation', autor: 'Harold Abelson' },
+  ];
+
+  t(popisPoctu(knihy) === '2 knihy (3 kusů)', 'počet titulů i kusů', popisPoctu(knihy));
+  t(popisPoctu([knihy[1]]) === '1 kniha', 'jedna kniha se skloňuje', popisPoctu([knihy[1]]));
+  t(popisPoctu(Array(7).fill(knihy[1])) === '7 knih', 'sedm knih', popisPoctu(Array(7).fill(knihy[1])));
+
+  const odkaz = mailtoOdkaz(knihy, 'kdosi@example.com');
+  t(odkaz.startsWith('mailto:kdosi%40example.com?'), 'adresa je v odkazu', odkaz.slice(0, 40));
+  t(odkaz.includes('subject=Z%C3%A1loha%20knihovny'), 'předmět zprávy');
+
+  const telo = decodeURIComponent(new URL(odkaz).searchParams.get('body'));
+  t(telo.includes('1. Tajemství staré truhly — Petra Svobodová (2006), ISBN 9788073355067, 2×'),
+    'kniha je vypsaná v textu zprávy včetně počtu kusů', telo.split('\n')[3]);
+  t(telo.includes('Načíst zálohu'), 'zpráva říká, jak zálohu vrátit zpět');
+  t(!/[\n"]/.test(odkaz), 'v samotném odkazu nezůstaly nezakódované konce řádků');
+
+  // Dlouhý seznam by odkaz natáhl do délky, kterou poštovní programy ořežou.
+  const hodne = Array.from({ length: 400 }, (_, i) => ({
+    isbn: '9788073355067', nazev: `Kniha číslo ${i}`, autor: 'Jan Novák', rok: '2020',
+  }));
+  const dlouhy = decodeURIComponent(new URL(mailtoOdkaz(hodne)).searchParams.get('body'));
+  t(dlouhy.length < 2000, 'dlouhý seznam se zkrátí', String(dlouhy.length));
+  t(/… a další \d+ knih/.test(dlouhy), 'a je vidět, kolik knih se do zprávy nevešlo');
+  t(mailtoOdkaz(hodne).startsWith('mailto:?'), 'bez adresy se odkaz otevře s prázdným příjemcem');
+}
+
+nadpis('Stav zálohy');
+{
+  // Prázdné úložiště znamená, že se ještě nezálohovalo.
+  localStorage.clear();
+  t(popisPosledniZalohy(3).includes('ještě nedělali'), 'nezálohovaná tabulka to řekne',
+    popisPosledniZalohy(3));
+  t(popisPosledniZalohy(0).includes('prázdná'), 'u prázdné tabulky se nestraší',
+    popisPosledniZalohy(0));
 }
 
 /* -------------------------------------- název pokažený odznakem s kusy */
