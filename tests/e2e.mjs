@@ -306,6 +306,21 @@ await stranka.evaluate(() => {
       poznamka: 'text s ; středníkem a "uvozovkami"', kusu: 3, pridano: '2026-08-12' },
   ]));
 });
+
+// Systémovou nabídku sdílení test podstrčí: skutečná by čekala na obsluhu
+// od operačního systému. Zachytí se, co by aplikace odeslala.
+await stranka.addInitScript(() => {
+  window.__sdileno = [];
+  navigator.canShare = (data) => Array.isArray(data?.files) && data.files.length > 0;
+  navigator.share = async (data) => {
+    window.__sdileno.push({
+      nazvy: data.files.map((s) => s.name),
+      text: data.text,
+      obsah: await Promise.all(data.files.map((s) => s.text())),
+    });
+  };
+});
+
 await stranka.reload({ waitUntil: 'networkidle' });
 
 const [zalohaJson] = await Promise.all([stranka.waitForEvent('download'), stranka.click('#btn-json')]);
@@ -313,6 +328,9 @@ const cestaJson = join(DOCASNY, 'zaloha.json');
 await zalohaJson.saveAs(cestaJson);
 t(zalohaJson.suggestedFilename().startsWith('knihovna-'), 'záloha má datum v názvu',
   zalohaJson.suggestedFilename());
+t((await stranka.locator('#stav-zalohy').innerText()).includes('Poslední záloha'),
+  'po stažení zálohy se ukáže, kdy naposledy proběhla',
+  await stranka.locator('#stav-zalohy').innerText());
 
 const [zalohaCsv] = await Promise.all([stranka.waitForEvent('download'), stranka.click('#btn-csv')]);
 const cestaCsv = join(DOCASNY, 'export.csv');
@@ -352,6 +370,26 @@ t(radekCsv.startsWith('978-80-242-6870-5;'), 'CSV má ISBN s pomlčkami, aby ho 
 t(!/^9788024268705/.test(radekCsv), 'a ne jako holé číslo');
 t(radekCsv.includes(';Česká kniha s háčky;2015;Karolinum;3;'),
   'a údaje stojí ve sloupcích, které je slibují', radekCsv);
+
+/* ------------------------------------------- odeslání zálohy ze systému */
+
+t(await stranka.locator('#btn-sdilet').isVisible(),
+  'tlačítko pro odeslání zálohy se objeví, když prohlížeč umí sdílet soubory');
+t(await stranka.locator('#btn-email').isVisible(), 'poslání e-mailem je k dispozici vždy');
+
+await stranka.click('#btn-sdilet');
+await stranka.waitForTimeout(300);
+
+const sdileno = await stranka.evaluate(() => window.__sdileno);
+t(sdileno.length === 1, 'klepnutí otevře systémovou nabídku sdílení', String(sdileno.length));
+t(sdileno[0]?.nazvy.length === 2, 'posílají se dva soubory — CSV i JSON',
+  (sdileno[0]?.nazvy || []).join(', '));
+t(sdileno[0]?.nazvy.every((n) => /^knihovna-\d{4}-\d{2}-\d{2}\.(csv|json)$/.test(n)),
+  'soubory mají v názvu datum zálohy', (sdileno[0]?.nazvy || []).join(', '));
+t(sdileno[0]?.obsah.some((o) => o.includes('háčky')),
+  'odeslaná data obsahují knihy z tabulky i s diakritikou');
+t(JSON.parse(sdileno[0].obsah[1])[0].isbn === '9788024268705',
+  'odeslaný JSON jde přečíst zpět jako záloha');
 
 /* ------------------------------------------------------------- offline */
 

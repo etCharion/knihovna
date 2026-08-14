@@ -124,8 +124,26 @@ export function uklidDuplicity() {
   return knihy.length - slouceno.length;
 }
 
+/**
+ * Posluchači změn tabulky. Díky nim se automatická záloha svěze na každé
+ * úpravě, aniž by se musela dopisovat ke každému volání zvlášť — nová
+ * místa, která tabulku mění, se zálohují sama.
+ */
+const posluchaci = new Set();
+
+export function priZmene(posluchac) {
+  posluchaci.add(posluchac);
+}
+
 function uloz(knihy) {
   localStorage.setItem(KLIC, JSON.stringify(knihy));
+  for (const posluchac of posluchaci) {
+    try {
+      posluchac(knihy);
+    } catch (chyba) {
+      console.error(chyba);   // porucha zálohy nesmí shodit ukládání
+    }
+  }
   return knihy;
 }
 
