@@ -170,7 +170,8 @@ main { padding: 0 .75rem; }
   min-height: 1.5em;
 }
 
-.rucne summary {
+.rucne summary,
+.rozbalovaci summary {
   cursor: pointer;
   font-size: .95rem;
   color: var(--hlavni);
@@ -182,7 +183,8 @@ main { padding: 0 .75rem; }
 .radek-formulare { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
 
 input[type="text"],
-input[type="search"] {
+input[type="search"],
+select {
   flex: 1;
   min-width: 0;
   min-height: 48px;
@@ -246,6 +248,36 @@ input[type="search"] {
   list-style: none;
 }
 
+/* ------------------------------------------------------------ pole formuláře */
+
+.pole { margin-bottom: .75rem; }
+
+.pole label {
+  display: block;
+  margin-bottom: .25rem;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--text-slaby);
+}
+
+.pole > input,
+.pole > select { width: 100%; }
+.pole .napoveda { margin-top: .35rem; }
+
+/* Rok a vydavatel se na šířku telefonu ještě vejdou vedle sebe. */
+.dvojice { display: flex; flex-wrap: wrap; gap: .75rem; }
+.dvojice .pole { flex: 1 1 8rem; }
+
+/* ------------------------------------------------------------ poličky */
+
+.pole-policka { margin-bottom: .25rem; }
+
+.seznam-policek {
+  margin: .25rem 0 .75rem;
+  padding: 0;
+  list-style: none;
+}
+
 /* Celý nález je jedno tlačítko — na telefonu se do něj trefí palec. */
 .vysledek {
   display: block;
@@ -277,6 +309,25 @@ input[type="search"] {
 .vysledek-stav { display: block; font-size: .8rem; color: var(--uspech); }
 .vysledek-stav:empty { display: none; }
 
+.seznam-policek li {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem 0;
+  border-bottom: 1px solid var(--ram);
+}
+
+.seznam-policek li.napoveda { border-bottom: none; }
+.nazev-policky { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.pocty-policky { font-size: .8rem; color: var(--text-slaby); white-space: nowrap; }
+
+.sloupec-policka select {
+  min-width: 8rem;
+  min-height: 36px;
+  padding: .25rem .4rem;
+  font-size: .85rem;
+}
+
 /* ------------------------------------------------------------ tabulka */
 
 .zahlavi-tabulky {
@@ -289,6 +340,7 @@ input[type="search"] {
 
 .zahlavi-tabulky h2 { flex: 1 1 auto; }
 .zahlavi-tabulky input { flex: 1 1 12rem; }
+.zahlavi-tabulky select { flex: 1 1 9rem; }
 
 .pocet {
   display: inline-block;
@@ -371,6 +423,64 @@ tr.nacita-se { opacity: .55; }
   border-radius: 999px;
 }
 
+/* ------------------------------------------- nabídka před přidáním knihy */
+
+/* Překryv, ne posuvná karta pod tabulkou: načtená kniha čeká na rozhodnutí
+   a nesmí se dát přehlédnout ani odscrollovat. */
+.prekryv {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem .75rem calc(1rem + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  background: rgba(0, 0, 0, .55);
+}
+
+.prekryv[hidden] { display: none; }
+
+/* Pozadí se pod otevřenou nabídkou neposouvá — na telefonu se jinak
+   pod prstem hýbe tabulka místo formuláře. */
+body.bez-posunu { overflow: hidden; }
+
+.nabidka {
+  width: min(100%, 34rem);
+  margin: auto;
+  max-width: none;
+}
+
+.nabidka h2 { margin-bottom: .5rem; }
+.nabidka .stav { margin-bottom: .5rem; }
+.nabidka .tlacitka { margin: 1rem 0 0; }
+
+.poznamka-nabidky {
+  margin: 0 0 .75rem;
+  padding: .5rem .65rem;
+  font-size: .85rem;
+  color: var(--varovani);
+  background: rgba(224, 176, 96, .12);
+  border: 1px solid var(--varovani);
+  border-radius: 8px;
+}
+
+/* ------------------------------------------------------------ záloha */
+
+#sekce-zaloha h2 { margin-bottom: .5rem; }
+
+/* Vypnutí složky je doplněk k tlačítku před ním — nemá se roztahovat
+   do celé šířky jako ostatní. */
+#btn-slozka-vypnout { flex: 0 0 auto; }
+
+.napoveda code {
+  padding: 0 .2em;
+  font-size: .95em;
+  background: var(--pozadi);
+  border: 1px solid var(--ram);
+  border-radius: 4px;
+}
+
 /* ------------------------------------------------------------ hláška */
 
 .hlaska {
@@ -378,7 +488,9 @@ tr.nacita-se { opacity: .55; }
   left: 50%;
   bottom: calc(1rem + env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  z-index: 10;
+  /* Nad překryvem s nabídkou — hlášky se týkají i toho, co se děje v ní
+     (třeba odmítnuté ISBN), takže nesmí zůstat schované pod ním. */
+  z-index: 30;
   width: min(92%, 34rem);
   padding: .75rem 1rem;
   font-size: .92rem;
@@ -408,4 +520,5 @@ tr.nacita-se { opacity: .55; }
   .tlacitko.hlavni { flex-basis: auto; }
   .radek-formulare input { flex: 1 1 14rem; }
   .formular-hledani .tlacitko { flex: 0 0 auto; }
+  .prekryv { align-items: center; }
 }

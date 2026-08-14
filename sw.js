@@ -6,7 +6,7 @@
  * offline funguje skenování a už uložená tabulka.
  */
 
-const VERZE = 'knihovna-v4';
+const VERZE = 'knihovna-v5';
 
 /**
  * Soubory aplikace — bez nich by se nespustila, proto se stahují dopředu.
@@ -25,6 +25,7 @@ const ZAKLAD = [
   './js/ocr.js',
   './js/scanner.js',
   './js/storage.js',
+  './js/zaloha.js',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',
