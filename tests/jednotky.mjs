@@ -6,7 +6,7 @@
 
 import { jeIsbn10, jeIsbn13, jeKnizniKod, isbn10Na13, naFormat, normalizuj } from '../js/isbn.js';
 import { najdiIsbnVTextu } from '../js/ocr.js';
-import { najdiKnihu } from '../js/lookup.js';
+import { hledejPodleTextu, najdiKnihu } from '../js/lookup.js';
 import { doCsv, opravNazvySOdznakem, slucDuplicity, SLOUPCE } from '../js/storage.js';
 
 let selhani = 0;
@@ -26,6 +26,18 @@ t(isbn10Na13('0306406152') === '9780306406157', 'převod ISBN-10 na 13');
 t(normalizuj('978-80-7335-506-7') === '9788073355067', 'pomlčky se odstraní');
 t(normalizuj('nesmysl') === null, 'nesmysl se odmítne');
 t(!jeKnizniKod('4006381333931'), 'EAN od potravin není kniha');
+
+// Starší desetimístná ISBN mají kontrolní číslici 10, která se píše jako X.
+// Do aplikace se dřív nedala zadat: pole mělo číselnou klávesnici, na které
+// písmeno není. Ověřuje se proto celá cesta takového čísla.
+t(jeIsbn10('80-7203-068-X'), 'ISBN-10 s kontrolní číslicí X');
+t(normalizuj('80-7203-068-X') === '9788072030682', 'X se převede na ISBN-13',
+  String(normalizuj('80-7203-068-X')));
+t(normalizuj('80-7203-068-x') === '9788072030682', 'na velikosti písmene nezáleží');
+t(jeKnizniKod('80-7203-068-X'), 'a je to knižní kód');
+t(normalizuj('043942089X') === '9780439420891', 'zahraniční ISBN-10 s X',
+  String(normalizuj('043942089X')));
+t(normalizuj('80-7203-068-1') === null, 'špatná kontrolní číslice místo X neprojde');
 
 nadpis('Dělení pomlčkami');
 // Kde pomlčky patří, se řídí oficiálními rozsahy — proto konkrétní příklady
@@ -316,6 +328,113 @@ nadpis('Hlášení o zdrojích');
   t(adresy.some((u) => u.includes('lookfor=9788073355067')), 'Knihovny.cz dostanou holé číslo');
   t(!adresy.some((u) => u.includes('obalkyknih')),
     'Obálky knih se neptáme — z prohlížeče se z nich číst nedá');
+}
+
+/* ------------------------------------- hledání podle názvu a autora */
+
+nadpis('Hledání podle názvu a autora');
+{
+  const adresy = [];
+  globalThis.fetch = (url) => {
+    adresy.push(url);
+
+    if (url.includes('knihovny.cz')) {
+      return odpoved({ records: [
+        {
+          title: 'Babička : obrazy venkovského života /',
+          authors: { primary: { 'Němcová, Božena, 1820-1862': {} } },
+          publishers: ['Argo,'],
+          publicationDates: ['2016'],
+          languages: ['cze'],
+          cleanIsbn: '9788025717721',
+        },
+        // Starší vydání ISBN nemají — nabídnout se nedá, jen spočítat.
+        { title: 'Babička', authors: { primary: { 'Němcová, Božena': {} } } },
+      ] });
+    }
+
+    if (url.includes('googleapis')) {
+      return odpoved({ items: [{ volumeInfo: {
+        title: 'Babička',
+        authors: ['Božena Němcová'],
+        publisher: 'Argo',
+        publishedDate: '2016-01-01',
+        imageLinks: { thumbnail: 'http://books.google.com/obalka.jpg' },
+        industryIdentifiers: [
+          { type: 'OTHER', identifier: 'XYZ12345' },
+          { type: 'ISBN_13', identifier: '9788025717721' },
+        ],
+      } }] });
+    }
+
+    return odpoved({ docs: [{
+      title: 'The Grandmother',
+      author_name: ['Bozena Nemcova'],
+      first_publish_year: 1891,
+      publisher: ['Vitalis'],
+      isbn: ['nesmysl', '9788072030682'],
+      cover_i: 42,
+    }] });
+  };
+
+  const { vysledky, bezIsbn, nedostupne } =
+    await hledejPodleTextu({ nazev: 'Babička', autor: 'Němcová' });
+
+  t(vysledky.length === 2, 'ze tří zdrojů zbydou dvě různé knihy', String(vysledky.length));
+  t(!nedostupne, 'zdroje odpověděly');
+  t(bezIsbn === 1, 'nález bez ISBN se do nabídky nedostane, ale spočítá se', String(bezIsbn));
+
+  const [prvni, druha] = vysledky;
+  t(prvni.nazev === 'Babička : obrazy venkovského života', 'český katalog je první a bez interpunkce',
+    prvni.nazev);
+  t(prvni.autor === 'Božena Němcová', 'jméno se otočí a letopočty zmizí', prvni.autor);
+  t(prvni.isbn === '9788025717721', 'ISBN se vytáhne z pole cleanIsbn', prvni.isbn);
+  t(prvni.zdroj === 'Knihovny.cz, Google Books', 'stejná kniha z více zdrojů je v nabídce jednou',
+    prvni.zdroj);
+  t(prvni.obalka === 'https://books.google.com/obalka.jpg',
+    'a doplní se z nich, co první zdroj neměl', prvni.obalka);
+  t(druha.isbn === '9788072030682', 'z hromádky čísel u díla projde jen platné ISBN', druha.isbn);
+  t(druha.rok === '1891', 'rok se vezme z prvního vydání', druha.rok);
+
+  t(adresy.some((u) => u.includes('intitle') && u.includes('inauthor')),
+    'Google dostane název i autora zvlášť', adresy.find((u) => u.includes('googleapis')));
+  t(adresy.some((u) => u.includes('knihovny.cz') && u.includes('type=AllFields')),
+    'katalog hledá napříč poli, když je vyplněné obojí');
+  t(adresy.some((u) => u.includes('field%5B%5D=cleanIsbn')),
+    'a vyžádá si i ISBN — jinak by nález nešel uložit');
+  t(adresy.some((u) => u.includes('openlibrary.org/search.json') && u.includes('author=')),
+    'Open Library dostane autora jako vlastní parametr');
+}
+
+{
+  // S jedním vyplněným polem se hledá přímo v jeho rejstříku, ne napříč vším.
+  const adresy = [];
+  globalThis.fetch = (url) => (adresy.push(url), odpoved({}));
+
+  await hledejPodleTextu({ nazev: 'Babička' });
+  t(adresy.some((u) => u.includes('knihovny.cz') && u.includes('type=Title')),
+    'samotný název hledá katalog v názvech');
+
+  adresy.length = 0;
+  await hledejPodleTextu({ autor: 'Němcová' });
+  t(adresy.some((u) => u.includes('knihovny.cz') && u.includes('type=Author')),
+    'samotný autor v autorech');
+}
+
+{
+  // Prázdný dotaz nemá koho obtěžovat.
+  let dotazu = 0;
+  globalThis.fetch = () => (dotazu++, odpoved({}));
+  const { vysledky } = await hledejPodleTextu({ nazev: '  ', autor: '' });
+  t(vysledky.length === 0 && dotazu === 0, 'prázdný dotaz nikam neodejde', String(dotazu));
+}
+
+{
+  globalThis.fetch = () => vypadek();
+  const { vysledky, nedostupne, selhalyZdroje } = await hledejPodleTextu({ nazev: 'Babička' });
+  t(vysledky.length === 0 && nedostupne, 'úplný výpadek se pozná i při hledání podle názvu');
+  t(selhalyZdroje.length === 3, 'a jmenují se všechny zdroje, které mlčely',
+    selhalyZdroje.join(', '));
 }
 
 console.log(selhani === 0 ? '\nVŠE PROŠLO' : `\n${selhani} testů selhalo`);

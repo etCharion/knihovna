@@ -18,7 +18,10 @@ registrace, žádný API klíč.
 - **Automatické dohledání údajů** — název, autor, vydavatel, rok, počet stran,
   jazyk i obálka.
 - **Tabulka knih** s hledáním a řazením podle sloupců.
-- **Ruční zadání ISBN**, když je kód poškozený nebo chybí.
+- **Ruční zadání ISBN**, když je kód poškozený nebo chybí — včetně starších
+  desetimístných čísel končících písmenem **X**.
+- **Hledání podle názvu a autora** pro knihy, které ISBN vytištěné nemají:
+  z nabídky vyberete tu svou a přidá se do tabulky.
 - **Úpravy přímo v tabulce** — klepnutím na název, autora, poznámku i **ISBN**.
   Když skener přečte číslo špatně, přepíšete ho a údaje o knize se dohledají
   znovu.
@@ -84,6 +87,32 @@ Rozpoznaný text nebývá dokonalý, ale ISBN má kontrolní číslici, takže s
 > Rozpoznávání textu si při **prvním** použití stáhne asi 7 MB (na Wi-Fi
 > pár vteřin). Pak už se používá z paměti telefonu a funguje i offline.
 > Kdo skenuje jen čárové kódy, nestáhne z toho nic.
+
+### Kniha bez ISBN — hledání podle názvu a autora
+
+Tituly vydané před rokem 1989 často ISBN vůbec nemají. Rozbalte **Zadat ISBN
+ručně nebo hledat podle názvu**, vyplňte název knihy, autora, nebo obojí,
+a klepněte na **🔎 Hledat podle názvu a autora**. Aplikace se zeptá stejných
+databází jako u čárového kódu a nabídne, co našla — u každé knihy je autor,
+rok, vydavatel a ISBN, aby šlo poznat, které vydání je to vaše.
+
+Klepnutím na knihu z nabídky se řádek přidá do tabulky. Údaje se přitom ještě
+jednou dohledají podle jejího ISBN, takže záznam vyjde stejně úplný, jako
+kdyby se kniha naskenovala. Kniha, kterou tabulka už má, je v nabídce
+označená — dalším klepnutím se u ní přičte kus.
+
+> **Nabízejí se jen knihy, které ISBN mají.** Aplikace vede tabulku právě
+> podle něj, takže záznam bez čísla by neměl podle čeho vzniknout. Kolik
+> takových nálezů se vynechalo, se pod nabídkou napíše. Když je vaše kniha
+> mezi nimi, přidejte řádek přes ruční zadání ISBN jiného vydání téhož titulu
+> a název s autorem si v tabulce přepište.
+
+### Staré ISBN končící písmenem X
+
+Desetimístná ISBN mají kontrolní číslici počítanou modulo 11, takže jí občas
+vyjde deset — a ta se tiskne jako **X**: `80-7203-068-X`. Takové číslo zadejte
+i s tím písmenem, aplikace si ho převede na dnešní třináctimístný tvar
+(`978-80-7203-068-2`) a v tabulce i v exportu už bude v něm.
 
 ### Špatně přečtené ISBN
 
@@ -151,6 +180,18 @@ dostane český záznam — se správnou diakritikou a českým názvem. Knihovn
 záznamy se přitom upraví pro běžné čtení: z názvu se odstraní katalogizační
 interpunkce (`Název : podtitul /`) a autor se z tvaru `Novák, Jan, 1970-`
 převede na `Jan Novák`.
+
+Stejné tři zdroje obsluhují i hledání podle názvu a autora. Každý má na to
+vlastní způsob dotazu: Knihovny.cz hledají v rejstříku názvů (`type=Title`),
+autorů (`type=Author`), nebo napříč poli, když je vyplněné obojí; Google Books
+dostane `intitle:` a `inauthor:`; Open Library vlastní parametry `title`
+a `author`. Nálezy o téže knize se pak podle ISBN slučují, aby se jeden titul
+v nabídce neopakoval třikrát.
+
+> Open Library odpovídá na úrovni díla, ne konkrétního vydání — rok
+> a nakladatel u jejího nálezu tedy nemusí patřit k uvedenému ISBN. Právě
+> proto se po výběru knihy z nabídky údaje dohledávají ještě jednou podle
+> samotného čísla.
 
 Všechny jsou veřejné a bez klíče. U Google Books se navíc, když strukturované
 hledání podle ISBN nic nevrátí, zkusí totéž číslo ještě jako obyčejné klíčové
@@ -233,7 +274,7 @@ css/style.css            vzhled (mobil na prvním místě, světlý i tmavý re�
 js/app.js                propojení všech částí a obsluha tabulky
 js/scanner.js            kamera a čtení čárových kódů
 js/ocr.js                čtení ISBN z vytištěného čísla
-js/lookup.js             dohledání knihy v online databázích
+js/lookup.js             dohledání knihy v online databázích (podle ISBN i podle názvu)
 js/isbn.js               ověření a převody ISBN
 js/storage.js            ukládání, export do CSV a JSON
 sw.js                    offline režim
@@ -263,8 +304,8 @@ se načítá rovnou, Tesseract (7 MB) až když si někdo řekne o čtení čís
 ### Testy
 
 Testy jsou tři sady. `tests/jednotky.mjs` běží v Node během vteřiny a kontroluje
-dělení ISBN, vytahování čísla z rozpoznaného textu, slučování duplicit
-a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
+dělení ISBN, čísla končící X, vytahování čísla z rozpoznaného textu, slučování
+duplicit, hledání podle názvu a autora a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
 skutečném prohlížeči včetně obojího skenování: Chromiu se místo kamery
 podstrčí jednou video s opravdovým čárovým kódem, podruhé video s vytištěným
 číslem ISBN. `tests/aktualizace.mjs` hlídá, že se nová verze aplikace opravdu
@@ -292,3 +333,11 @@ kamera v jiných prohlížečích na iOS bývá omezená.
 
 **Kniha se nenašla.** Zkontrolujte ISBN v tabulce; když sedí, kniha v databázích
 prostě není — dopište název a autora ručně.
+
+**Hledání podle názvu nic nenajde.** Zkuste jen část názvu bez podtitulu,
+u autora samotné příjmení. České katalogy vedou jména ve tvaru `Novák, Jan`,
+takže pořadí jmen ničemu nevadí, ale na diakritice záleží.
+
+**Do pole s ISBN nejde napsat X.** Pole má běžnou klávesnici s písmeny,
+takže napsat jde. Když se telefon přesto drží číselné klávesnice, může jít
+o starou verzi aplikace uloženou v paměti prohlížeče — stránku načtěte znovu.

@@ -3,7 +3,7 @@
  */
 
 import { jeKnizniKod, normalizuj, naFormat } from './isbn.js';
-import { najdiKnihu, nahradniObalka } from './lookup.js';
+import { hledejPodleTextu, najdiKnihu, nahradniObalka } from './lookup.js';
 import * as ocr from './ocr.js';
 import * as skener from './scanner.js';
 import * as ulozne from './storage.js';
@@ -22,6 +22,7 @@ const tabulka = prvek('tabulka');
 const prazdno = prvek('prazdno');
 const pocet = prvek('pocet');
 const hledat = prvek('hledat');
+const panelNalezu = prvek('vysledky-hledani');
 
 let razeni = { sloupec: null, sestupne: false };
 let cekaSeNaVyhledani = new Set();
@@ -41,6 +42,11 @@ function oznam(text, druh = 'info') {
 
 function nastavStav(text) {
   stav.textContent = text;
+}
+
+/** České skloňování po číslovce: 1 kniha, 2 knihy, 5 knih. */
+function pocetSlovem(kolik, jedna, dve, pet) {
+  return `${kolik} ${kolik === 1 ? jedna : kolik < 5 ? dve : pet}`;
 }
 
 /* ------------------------------------------------------------ tabulka */
@@ -271,7 +277,24 @@ function vykresli() {
 
 /* ------------------------------------------------- zpracování jednoho kódu */
 
-async function zpracujKod(kod) {
+/**
+ * Doplní do dohledaného záznamu údaje, které se podle ISBN nenašly.
+ *
+ * Uplatní se u knih vybraných z nabídky hledání podle názvu: tam už název
+ * a autor známí jsou, takže i když se dotaz podle samotného čísla nechytí,
+ * řádek nezůstane prázdný.
+ */
+function doplnChybejici(kniha, zaloha) {
+  const doplnena = { ...kniha };
+  for (const pole of POLE_O_KNIZE) {
+    if (!doplnena[pole] && zaloha[pole]) doplnena[pole] = zaloha[pole];
+  }
+  // Doplněný název znamená, že řádek o knize něco ví — i když sám dotaz
+  // podle ISBN nic nevrátil.
+  return { ...doplnena, nalezeno: !!doplnena.nazev };
+}
+
+async function zpracujKod(kod, zaloha = null) {
   const isbn = normalizuj(kod);
 
   if (!jeKnizniKod(kod)) {
@@ -294,7 +317,7 @@ async function zpracujKod(kod) {
   nastavStav(`Hledám ${naFormat(isbn)} …`);
 
   try {
-    const kniha = await najdiKnihu(isbn);
+    const kniha = doplnChybejici(await najdiKnihu(isbn), zaloha || {});
     ulozne.pridej(kniha);
 
     if (kniha.nalezeno) {
@@ -430,10 +453,163 @@ prvek('form-rucne').addEventListener('submit', async (udalost) => {
 
   if (!normalizuj(hodnota)) {
     oznam('To není platné ISBN — zkontrolujte číslice.', 'chyba');
+    nastavStav(
+      `Číslo ${hodnota} neprošlo kontrolou. Přepište ho přesně tak, jak je v knize — ` +
+      'včetně koncového X u starších desetimístných čísel.'
+    );
     return;
   }
   vstup.value = '';
   await zpracujKod(hodnota);
+});
+
+/* ------------------------------------------- hledání podle názvu a autora */
+
+/**
+ * Nabídka knih nalezených podle názvu a autora.
+ *
+ * Vybraná kniha se do tabulky nepřidá rovnou z nabídky — pošle se do stejné
+ * cesty jako naskenovaný kód, takže se údaje ještě dohledají podle ISBN.
+ * V nabídce je jen to hlavní, kdežto dohledání podle čísla poskládá úplnější
+ * záznam ze všech zdrojů a ohlídá i počítání kusů u knihy, která už v tabulce
+ * je. Co by dohledání nevrátilo, doplní údaje z nabídky.
+ */
+function polozkaNalezu(nalez) {
+  const polozka = document.createElement('li');
+  const tlacitko = document.createElement('button');
+  tlacitko.type = 'button';
+  tlacitko.className = 'vysledek';
+
+  const radek = (trida, text) => {
+    const cast = document.createElement('span');
+    cast.className = trida;
+    cast.textContent = text;
+    tlacitko.appendChild(cast);
+    return cast;
+  };
+
+  radek('vysledek-nazev', nalez.nazev);
+  const popis = [nalez.autor, nalez.rok, nalez.vydavatel].filter(Boolean).join(' · ');
+  if (popis) radek('vysledek-popis', popis);
+  radek('vysledek-isbn', `${naFormat(nalez.isbn)} · ${nalez.zdroj}`);
+  const stavPolozky = radek('vysledek-stav', '');
+
+  const obnovStav = () => {
+    const vTabulce = ulozne.podleIsbn(nalez.isbn);
+    const kusu = Number(vTabulce?.kusu) || 0;
+    stavPolozky.textContent = vTabulce
+      ? `✓ v tabulce${kusu > 1 ? ` (${kusu}×)` : ''} — dalším klepnutím přidáte kus`
+      : '';
+  };
+
+  tlacitko.addEventListener('click', async () => {
+    tlacitko.disabled = true;
+    try {
+      await zpracujKod(nalez.isbn, nalez);
+    } finally {
+      tlacitko.disabled = false;
+      obnovStav();
+    }
+  });
+
+  obnovStav();
+  polozka.appendChild(tlacitko);
+  return polozka;
+}
+
+function vykresliNalezy(nalezy, poznamka) {
+  panelNalezu.replaceChildren();
+  panelNalezu.hidden = !nalezy.length;
+  if (!nalezy.length) return;
+
+  const zahlavi = document.createElement('div');
+  zahlavi.className = 'zahlavi-vysledku';
+
+  const nadpis = document.createElement('strong');
+  nadpis.textContent = `Nabídka: ${pocetSlovem(nalezy.length, 'kniha', 'knihy', 'knih')}`;
+  zahlavi.appendChild(nadpis);
+
+  const zavrit = document.createElement('button');
+  zavrit.type = 'button';
+  zavrit.className = 'ikona-tlacitko';
+  zavrit.textContent = '✕';
+  zavrit.title = 'Skrýt nabídku';
+  zavrit.setAttribute('aria-label', 'Skrýt nabídku nalezených knih');
+  zavrit.addEventListener('click', () => vykresliNalezy([]));
+  zahlavi.appendChild(zavrit);
+
+  panelNalezu.appendChild(zahlavi);
+
+  const seznam = document.createElement('ul');
+  seznam.className = 'seznam-vysledku';
+  seznam.replaceChildren(...nalezy.map(polozkaNalezu));
+  panelNalezu.appendChild(seznam);
+
+  if (poznamka) {
+    const text = document.createElement('p');
+    text.className = 'napoveda';
+    text.textContent = poznamka;
+    panelNalezu.appendChild(text);
+  }
+}
+
+prvek('form-podle-nazvu').addEventListener('submit', async (udalost) => {
+  udalost.preventDefault();
+  const nazev = prvek('vstup-nazev').value.trim();
+  const autor = prvek('vstup-autor').value.trim();
+
+  if (!nazev && !autor) {
+    oznam('Vyplňte název knihy, autora, nebo obojí.', 'varovani');
+    return;
+  }
+
+  const tlacitko = udalost.target.querySelector('button[type=submit]');
+  const puvodniPopis = tlacitko.textContent;
+  tlacitko.disabled = true;
+  tlacitko.textContent = '⏳ Hledám…';
+  vykresliNalezy([]);
+  nastavStav('Hledám v databázích knih …');
+
+  try {
+    const { vysledky, selhalyZdroje, nedostupne, bezIsbn } =
+      await hledejPodleTextu({ nazev, autor });
+
+    // Záznamy bez ISBN se nenabízejí a u starších titulů je to častý případ —
+    // bez vysvětlení by prázdná nebo krátká nabídka vypadala jako chyba.
+    const poznamky = [];
+    if (bezIsbn) {
+      poznamky.push(
+        `${pocetSlovem(bezIsbn, 'nález', 'nálezy', 'nálezů')} bez ISBN se nenabízí — ` +
+        'aplikace vede knihy podle něj.'
+      );
+    }
+    if (selhalyZdroje.length) poznamky.push(`Neodpověděly: ${selhalyZdroje.join(', ')}.`);
+    const poznamka = poznamky.join(' ');
+
+    vykresliNalezy(vysledky, poznamka);
+
+    if (vysledky.length) {
+      // Poznámky patří k nabídce, ne sem — pod ní je uživatel má rovnou u očí.
+      oznam(`Nalezeno: ${pocetSlovem(vysledky.length, 'kniha', 'knihy', 'knih')}.`, 'uspech');
+      nastavStav('Vyberte z nabídky svou knihu — klepnutím se přidá do tabulky.');
+    } else if (nedostupne) {
+      oznam('Databáze knih neodpověděly.', 'chyba');
+      nastavStav(`Hledání se nepodařilo (${selhalyZdroje.join(', ')}). Zkontrolujte připojení.`);
+    } else {
+      oznam('Nic se nenašlo.', 'varovani');
+      nastavStav(
+        'Databáze takovou knihu neznají. Zkuste jen část názvu, samotné příjmení autora, ' +
+        `nebo jiný zápis jména. ${poznamka}`.trim()
+      );
+    }
+  } catch (chyba) {
+    console.error(chyba);
+    oznam('Hledání selhalo — zkontrolujte připojení.', 'chyba');
+    nastavStav('Nepodařilo se spojit s databázemi knih.');
+  } finally {
+    tlacitko.disabled = false;
+    tlacitko.textContent = puvodniPopis;
+  }
 });
 
 /* ------------------------------------------------------- export a import */

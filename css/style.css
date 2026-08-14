@@ -196,6 +196,71 @@ input[type="search"] {
 .radek-formulare .tlacitko { flex: 0 0 auto; }
 .napoveda { margin: .5rem 0 0; font-size: .82rem; color: var(--text-slaby); }
 
+/* ------------------------------------------- hledání podle názvu a autora */
+
+/* Na telefonu jsou pole pod sebou a tlačítko přes celou šířku, na širším
+   displeji se název s autorem srovnají vedle sebe. */
+.formular-hledani {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ram);
+}
+
+.formular-hledani input { flex: 1 1 12rem; }
+.formular-hledani .tlacitko { flex: 1 1 100%; }
+
+.vysledky { margin-top: .75rem; }
+
+.zahlavi-vysledku {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  font-size: .95rem;
+}
+
+.seznam-vysledku {
+  display: grid;
+  gap: .5rem;
+  margin: .5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Celý nález je jedno tlačítko — na telefonu se do něj trefí palec. */
+.vysledek {
+  display: block;
+  width: 100%;
+  padding: .6rem .75rem;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--pozadi);
+  border: 1px solid var(--ram);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.vysledek:hover { border-color: var(--hlavni); }
+.vysledek:active { transform: translateY(1px); }
+.vysledek:disabled { opacity: .5; cursor: default; }
+
+.vysledek-nazev { display: block; font-weight: 600; }
+.vysledek-popis { display: block; font-size: .85rem; color: var(--text-slaby); }
+
+.vysledek-isbn {
+  display: block;
+  font-size: .8rem;
+  color: var(--text-slaby);
+  font-variant-numeric: tabular-nums;
+}
+
+.vysledek-stav { display: block; font-size: .8rem; color: var(--uspech); }
+.vysledek-stav:empty { display: none; }
+
 /* ------------------------------------------------------------ tabulka */
 
 .zahlavi-tabulky {

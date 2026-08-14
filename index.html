@@ -40,22 +40,51 @@
     </p>
 
     <details class="rucne">
-      <summary>Zadat ISBN ručně</summary>
+      <summary>Zadat ISBN ručně nebo hledat podle názvu</summary>
+
+      <!-- Klávesnice musí mít písmena: starší desetimístná ISBN končí X
+           („80-7203-068-X“) a na číselné klávesnici telefonu se nedá napsat. -->
       <form id="form-rucne" class="radek-formulare">
         <input
           id="vstup-isbn"
           type="text"
-          inputmode="numeric"
+          inputmode="text"
           autocomplete="off"
-          placeholder="978-80-…"
+          autocapitalize="characters"
+          autocorrect="off"
+          spellcheck="false"
+          placeholder="978-80-… nebo 80-…-X"
           aria-label="ISBN knihy">
         <button type="submit" class="tlacitko">Vyhledat</button>
       </form>
       <p class="napoveda">
         Hodí se, když je čárový kód poškozený nebo kniha žádný nemá.
-        Číslo ISBN v tabulce jde kdykoliv přepsat klepnutím — údaje o knize
-        se pak dohledají znovu.
+        Starší desetimístná čísla končící písmenem <b>X</b> zadejte i s ním —
+        aplikace si je převede. Číslo ISBN v tabulce jde kdykoliv přepsat
+        klepnutím, údaje o knize se pak dohledají znovu.
       </p>
+
+      <form id="form-podle-nazvu" class="formular-hledani">
+        <input
+          id="vstup-nazev"
+          type="text"
+          autocomplete="off"
+          placeholder="Název knihy"
+          aria-label="Název knihy">
+        <input
+          id="vstup-autor"
+          type="text"
+          autocomplete="off"
+          placeholder="Autor"
+          aria-label="Autor knihy">
+        <button type="submit" class="tlacitko">🔎 Hledat podle názvu a autora</button>
+      </form>
+      <p class="napoveda">
+        Pro knihy, které ISBN vůbec nemají vytištěné. Stačí vyplnit jedno
+        z polí; z nabídnutých knih pak vyberete tu svou.
+      </p>
+
+      <div id="vysledky-hledani" class="vysledky" hidden></div>
     </details>
   </section>
 

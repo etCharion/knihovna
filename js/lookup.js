@@ -1,5 +1,5 @@
 /**
- * Dohledání údajů o knize podle ISBN.
+ * Dohledání údajů o knize — podle ISBN, nebo podle názvu a autora.
  *
  * Zdroje se ptají všechny najednou a výsledky se slučují: jeden zná název
  * a autora, jiný má jen obálku — dohromady dají úplnější záznam, než kdyby
@@ -13,7 +13,7 @@
  * si tyhle služby neporadí. Pomlčky jsou jen pro zobrazení uživateli.
  */
 
-import { ocisti } from './isbn.js';
+import { jeKnizniKod, normalizuj, ocisti } from './isbn.js';
 
 // Na mobilních datech bývají odpovědi pomalé, proto raději delší strpení.
 const TIMEOUT_MS = 12000;
@@ -35,6 +35,15 @@ function popisChyby(chyba) {
 
 /** Pole, která se z jednotlivých zdrojů skládají dohromady. */
 const POLE = ['nazev', 'autor', 'vydavatel', 'rok', 'stran', 'jazyk', 'obalka'];
+
+/**
+ * Kolik nálezů se bere z každého zdroje a kolik se jich nakonec nabídne.
+ *
+ * Hledání podle názvu vrací i desítky vydání téhož titulu; delší seznam už
+ * na telefonu není k přečtení a vybrat se z něj stejně nedá.
+ */
+const NALEZU_ZE_ZDROJE = 10;
+const NALEZU_CELKEM = 15;
 
 async function ziskej(url) {
   const prerus = new AbortController();
@@ -89,6 +98,20 @@ function uklidAutora(jmeno) {
   return bezLet;
 }
 
+/**
+ * Vybere z nabízených identifikátorů první, který je opravdu knižní ISBN.
+ *
+ * Zdroje jich u jednoho záznamu uvádějí několik (ISBN-10 i ISBN-13, občas
+ * i kód od zboží nebo hloupost), takže se prostě vezme první, který projde
+ * kontrolní číslicí. Desetimístné se převede na třináctimístné.
+ */
+function prvniIsbn(kandidati) {
+  for (const kandidat of [].concat(kandidati || [])) {
+    if (jeKnizniKod(kandidat)) return normalizuj(kandidat);
+  }
+  return '';
+}
+
 function zGoogleBooks(polozka) {
   if (!polozka?.title) return null;
   return {
@@ -114,21 +137,43 @@ function zGoogleBooks(polozka) {
  */
 const GOOGLE_KLIC = '';
 
+/** Google Books — nejširší záběr u zahraničních titulů. */
+async function googleBooksDotaz(q, maxResults = 1) {
+  const parametry = new URLSearchParams({ q, maxResults: String(maxResults) });
+  if (GOOGLE_KLIC) parametry.set('key', GOOGLE_KLIC);
+  const data = await ziskej(`https://www.googleapis.com/books/v1/volumes?${parametry}`);
+  return data?.items || [];
+}
+
 /**
- * Google Books — nejširší záběr u zahraničních titulů.
- *
  * Když strukturované hledání podle ISBN nic nevrátí, zkusí se ještě totéž
  * číslo jako obyčejné klíčové slovo. U řady titulů je ISBN jen v popisu,
  * ne v rejstříku, a jinak by se nenašly.
  */
 async function googleBooks(isbn) {
-  const dotaz = async (q) => {
-    const parametry = new URLSearchParams({ q });
-    if (GOOGLE_KLIC) parametry.set('key', GOOGLE_KLIC);
-    const data = await ziskej(`https://www.googleapis.com/books/v1/volumes?${parametry}`);
-    return zGoogleBooks(data?.items?.[0]?.volumeInfo);
-  };
-  return (await dotaz(`isbn:${isbn}`)) || (await dotaz(isbn));
+  const podle = async (q) => zGoogleBooks((await googleBooksDotaz(q))[0]?.volumeInfo);
+  return (await podle(`isbn:${isbn}`)) || (await podle(isbn));
+}
+
+/**
+ * Hledání podle názvu a autora v Google Books.
+ *
+ * Uvozovky drží víceslovný název pohromadě — bez nich by `intitle:Babička
+ * Němcová` znamenalo „v názvu Babička a kdekoliv Němcová“.
+ */
+async function googleBooksPodleTextu({ nazev, autor }) {
+  const vUvozovkach = (text) => `"${text.replace(/"/g, ' ').trim()}"`;
+  const casti = [];
+  if (nazev) casti.push(`intitle:${vUvozovkach(nazev)}`);
+  if (autor) casti.push(`inauthor:${vUvozovkach(autor)}`);
+
+  const polozky = await googleBooksDotaz(casti.join(' '), NALEZU_ZE_ZDROJE);
+  return polozky.map((polozka) => {
+    const kniha = zGoogleBooks(polozka?.volumeInfo);
+    if (!kniha) return null;
+    const cisla = (polozka.volumeInfo.industryIdentifiers || []).map((i) => i.identifier);
+    return { ...kniha, isbn: prvniIsbn(cisla) };
+  }).filter(Boolean);
 }
 
 /**
@@ -138,16 +183,20 @@ async function googleBooks(isbn) {
  *
  * Portál běží na VuFindu, jehož API posílá hlavičku Access-Control-Allow-Origin,
  * takže se na něj dá ptát rovnou z prohlížeče. Bez výslovného výčtu polí by
- * vrátilo jen identifikátor záznamu, proto ten seznam v dotazu.
+ * vrátilo jen identifikátor záznamu, proto ten seznam v každém dotazu.
  */
-async function knihovnyCz(isbn) {
-  const pole = ['title', 'authors', 'publishers', 'publicationDates', 'languages',
-                'physicalDescriptions'];
-  const parametry = new URLSearchParams({ lookfor: isbn, type: 'ISN', limit: '1' });
-  for (const p of pole) parametry.append('field[]', p);
+const POLE_KNIHOVNY = ['title', 'authors', 'publishers', 'publicationDates', 'languages',
+                       'physicalDescriptions', 'cleanIsbn', 'isbns'];
+
+async function knihovnyCzDotaz(lookfor, type, limit) {
+  const parametry = new URLSearchParams({ lookfor, type, limit: String(limit) });
+  for (const p of POLE_KNIHOVNY) parametry.append('field[]', p);
 
   const data = await ziskej(`https://www.knihovny.cz/api/v1/search?${parametry}`);
-  const zaznam = data?.records?.[0];
+  return data?.records || [];
+}
+
+function zKnihovnyCz(zaznam) {
   if (!zaznam?.title) return null;
 
   // Autoři přicházejí jako objekt, kde klíče jsou jména: { primary: { "Novák, Jan": {…} } }
@@ -167,6 +216,32 @@ async function knihovnyCz(isbn) {
     jazyk: (zaznam.languages?.[0] || '').replace(/^cze$/, 'cs'),
     obalka: '',
   };
+}
+
+async function knihovnyCz(isbn) {
+  const [zaznam] = await knihovnyCzDotaz(isbn, 'ISN', 1);
+  return zKnihovnyCz(zaznam);
+}
+
+/**
+ * Hledání podle názvu a autora v Knihovnách.cz.
+ *
+ * Katalog má pro každé pole vlastní rejstřík, takže když je vyplněné jen
+ * jedno, ptáme se přesně do něj (`Title`, `Author`). Na obojí najednou
+ * rejstřík není — tam se hledá napříč všemi poli.
+ */
+async function knihovnyCzPodleTextu({ nazev, autor }) {
+  const { lookfor, type } =
+    nazev && autor ? { lookfor: `${nazev} ${autor}`, type: 'AllFields' }
+    : nazev ? { lookfor: nazev, type: 'Title' }
+    : { lookfor: autor, type: 'Author' };
+
+  const zaznamy = await knihovnyCzDotaz(lookfor, type, NALEZU_ZE_ZDROJE);
+  return zaznamy.map((zaznam) => {
+    const kniha = zKnihovnyCz(zaznam);
+    if (!kniha) return null;
+    return { ...kniha, isbn: prvniIsbn(zaznam.cleanIsbn || zaznam.isbns) };
+  }).filter(Boolean);
 }
 
 /** Open Library — dobrý doplněk, hlavně u starších a anglických knih. */
@@ -189,6 +264,39 @@ async function openLibrary(isbn) {
   };
 }
 
+/**
+ * Hledání podle názvu a autora v Open Library.
+ *
+ * Odpověď je tu na úrovni díla, ne konkrétního vydání: rok je rok prvního
+ * vydání a pole `isbn` obsahuje čísla všech vydání dohromady. Vybrané ISBN
+ * tedy nemusí patřit k roku a nakladateli, které se u nálezu ukazují — po
+ * výběru se proto údaje ještě jednou dohledají podle samotného čísla.
+ */
+async function openLibraryPodleTextu({ nazev, autor }) {
+  const parametry = new URLSearchParams({
+    limit: String(NALEZU_ZE_ZDROJE),
+    fields: 'title,subtitle,author_name,first_publish_year,publisher,isbn,language,cover_i',
+  });
+  if (nazev) parametry.set('title', nazev);
+  if (autor) parametry.set('author', autor);
+
+  const data = await ziskej(`https://openlibrary.org/search.json?${parametry}`);
+  return (data?.docs || [])
+    .filter((dokument) => dokument?.title)
+    .map((dokument) => ({
+      nazev: [dokument.title, dokument.subtitle].filter(Boolean).join(': '),
+      autor: (dokument.author_name || []).join(', '),
+      vydavatel: (dokument.publisher || [])[0] || '',
+      rok: rok(dokument.first_publish_year),
+      stran: '',
+      jazyk: (dokument.language || [])[0] || '',
+      obalka: dokument.cover_i
+        ? `https://covers.openlibrary.org/b/id/${dokument.cover_i}-M.jpg`
+        : '',
+      isbn: prvniIsbn(dokument.isbn),
+    }));
+}
+
 // Poznámka pro budoucnost: Obálky knih (obalkyknih.cz) sem nepatří, i když
 // se to jako český zdroj nabízí. Z běžné webové stránky se z nich číst nedá:
 // neposílají hlavičku CORS, odpovídají JSONP místo JSON a přístup pouštějí
@@ -202,9 +310,9 @@ async function openLibrary(isbn) {
  * bude česká a jejich záznamy mají správnou diakritiku i české názvy.
  */
 const ZDROJE = [
-  { nazev: 'Knihovny.cz', hledej: knihovnyCz },
-  { nazev: 'Google Books', hledej: googleBooks },
-  { nazev: 'Open Library', hledej: openLibrary },
+  { nazev: 'Knihovny.cz', hledej: knihovnyCz, hledejText: knihovnyCzPodleTextu },
+  { nazev: 'Google Books', hledej: googleBooks, hledejText: googleBooksPodleTextu },
+  { nazev: 'Open Library', hledej: openLibrary, hledejText: openLibraryPodleTextu },
 ];
 
 /**
@@ -271,4 +379,64 @@ export async function najdiKnihu(isbnVstup) {
     zdroj: prispeli.join(', '),
     selhalyZdroje: selhaly,
   };
+}
+
+/**
+ * Najde knihy podle názvu, autora, nebo obojího.
+ *
+ * Na rozdíl od hledání podle ISBN tu není jedna správná odpověď — vrací se
+ * proto nabídka, ze které si uživatel vybere. Záznamy o téže knize se z více
+ * zdrojů slučují podle ISBN, takže se jeden titul v nabídce neopakuje.
+ *
+ * Nálezy bez ISBN se nenabízejí: aplikace vede knihy právě podle něj, takže
+ * takový řádek by neměl podle čeho vzniknout. Kolik jich bylo, se vrací —
+ * u starších titulů je to častý případ a uživateli je potřeba to říct.
+ */
+export async function hledejPodleTextu({ nazev = '', autor = '' } = {}) {
+  const dotaz = { nazev: nazev.trim(), autor: autor.trim() };
+  const prazdno = { vysledky: [], selhalyZdroje: [], nedostupne: false, bezIsbn: 0 };
+  if (!dotaz.nazev && !dotaz.autor) return prazdno;
+
+  const odpovedi = await Promise.allSettled(ZDROJE.map((zdroj) => zdroj.hledejText(dotaz)));
+
+  const podleIsbn = new Map();
+  const selhaly = [];
+  let nekdoOdpovedel = false;
+  let bezIsbn = 0;
+
+  odpovedi.forEach((odpoved, poradi) => {
+    const zdroj = ZDROJE[poradi];
+
+    if (odpoved.status === 'rejected') {
+      selhaly.push(`${zdroj.nazev} (${popisChyby(odpoved.reason)})`);
+      console.warn(`Zdroj ${zdroj.nazev} při hledání podle názvu selhal:`, odpoved.reason);
+      return;
+    }
+    nekdoOdpovedel = true;
+
+    for (const nalez of odpoved.value || []) {
+      if (!nalez.isbn) {
+        bezIsbn++;
+        continue;
+      }
+
+      const drivejsi = podleIsbn.get(nalez.isbn);
+      if (!drivejsi) {
+        podleIsbn.set(nalez.isbn, { ...nalez, zdroje: [zdroj.nazev] });
+        continue;
+      }
+      // Stejná kniha z dalšího zdroje jen doplní, co u té první chybí.
+      for (const pole of POLE) {
+        if (!drivejsi[pole] && nalez[pole]) drivejsi[pole] = nalez[pole];
+      }
+      // Jeden zdroj umí totéž ISBN vrátit víckrát (různá vydání téhož titulu).
+      if (!drivejsi.zdroje.includes(zdroj.nazev)) drivejsi.zdroje.push(zdroj.nazev);
+    }
+  });
+
+  const vysledky = [...podleIsbn.values()]
+    .slice(0, NALEZU_CELKEM)
+    .map(({ zdroje, ...kniha }) => ({ ...kniha, zdroj: zdroje.join(', ') }));
+
+  return { vysledky, selhalyZdroje: selhaly, nedostupne: !nekdoOdpovedel, bezIsbn };
 }

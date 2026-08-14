@@ -68,20 +68,56 @@ const KNIHOVNA = {
     publishedDate: '2006',
     language: 'cs',
   },
+  // Starší kniha, jejíž desetimístné ISBN končí písmenem X: 80-7203-068-X.
+  '9788072030682': {
+    title: 'Kniha se starým ISBN',
+    authors: ['Karel Čapek'],
+    publisher: 'Talpress',
+    publishedDate: '1998',
+    language: 'cs',
+  },
 };
 
 /** Dotazy, které aplikace poslala do Google Books — kontroluje se jejich tvar. */
 const dotazyNaGoogle = [];
 
-/** Vrátí knihu podle ISBN v dotazu, nebo prázdný výsledek jako skutečná služba. */
+/**
+ * Napodobuje chování služby: na `isbn:<číslo>` vrátí jednu knihu, na
+ * `intitle:`/`inauthor:` všechny, na které dotaz sedí.
+ */
+function najdiVKnihovne(dotaz) {
+  const jakoPolozka = (isbn) => ({
+    volumeInfo: {
+      ...KNIHOVNA[isbn],
+      industryIdentifiers: [{ type: 'ISBN_13', identifier: isbn }],
+    },
+  });
+
+  const cislo = dotaz.replace('isbn:', '');
+  if (KNIHOVNA[cislo]) return [jakoPolozka(cislo)];
+
+  const hledane = [...dotaz.matchAll(/(?:intitle|inauthor):"([^"]*)"/g)]
+    .map((nalez) => nalez[1].toLowerCase());
+  if (!hledane.length) return [];
+
+  return Object.keys(KNIHOVNA)
+    .filter((isbn) => {
+      const kniha = KNIHOVNA[isbn];
+      const text = [kniha.title, kniha.subtitle, ...(kniha.authors || [])].join(' ').toLowerCase();
+      return hledane.every((cast) => text.includes(cast));
+    })
+    .map(jakoPolozka);
+}
+
+/** Vrátí knihy podle dotazu, nebo prázdný výsledek jako skutečná služba. */
 function odpovezJakoGoogleBooks(route) {
   const dotaz = new URL(route.request().url()).searchParams.get('q') || '';
   dotazyNaGoogle.push(dotaz);
-  const kniha = KNIHOVNA[dotaz.replace('isbn:', '')];
+  const nalezene = najdiVKnihovne(dotaz);
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify(kniha ? { items: [{ volumeInfo: kniha }] } : { totalItems: 0 }),
+    body: JSON.stringify(nalezene.length ? { items: nalezene } : { totalItems: 0 }),
   });
 }
 
@@ -256,6 +292,77 @@ t(dotazyNaGoogle.every((d) => !d.includes('-')), 'dotaz neobsahuje pomlčky',
   dotazyNaGoogle.join(' | '));
 t(dotazyNaGoogle.includes('isbn:9788073355067'), 'dotaz má tvar isbn:<13 číslic>',
   dotazyNaGoogle.join(' | '));
+
+/* --------------------------------------- staré ISBN končící písmenem X */
+
+// Od téhle chvíle se začíná s prázdnou tabulkou, ať se dá počítat s řádky.
+await stranka.evaluate(() => localStorage.clear());
+await stranka.reload({ waitUntil: 'networkidle' });
+await stranka.locator('.rucne summary').click();
+
+// Pole mívalo číselnou klávesnici (inputmode="numeric"), na které písmeno X
+// není — starší desetimístné ISBN tak nešlo zadat vůbec. Číslo se proto ťuká
+// po znacích jako na telefonu, ne vloží najednou.
+t((await stranka.locator('#vstup-isbn').getAttribute('inputmode')) !== 'numeric',
+  'pole pro ISBN nenabízí jen číselnou klávesnici',
+  String(await stranka.locator('#vstup-isbn').getAttribute('inputmode')));
+
+await stranka.locator('#vstup-isbn').pressSequentially('80-7203-068-X');
+t((await stranka.inputValue('#vstup-isbn')) === '80-7203-068-X',
+  'písmeno X se dá do pole napsat', await stranka.inputValue('#vstup-isbn'));
+
+await stranka.click('#form-rucne button[type=submit]');
+await stranka.waitForFunction(
+  () => document.querySelector('tbody tr td:nth-child(2)')?.textContent.includes('starým ISBN'),
+  null, { timeout: 10000 }).catch(() => {});
+
+const stareIsbn = stranka.locator('tbody tr').first();
+t((await stareIsbn.locator('td').nth(1).innerText()).includes('Kniha se starým ISBN'),
+  'kniha se starým ISBN se dohledala', await stareIsbn.locator('td').nth(1).innerText());
+t((await stareIsbn.locator('td.isbn').innerText()) === '978-80-7203-068-2',
+  'a uložila se převedená na ISBN-13', await stareIsbn.locator('td.isbn').innerText());
+
+/* --------------------------------------- hledání podle názvu a autora */
+
+await stranka.fill('#vstup-nazev', 'Kniha');
+await stranka.click('#form-podle-nazvu button[type=submit]');
+await stranka.waitForSelector('#vysledky-hledani:not([hidden]) .vysledek', { timeout: 10000 });
+
+const nalezy = stranka.locator('#vysledky-hledani .vysledek');
+t((await nalezy.count()) === 2, 'podle názvu se nabídnou obě knihy, které mu odpovídají',
+  String(await nalezy.count()));
+t((await nalezy.first().innerText()).includes('978-80-'), 'u nálezu je vidět ISBN s pomlčkami',
+  await nalezy.first().innerText());
+t((await stranka.locator('#vysledky-hledani .vysledek-stav', { hasText: 'v tabulce' }).count()) === 1,
+  'kniha, kterou už tabulka má, je v nabídce označená');
+
+// Autor navíc zúží nabídku — hledá se podle obojího, ne jen podle názvu.
+await stranka.fill('#vstup-autor', 'Novák');
+await stranka.click('#form-podle-nazvu button[type=submit]');
+await stranka.waitForFunction(
+  () => document.querySelectorAll('#vysledky-hledani .vysledek').length === 1,
+  null, { timeout: 10000 }).catch(() => {});
+t((await nalezy.count()) === 1, 's autorem zbude jediná kniha', String(await nalezy.count()));
+t((await nalezy.first().innerText()).includes('Kniha z Karolina'), 'a je to ta správná',
+  await nalezy.first().innerText());
+
+const dotazyPodleNazvu = dotazyNaGoogle.filter((d) => d.includes('intitle'));
+t(dotazyPodleNazvu.some((d) => d.includes('inauthor')), 'do dotazu jde název i autor',
+  dotazyPodleNazvu.join(' | '));
+t(dotazyPodleNazvu.every((d) => !d.includes('isbn:')), 'a nemíchá se s hledáním podle čísla');
+
+// Klepnutím se kniha přidá do tabulky — údaje se přitom dohledají podle ISBN.
+await nalezy.first().click();
+await stranka.waitForFunction(
+  () => document.querySelectorAll('tbody tr').length === 2, null, { timeout: 10000 }).catch(() => {});
+t((await stranka.locator('#pocet').innerText()) === '2', 'vybraná kniha přibude do tabulky',
+  await stranka.locator('#pocet').innerText());
+t((await stranka.locator('tbody tr').first().locator('td.isbn').innerText()) === '978-80-242-6870-5',
+  'se svým ISBN', await stranka.locator('tbody tr').first().locator('td.isbn').innerText());
+t((await stranka.locator('tbody tr').first().locator('td').nth(4).innerText()) === 'Karolinum',
+  'a s údaji dohledanými podle čísla');
+t((await nalezy.first().innerText()).includes('v tabulce'),
+  'a v nabídce se hned označí jako přidaná', await nalezy.first().innerText());
 
 /* ------------------------------------------------------ skenování kamerou */
 
