@@ -20,8 +20,12 @@ registrace, žádný API klíč.
 - **Tabulka knih** s hledáním a řazením podle sloupců.
 - **Ruční zadání ISBN**, když je kód poškozený nebo chybí — včetně starších
   desetimístných čísel končících písmenem **X**.
+- **Časopisy podle ISSN** — zadané ručně, nebo naskenované z čárového kódu
+  s prefixem 977.
 - **Hledání podle názvu a autora** pro knihy, které ISBN vytištěné nemají:
   z nabídky vyberete tu svou a přidá se do tabulky.
+- **Návrh opravy**, když číslo neprojde kontrolou — poslední číslice ISBN je
+  kontrolní, takže aplikace umí spočítat, jak mělo číslo nejspíš vypadat.
 - **Úpravy přímo v tabulce** — klepnutím na název, autora, poznámku i **ISBN**.
   Když skener přečte číslo špatně, přepíšete ho a údaje o knize se dohledají
   znovu.
@@ -114,6 +118,45 @@ vyjde deset — a ta se tiskne jako **X**: `80-7203-068-X`. Takové číslo zade
 i s tím písmenem, aplikace si ho převede na dnešní třináctimístný tvar
 (`978-80-7203-068-2`) a v tabulce i v exportu už bude v něm.
 
+Klávesnice u ručního zadání je číselná, protože ISBN je skoro celé z číslic.
+Písmeno X na ní ale není — od toho je **tlačítko X vedle pole**: klepnutím se
+klávesnice přepne na písmena, druhým klepnutím zpátky na číslice.
+
+### Když číslo neprojde kontrolou
+
+Poslední číslice ISBN i ISSN je **kontrolní** — dopočítává se z těch před ní
+tak, aby vážený součet vyšel beze zbytku. Právě proto aplikace pozná špatně
+opsané nebo špatně naskenované číslo dřív, než ho začne hledat.
+
+Když zadané číslo neprojde, aplikace spočítá, jak by vypadalo, kdyby byl
+překlep zrovna v té kontrolní číslici, a **vloží návrh do pole**. Porovnáte ho
+s knihou a buď potvrdíte tlačítkem *Vyhledat*, nebo číslo přepíšete.
+
+Příklad: `0-8006-0773-3` neprojde, protože kontrolní číslice u `0-8006-0773`
+musí být **2**. Aplikace nabídne `978-0-8006-0773-9`, což je totéž číslo
+převedené na ISBN-13. Nejde tedy o starý formát, který by aplikace neuměla —
+jen o jednu nesedící číslici.
+
+> Občas má i vytištěné ISBN chybu od nakladatele. Takové číslo neznají ani
+> databáze knih, takže se stejně nic nedohledá. Knihu v tom případě přidejte
+> **hledáním podle názvu a autora** a číslo z obálky si opište do poznámky.
+
+### Časopisy a ISSN
+
+Periodika ISBN nemají, mají osmimístné **ISSN** (`1234-5678`). Zadat ho jde do
+stejného pole jako ISBN — aplikace pozná, o co jde. Časopisy mají i vlastní
+čárový kód, který začíná prefixem **977**; ten stačí naskenovat a ISSN se
+z něj dopočítá. Různá čísla téhož časopisu mají v kódu různé dvojčíslí, ale
+ISSN vyjde stejné, takže se v tabulce nedělají duplicitní řádky — jen přibývají
+kusy.
+
+ISSN se ukládá do stejného sloupce jako ISBN (v tabulce se jmenuje
+*ISBN / ISSN*) a do stejného sloupce jde i do exportu. Když ho knihovní systém
+při importu čeká jinde, přesuňte sloupec v Excelu.
+
+> Údaje k ISSN dohledávají jen Knihovny.cz a Crossref — Google Books ani
+> Open Library periodika nevedou, takže se jich aplikace na ISSN ani neptá.
+
 ### Špatně přečtené ISBN
 
 Klepněte na číslo v tabulce, přepište ho a potvrďte (Enter, nebo klepnutí
@@ -133,7 +176,7 @@ při importu**, takže se při párování sloupců nemusí nic dohledávat:
 
 | Sloupec v CSV | Odkud se bere |
 |---|---|
-| Unikátní identifikátor definice knihy (ISBN) | z čárového kódu nebo z tištěného čísla |
+| Unikátní identifikátor definice knihy (ISBN) | z čárového kódu nebo z tištěného čísla; u časopisů sem jde ISSN |
 | Autor | dohledáno podle ISBN |
 | Název | dohledáno podle ISBN |
 | Rok vydání (titul) | dohledáno podle ISBN |
@@ -169,11 +212,12 @@ s nimi dalo dál pracovat.
 Aplikace se zeptá **všech zdrojů naráz** a odpovědi složí dohromady: jeden zná
 název a autora, jiný má obálku. Výpadek jednoho zdroje tak nezastaví ostatní.
 
-| Zdroj | K čemu je nejlepší |
-|---|---|
-| [Knihovny.cz](https://www.knihovny.cz/) | **české knihy** — katalogy zhruba stovky českých knihoven včetně Národní knihovny |
-| [Google Books](https://developers.google.com/books) | zahraniční tituly (viz limit dotazů níže) |
-| [Open Library](https://openlibrary.org/dev/docs/api/books) | starší a anglicky psané knihy, obálky |
+| Zdroj | K čemu je nejlepší | ISSN |
+|---|---|---|
+| [Knihovny.cz](https://www.knihovny.cz/) | **české knihy** — katalogy zhruba stovky českých knihoven včetně Národní knihovny | ano |
+| [Google Books](https://developers.google.com/books) | zahraniční tituly (viz limit dotazů níže) | ne |
+| [Crossref](https://api.crossref.org/) | zahraniční tituly, hlavně odborné — metadata od samotných vydavatelů, bez kvóty | ano |
+| [Open Library](https://openlibrary.org/dev/docs/api/books) | starší a anglicky psané knihy, obálky | ne |
 
 České zdroje jsou v pořadí první, takže když má knihu víc katalogů, přednost
 dostane český záznam — se správnou diakritikou a českým názvem. Knihovnické
@@ -181,12 +225,16 @@ záznamy se přitom upraví pro běžné čtení: z názvu se odstraní katalogi
 interpunkce (`Název : podtitul /`) a autor se z tvaru `Novák, Jan, 1970-`
 převede na `Jan Novák`.
 
-Stejné tři zdroje obsluhují i hledání podle názvu a autora. Každý má na to
-vlastní způsob dotazu: Knihovny.cz hledají v rejstříku názvů (`type=Title`),
-autorů (`type=Author`), nebo napříč poli, když je vyplněné obojí; Google Books
-dostane `intitle:` a `inauthor:`; Open Library vlastní parametry `title`
-a `author`. Nálezy o téže knize se pak podle ISBN slučují, aby se jeden titul
-v nabídce neopakoval třikrát.
+Tytéž zdroje obsluhují i hledání podle názvu a autora. Každý má na to vlastní
+způsob dotazu: Knihovny.cz hledají v rejstříku názvů (`type=Title`), autorů
+(`type=Author`), nebo napříč poli, když je vyplněné obojí; Google Books dostane
+`intitle:` a `inauthor:`; Crossref `query.bibliographic` a `query.author`;
+Open Library vlastní parametry `title` a `author`. Nálezy o téže knize se pak
+podle čísla slučují, aby se jeden titul v nabídce neopakoval čtyřikrát.
+
+Z Crossrefu se přitom berou jen záznamy typu kniha (`monograph`, `book`
+a podobné). Je to hlavně rejstřík článků a bez toho filtru by se do nabídky
+pletly jednotlivé studie z časopisů.
 
 > Open Library odpovídá na úrovni díla, ne konkrétního vydání — rok
 > a nakladatel u jejího nálezu tedy nemusí patřit k uvedenému ISBN. Právě
@@ -216,6 +264,12 @@ Bez vlastního klíče Google Books často odpovídá `vyčerpaný limit dotazů
 (HTTP 429) — kvóta je sdílená a bývá vyčerpaná. **Českých knih se to skoro
 netýká**, ty najde Knihovny.cz; u zahraničních titulů to ale znamená, že
 Google občas nepomůže.
+
+Právě kvůli tomu je mezi zdroji **Crossref**: kvótu nemá, klíč nepotřebuje
+a jeho záznamy pocházejí přímo od vydavatelů, takže nakladatel a rok bývají
+přesné. Je nejsilnější u odborných knih — u beletrie a učebnic je Google Books
+pořád nejširší, takže když se zahraniční tituly nedaří dohledávat, vyplatí se
+udělat těch pět minut navíc a klíč si pořídit.
 
 Trvale se to řeší vlastním klíčem, který je zdarma:
 
@@ -275,7 +329,7 @@ js/app.js                propojení všech částí a obsluha tabulky
 js/scanner.js            kamera a čtení čárových kódů
 js/ocr.js                čtení ISBN z vytištěného čísla
 js/lookup.js             dohledání knihy v online databázích (podle ISBN i podle názvu)
-js/isbn.js               ověření a převody ISBN
+js/isbn.js               ověření a převody ISBN a ISSN
 js/storage.js            ukládání, export do CSV a JSON
 sw.js                    offline režim
 manifest.webmanifest     nastavení pro přidání na plochu
@@ -304,8 +358,9 @@ se načítá rovnou, Tesseract (7 MB) až když si někdo řekne o čtení čís
 ### Testy
 
 Testy jsou tři sady. `tests/jednotky.mjs` běží v Node během vteřiny a kontroluje
-dělení ISBN, čísla končící X, vytahování čísla z rozpoznaného textu, slučování
-duplicit, hledání podle názvu a autora a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
+dělení ISBN, čísla končící X, ISSN i čárové kódy časopisů, návrh opravy
+kontrolní číslice, vytahování čísla z rozpoznaného textu, slučování duplicit,
+hledání podle názvu a autora a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
 skutečném prohlížeči včetně obojího skenování: Chromiu se místo kamery
 podstrčí jednou video s opravdovým čárovým kódem, podruhé video s vytištěným
 číslem ISBN. `tests/aktualizace.mjs` hlídá, že se nová verze aplikace opravdu
@@ -332,7 +387,17 @@ kamera v jiných prohlížečích na iOS bývá omezená.
 (zhruba 15–20 cm) a vyhnout se odleskům na lesklé obálce.
 
 **Kniha se nenašla.** Zkontrolujte ISBN v tabulce; když sedí, kniha v databázích
-prostě není — dopište název a autora ručně.
+prostě není — dopište název a autora ručně, nebo ji zkuste najít podle názvu.
+
+**„To není platné ISBN“ u čísla, které je v knize vytištěné.** Poslední číslice
+je kontrolní a nesedí s těmi před ní — buď je jedna špatně opsaná, nebo se dvě
+přehodily. Aplikace nabídne, jak by číslo vypadalo s opravenou kontrolní
+číslicí; porovnejte návrh s knihou. Viz *Když číslo neprojde kontrolou* výše.
+
+**Zahraniční kniha se nedohledá.** Google Books má bez vlastního klíče sdílenou
+kvótu, která bývá vyčerpaná — v hlášce to poznáte podle `vyčerpaný limit
+dotazů`. Crossref zaskočí u odborných titulů, u beletrie ale ne vždy. Trvale to
+řeší vlastní klíč, viz *Google Books a limit dotazů*.
 
 **Hledání podle názvu nic nenajde.** Zkuste jen část názvu bez podtitulu,
 u autora samotné příjmení. České katalogy vedou jména ve tvaru `Novák, Jan`,

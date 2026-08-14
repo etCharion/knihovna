@@ -2,7 +2,7 @@
  * Propojení celé aplikace: kamera → vyhledání knihy → tabulka.
  */
 
-import { jeKnizniKod, normalizuj, naFormat } from './isbn.js';
+import { naFormat, navrhniOpravu, rozpoznej } from './isbn.js';
 import { hledejPodleTextu, najdiKnihu, nahradniObalka } from './lookup.js';
 import * as ocr from './ocr.js';
 import * as skener from './scanner.js';
@@ -48,6 +48,9 @@ function nastavStav(text) {
 function pocetSlovem(kolik, jedna, dve, pet) {
   return `${kolik} ${kolik === 1 ? jedna : kolik < 5 ? dve : pet}`;
 }
+
+/** Jak se v hláškách jmenuje číslo, o které zrovna jde. */
+const jmenoCisla = (druh) => (druh === 'periodikum' ? 'ISSN' : 'ISBN');
 
 /* ------------------------------------------------------------ tabulka */
 
@@ -123,13 +126,14 @@ function bunkaKUprave(kniha, pole, zastupnyText) {
   return td;
 }
 
-/** Pole, která patří ke knize samotné — po opravě ISBN se dohledávají znovu. */
+/** Pole, která patří ke knize samotné — po opravě čísla se dohledávají znovu. */
 const POLE_O_KNIZE = ['nazev', 'autor', 'rok', 'vydavatel', 'stran', 'jazyk', 'obalka', 'zdroj'];
 
 /**
- * Buňka s ISBN, kterou jde přepsat, když skener přečetl číslo špatně.
+ * Buňka s ISBN (u periodik ISSN), kterou jde přepsat, když skener přečetl
+ * číslo špatně.
  *
- * Po opravě se údaje o knize načtou znovu — ty původní patřily jinému
+ * Po opravě se údaje o titulu načtou znovu — ty původní patřily jinému
  * číslu, takže by po opravě zůstaly viset u nesprávné knihy.
  */
 function bunkaIsbn(kniha) {
@@ -162,19 +166,22 @@ function bunkaIsbn(kniha) {
 
   prvek.addEventListener('blur', async () => {
     const zadane = prvek.textContent.trim();
-    const nove = normalizuj(zadane);
+    const rozpoznane = rozpoznej(zadane);
 
-    if (!nove) {
-      oznam('To není platné ISBN — zkontrolujte číslice.', 'chyba');
+    if (!rozpoznane) {
+      const navrh = navrhniOpravu(zadane);
+      oznam('To není platné ISBN ani ISSN — zkontrolujte číslice.', 'chyba');
+      nastavStav(navrh
+        ? `U ${zadane} nesedí kontrolní číslice — podle zbytku čísla by mělo být ${naFormat(navrh)}.`
+        : `Číslo ${zadane} neprošlo kontrolou, v tabulce zůstalo původní.`);
       return vratPuvodni();
     }
+
+    const { kod: nove, druh } = rozpoznane;
+    const cislo = jmenoCisla(druh);
     if (nove === kniha.isbn) return vratPuvodni();
-    if (!jeKnizniKod(nove)) {
-      oznam('Číslo nezačíná na 978 ani 979, takže to není kniha.', 'chyba');
-      return vratPuvodni();
-    }
     if (ulozne.podleIsbn(nove)) {
-      oznam('Kniha s tímto ISBN už v tabulce je.', 'varovani');
+      oznam(`Titul s tímto ${cislo} už v tabulce je.`, 'varovani');
       return vratPuvodni();
     }
 
@@ -191,11 +198,11 @@ function bunkaIsbn(kniha) {
         oznam(`✓ ${nalezena.nazev}${nalezena.autor ? ' — ' + nalezena.autor : ''}`, 'uspech');
         nastavStav(`Údaje načteny znovu z: ${nalezena.zdroj}.`);
       } else if (nalezena.nedostupne) {
-        oznam('ISBN opraveno, ale databáze neodpověděly.', 'chyba');
-        nastavStav('Údaje se nepodařilo načíst — zkontrolujte připojení a opravu ISBN zopakujte.');
+        oznam(`${cislo} opraveno, ale databáze neodpověděly.`, 'chyba');
+        nastavStav(`Údaje se nepodařilo načíst — zkontrolujte připojení a opravu ${cislo} zopakujte.`);
       } else {
-        oznam('ISBN opraveno, kniha se ale nenašla — doplňte údaje ručně.', 'varovani');
-        nastavStav(`ISBN ${naFormat(nove)} se v databázích nenašlo.`);
+        oznam(`${cislo} opraveno, titul se ale nenašel — doplňte údaje ručně.`, 'varovani');
+        nastavStav(`${cislo} ${naFormat(nove)} se v databázích nenašlo.`);
       }
     } finally {
       cekaSeNaVyhledani.delete(nove);
@@ -278,9 +285,9 @@ function vykresli() {
 /* ------------------------------------------------- zpracování jednoho kódu */
 
 /**
- * Doplní do dohledaného záznamu údaje, které se podle ISBN nenašly.
+ * Doplní do dohledaného záznamu údaje, které se podle čísla nenašly.
  *
- * Uplatní se u knih vybraných z nabídky hledání podle názvu: tam už název
+ * Uplatní se u titulů vybraných z nabídky hledání podle názvu: tam už název
  * a autor známí jsou, takže i když se dotaz podle samotného čísla nechytí,
  * řádek nezůstane prázdný.
  */
@@ -289,18 +296,24 @@ function doplnChybejici(kniha, zaloha) {
   for (const pole of POLE_O_KNIZE) {
     if (!doplnena[pole] && zaloha[pole]) doplnena[pole] = zaloha[pole];
   }
-  // Doplněný název znamená, že řádek o knize něco ví — i když sám dotaz
-  // podle ISBN nic nevrátil.
+  // Doplněný název znamená, že řádek o titulu něco ví — i když sám dotaz
+  // podle čísla nic nevrátil.
   return { ...doplnena, nalezeno: !!doplnena.nazev };
 }
 
-async function zpracujKod(kod, zaloha = null) {
-  const isbn = normalizuj(kod);
+async function zpracujKod(vstupniKod, zaloha = null) {
+  const rozpoznane = rozpoznej(vstupniKod);
 
-  if (!jeKnizniKod(kod)) {
-    nastavStav(`Kód ${kod} nevypadá na knihu (chybí prefix 978/979). Zkuste jiný kód.`);
+  if (!rozpoznane) {
+    nastavStav(
+      `Kód ${vstupniKod} nevypadá na knihu ani na časopis — čekají se čísla ` +
+      'začínající 978 nebo 979 (ISBN), případně 977 (ISSN). Zkuste jiný kód.'
+    );
     return;
   }
+
+  const { kod: isbn, druh } = rozpoznane;
+  const cislo = jmenoCisla(druh);
   if (cekaSeNaVyhledani.has(isbn)) return;
 
   skener.potvrzeniSkenu();
@@ -309,7 +322,7 @@ async function zpracujKod(kod, zaloha = null) {
   if (jiz) {
     ulozne.pridej({ isbn });
     vykresli();
-    oznam(`„${jiz.nazev || isbn}“ už v tabulce byla — přidán další kus.`, 'varovani');
+    oznam(`„${jiz.nazev || naFormat(isbn)}“ už v tabulce byl — přidán další kus.`, 'varovani');
     return;
   }
 
@@ -326,16 +339,16 @@ async function zpracujKod(kod, zaloha = null) {
     } else if (kniha.nedostupne) {
       oznam('Databáze knih neodpověděly — údaje doplníme později.', 'chyba');
       nastavStav(
-        `ISBN ${naFormat(isbn)} je uložené, ale žádná databáze neodpověděla ` +
+        `${cislo} ${naFormat(isbn)} je uložené, ale žádná databáze neodpověděla ` +
         `(${kniha.selhalyZdroje.join(', ')}). Zkontrolujte připojení; údaje můžete dopsat ručně.`
       );
     } else {
-      oznam('Kniha se nenašla — doplňte údaje ručně v tabulce.', 'varovani');
+      oznam('Titul se nenašel — doplňte údaje ručně v tabulce.', 'varovani');
       const selhaly = kniha.selhalyZdroje?.length
         ? ` Neodpověděly: ${kniha.selhalyZdroje.join(', ')}.`
         : '';
       nastavStav(
-        `ISBN ${naFormat(isbn)} databáze neznají.${selhaly} ` +
+        `${cislo} ${naFormat(isbn)} databáze neznají.${selhaly} ` +
         'Řádek je v tabulce — název a autora dopište klepnutím. Zkontrolujte i samotné číslo, klepnutím jde opravit.'
       );
     }
@@ -451,16 +464,62 @@ prvek('form-rucne').addEventListener('submit', async (udalost) => {
   const hodnota = vstup.value.trim();
   if (!hodnota) return;
 
-  if (!normalizuj(hodnota)) {
-    oznam('To není platné ISBN — zkontrolujte číslice.', 'chyba');
+  if (!rozpoznej(hodnota)) {
+    // Poslední číslice je kontrolní, takže jde spočítat, jak by číslo vypadalo,
+    // kdyby byl přehmat právě v ní. Návrh se vloží do pole — uživatel ho porovná
+    // s knihou a stačí mu potvrdit.
+    const navrh = navrhniOpravu(hodnota);
+
+    if (navrh) {
+      vstup.value = naFormat(navrh);
+      oznam('Číslo neprošlo kontrolou — v poli je návrh opravy.', 'varovani');
+      nastavStav(
+        `U ${hodnota} nesedí poslední číslice, která je kontrolní. Podle zbytku čísla ` +
+        `by mělo být ${naFormat(navrh)} — porovnejte to s knihou a když to sedí, ` +
+        'klepněte na Vyhledat. Jinak číslo přepište.'
+      );
+      return;
+    }
+
+    oznam('To není platné ISBN ani ISSN — zkontrolujte číslice.', 'chyba');
     nastavStav(
       `Číslo ${hodnota} neprošlo kontrolou. Přepište ho přesně tak, jak je v knize — ` +
-      'včetně koncového X u starších desetimístných čísel.'
+      'včetně koncového X. Písmeno napíšete po přepnutí klávesnice tlačítkem „X“.'
     );
     return;
   }
   vstup.value = '';
   await zpracujKod(hodnota);
+});
+
+/**
+ * Přepínač klávesnice u ručního zadání.
+ *
+ * Ve výchozím stavu je číselná — třináct číslic se na ní ťuká rychleji než na
+ * klávesnici s písmeny. Starší desetimístná ISBN i některá ISSN ale končí
+ * písmenem X, které na číselné klávesnici není; tenhle přepínač je proto
+ * jediná cesta, jak takové číslo na telefonu zadat.
+ *
+ * Klávesnici vybírá prohlížeč podle atributu inputmode a přepočítá si ji, až
+ * když pole znovu dostane zaměření — proto to blur a focus hned po přepnutí.
+ */
+const vstupIsbn = prvek('vstup-isbn');
+const btnKlavesnice = prvek('btn-klavesnice');
+let klavesniceSPismeny = false;
+
+btnKlavesnice.addEventListener('click', () => {
+  klavesniceSPismeny = !klavesniceSPismeny;
+
+  vstupIsbn.setAttribute('inputmode', klavesniceSPismeny ? 'text' : 'numeric');
+  btnKlavesnice.textContent = klavesniceSPismeny ? '123' : 'X';
+  btnKlavesnice.setAttribute('aria-pressed', String(klavesniceSPismeny));
+  btnKlavesnice.classList.toggle('aktivni', klavesniceSPismeny);
+  btnKlavesnice.title = klavesniceSPismeny
+    ? 'Zpět na číselnou klávesnici'
+    : 'Přepnout na klávesnici s písmeny — pro čísla končící X';
+
+  vstupIsbn.blur();
+  vstupIsbn.focus();
 });
 
 /* ------------------------------------------- hledání podle názvu a autora */
@@ -571,16 +630,16 @@ prvek('form-podle-nazvu').addEventListener('submit', async (udalost) => {
   nastavStav('Hledám v databázích knih …');
 
   try {
-    const { vysledky, selhalyZdroje, nedostupne, bezIsbn } =
+    const { vysledky, selhalyZdroje, nedostupne, bezCisla } =
       await hledejPodleTextu({ nazev, autor });
 
-    // Záznamy bez ISBN se nenabízejí a u starších titulů je to častý případ —
+    // Záznamy bez čísla se nenabízejí a u starších titulů je to častý případ —
     // bez vysvětlení by prázdná nebo krátká nabídka vypadala jako chyba.
     const poznamky = [];
-    if (bezIsbn) {
+    if (bezCisla) {
       poznamky.push(
-        `${pocetSlovem(bezIsbn, 'nález', 'nálezy', 'nálezů')} bez ISBN se nenabízí — ` +
-        'aplikace vede knihy podle něj.'
+        `${pocetSlovem(bezCisla, 'nález', 'nálezy', 'nálezů')} bez ISBN i ISSN se nenabízí — ` +
+        'aplikace vede tabulku podle čísla.'
       );
     }
     if (selhalyZdroje.length) poznamky.push(`Neodpověděly: ${selhalyZdroje.join(', ')}.`);

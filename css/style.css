@@ -177,7 +177,9 @@ main { padding: 0 .75rem; }
   padding: .5rem 0;
 }
 
-.radek-formulare { display: flex; gap: .5rem; margin-top: .5rem; }
+/* Na telefonu se tlačítka zalomí pod pole, ať je do ISBN vidět celé.
+   Na širším displeji se všechno vejde na jeden řádek. */
+.radek-formulare { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
 
 input[type="text"],
 input[type="search"] {
@@ -194,7 +196,21 @@ input[type="search"] {
 }
 
 .radek-formulare .tlacitko { flex: 0 0 auto; }
+
+/* Na telefonu má pole celý řádek pro sebe a tlačítka jdou pod něj. Kdyby se
+   o řádek dělila, zbylo by na pole tak málo, že by z ISBN byl vidět jen
+   poslední kousek. */
+.radek-formulare input { flex: 1 1 100%; }
+
 .napoveda { margin: .5rem 0 0; font-size: .82rem; color: var(--text-slaby); }
+
+/* Přepínač klávesnice — úzký, ať na řádku zbude místo pro samotné pole. */
+.tlacitko.prepinac {
+  min-width: 3rem;
+  padding: .6rem .5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ------------------------------------------- hledání podle názvu a autora */
 
@@ -390,4 +406,6 @@ tr.nacita-se { opacity: .55; }
 @media (min-width: 700px) {
   .kamera { max-width: 520px; aspect-ratio: 16 / 10; }
   .tlacitko.hlavni { flex-basis: auto; }
+  .radek-formulare input { flex: 1 1 14rem; }
+  .formular-hledani .tlacitko { flex: 0 0 auto; }
 }
