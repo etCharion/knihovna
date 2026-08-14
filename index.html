@@ -57,22 +57,60 @@
     </details>
 
     <details class="rucne rozbalovaci">
-      <summary>Zadat ISBN ručně</summary>
+      <summary>Zadat ISBN ručně nebo hledat podle názvu</summary>
+
+      <!-- Klávesnice je číselná, protože ISBN je skoro celé z číslic.
+           Starší desetimístná čísla ale končí písmenem X, které na ní není —
+           od toho je tlačítko vedle pole. -->
       <form id="form-rucne" class="radek-formulare">
         <input
           id="vstup-isbn"
           type="text"
           inputmode="numeric"
           autocomplete="off"
-          placeholder="978-80-…"
-          aria-label="ISBN knihy">
+          autocapitalize="characters"
+          autocorrect="off"
+          spellcheck="false"
+          placeholder="978-80-… nebo 1234-5678"
+          aria-label="ISBN knihy nebo ISSN časopisu">
+        <button
+          type="button"
+          id="btn-klavesnice"
+          class="tlacitko prepinac"
+          aria-pressed="false"
+          aria-label="Přepnout klávesnici na písmena"
+          title="Přepnout na klávesnici s písmeny — pro čísla končící X">X</button>
         <button type="submit" class="tlacitko">Vyhledat</button>
       </form>
       <p class="napoveda">
-        Hodí se, když je čárový kód poškozený nebo kniha žádný nemá.
-        Číslo ISBN v tabulce jde kdykoliv přepsat klepnutím — údaje o knize
-        se pak dohledají znovu.
+        Hodí se, když je čárový kód poškozený nebo kniha žádný nemá. Zadat jde
+        i <b>ISSN</b> časopisu (1234-5678). Končí číslo písmenem <b>X</b>?
+        Klepněte na tlačítko <b>X</b> vedle pole a klávesnice se přepne na
+        písmena. Číslo v tabulce jde kdykoliv přepsat klepnutím, údaje se pak
+        dohledají znovu.
       </p>
+
+      <form id="form-podle-nazvu" class="formular-hledani">
+        <input
+          id="vstup-nazev"
+          type="text"
+          autocomplete="off"
+          placeholder="Název knihy"
+          aria-label="Název knihy">
+        <input
+          id="vstup-autor"
+          type="text"
+          autocomplete="off"
+          placeholder="Autor"
+          aria-label="Autor knihy">
+        <button type="submit" class="tlacitko">🔎 Hledat podle názvu a autora</button>
+      </form>
+      <p class="napoveda">
+        Pro knihy, které ISBN vůbec nemají vytištěné. Stačí vyplnit jedno
+        z polí; z nabídnutých knih pak vyberete tu svou.
+      </p>
+
+      <div id="vysledky-hledani" class="vysledky" hidden></div>
     </details>
   </section>
 
@@ -99,7 +137,7 @@
             <th data-radit="autor">Autor</th>
             <th data-radit="rok">Rok</th>
             <th data-radit="vydavatel">Vydavatel</th>
-            <th data-radit="isbn">ISBN</th>
+            <th data-radit="isbn">ISBN / ISSN</th>
             <th data-radit="policka">Polička</th>
             <th>Poznámka</th>
             <th class="sloupec-akce"></th>
@@ -163,8 +201,8 @@
 </main>
 
 <footer class="paticka">
-  <p>Údaje se dohledávají v katalogu Knihovny.cz a dále přes Google Books
-     a Open Library.
+  <p>Údaje se dohledávají v katalogu Knihovny.cz a dále přes Google Books,
+     Crossref a Open Library.
      Tabulka je uložená jen v tomto zařízení — zálohu pošlete na Disk, e-mailem
      nebo do složky v počítači.</p>
 </footer>
@@ -180,13 +218,25 @@
     <p class="poznamka-nabidky" id="nabidka-upozorneni" hidden></p>
 
     <div class="pole">
-      <label for="nabidka-isbn">ISBN</label>
+      <label for="nabidka-isbn">ISBN / ISSN</label>
       <div class="radek-formulare">
         <input id="nabidka-isbn" type="text" inputmode="numeric" autocomplete="off"
-               placeholder="978-80-…">
+               autocapitalize="characters" autocorrect="off" spellcheck="false"
+               placeholder="978-80-… nebo 1234-5678">
+        <button
+          type="button"
+          id="btn-klavesnice-nabidka"
+          class="tlacitko prepinac"
+          aria-pressed="false"
+          aria-label="Přepnout klávesnici na písmena"
+          title="Přepnout na klávesnici s písmeny — pro čísla končící X">X</button>
         <button type="button" class="tlacitko" id="btn-znovu">🔎 Vyhledat</button>
       </div>
-      <p class="napoveda">Přečetl skener číslo špatně? Opravte ho a vyhledejte znovu.</p>
+      <p class="napoveda">
+        Přečetl skener číslo špatně? Opravte ho a vyhledejte znovu. Písmeno
+        <b>X</b> na konci starších čísel napíšete po přepnutí klávesnice
+        tlačítkem <b>X</b>.
+      </p>
     </div>
 
     <div class="pole">

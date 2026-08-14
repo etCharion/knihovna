@@ -68,20 +68,56 @@ const KNIHOVNA = {
     publishedDate: '2006',
     language: 'cs',
   },
+  // Starší kniha, jejíž desetimístné ISBN končí písmenem X: 80-7203-068-X.
+  '9788072030682': {
+    title: 'Kniha se starým ISBN',
+    authors: ['Karel Čapek'],
+    publisher: 'Talpress',
+    publishedDate: '1998',
+    language: 'cs',
+  },
 };
 
 /** Dotazy, které aplikace poslala do Google Books — kontroluje se jejich tvar. */
 const dotazyNaGoogle = [];
 
-/** Vrátí knihu podle ISBN v dotazu, nebo prázdný výsledek jako skutečná služba. */
+/**
+ * Napodobuje chování služby: na `isbn:<číslo>` vrátí jednu knihu, na
+ * `intitle:`/`inauthor:` všechny, na které dotaz sedí.
+ */
+function najdiVKnihovne(dotaz) {
+  const jakoPolozka = (isbn) => ({
+    volumeInfo: {
+      ...KNIHOVNA[isbn],
+      industryIdentifiers: [{ type: 'ISBN_13', identifier: isbn }],
+    },
+  });
+
+  const cislo = dotaz.replace('isbn:', '');
+  if (KNIHOVNA[cislo]) return [jakoPolozka(cislo)];
+
+  const hledane = [...dotaz.matchAll(/(?:intitle|inauthor):"([^"]*)"/g)]
+    .map((nalez) => nalez[1].toLowerCase());
+  if (!hledane.length) return [];
+
+  return Object.keys(KNIHOVNA)
+    .filter((isbn) => {
+      const kniha = KNIHOVNA[isbn];
+      const text = [kniha.title, kniha.subtitle, ...(kniha.authors || [])].join(' ').toLowerCase();
+      return hledane.every((cast) => text.includes(cast));
+    })
+    .map(jakoPolozka);
+}
+
+/** Vrátí knihy podle dotazu, nebo prázdný výsledek jako skutečná služba. */
 function odpovezJakoGoogleBooks(route) {
   const dotaz = new URL(route.request().url()).searchParams.get('q') || '';
   dotazyNaGoogle.push(dotaz);
-  const kniha = KNIHOVNA[dotaz.replace('isbn:', '')];
+  const nalezene = najdiVKnihovne(dotaz);
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify(kniha ? { items: [{ volumeInfo: kniha }] } : { totalItems: 0 }),
+    body: JSON.stringify(nalezene.length ? { items: nalezene } : { totalItems: 0 }),
   });
 }
 
@@ -109,7 +145,8 @@ stranka.on('pageerror', (e) => chybyKonzole.push('pageerror: ' + e.message));
 
 await stranka.route('**/books/v1/volumes**', odpovezJakoGoogleBooks);
 for (const vzor of ['**/openlibrary.org/**', '**/obalkyknih.cz/**', '**/knihovny.cz/**',
-                    '**/covers.openlibrary.org/**', '**/books.google.com/**']) {
+                    '**/api.crossref.org/**', '**/covers.openlibrary.org/**',
+                    '**/books.google.com/**']) {
   await stranka.route(vzor, (r) => r.abort());
 }
 
@@ -178,6 +215,21 @@ await stranka.waitForTimeout(300);
 t((await stranka.locator('#hlaska').innerText()).includes('platné ISBN'), 'neplatné ISBN se odmítne');
 t(await stranka.locator('#prekryv').isHidden(), 'a nabídka se ani neotevře');
 t((await stranka.locator('tbody tr').count()) === 1, 'neplatný záznam se nepřidal');
+
+/* --------------------------------------- návrh opravy kontrolní číslice */
+
+// Skutečný případ z používání: u 0-8006-0773-3 nesedí poslední číslice, která
+// je kontrolní. Nejde o starý formát, jen o překlep — a ten se dá dopočítat.
+await zadejIsbn(stranka, '0-8006-0773-3');
+await stranka.waitForTimeout(300);
+t((await stranka.inputValue('#vstup-isbn')) === '978-0-8006-0773-9',
+  'do pole se vloží opravené číslo', await stranka.inputValue('#vstup-isbn'));
+t((await stranka.locator('#stav').innerText()).includes('kontrolní'),
+  'a stav vysvětlí proč', await stranka.locator('#stav').innerText());
+t(await stranka.locator('#prekryv').isHidden(),
+  'nabídka se neotevře — návrh musí uživatel nejdřív potvrdit');
+t((await stranka.locator('tbody tr').count()) === 1, 'a do tabulky se nic nepřidalo');
+await stranka.fill('#vstup-isbn', '');
 
 /* --------------------------------------- oprava čísla přímo v nabídce */
 
@@ -342,6 +394,146 @@ t(dotazyNaGoogle.every((d) => !d.includes('-')), 'dotaz neobsahuje pomlčky',
   dotazyNaGoogle.join(' | '));
 t(dotazyNaGoogle.includes('isbn:9788073355067'), 'dotaz má tvar isbn:<13 číslic>',
   dotazyNaGoogle.join(' | '));
+
+/* --------------------------------------- staré ISBN končící písmenem X */
+
+// Od téhle chvíle se začíná s prázdnou tabulkou, ať se dá počítat s řádky.
+await stranka.evaluate(() => localStorage.clear());
+await stranka.reload({ waitUntil: 'networkidle' });
+await stranka.locator('.rucne summary').click();
+
+// Klávesnice je číselná, protože ISBN je skoro celé z číslic. Písmeno X na ní
+// ale není, takže starší desetimístné ISBN nešlo zadat vůbec — od toho je
+// přepínač. Číslo se proto ťuká po znacích jako na telefonu, ne vloží najednou.
+t((await stranka.locator('#vstup-isbn').getAttribute('inputmode')) === 'numeric',
+  've výchozím stavu je klávesnice číselná',
+  String(await stranka.locator('#vstup-isbn').getAttribute('inputmode')));
+
+await stranka.click('#btn-klavesnice');
+t((await stranka.locator('#vstup-isbn').getAttribute('inputmode')) === 'text',
+  'přepínač nabídne klávesnici s písmeny',
+  String(await stranka.locator('#vstup-isbn').getAttribute('inputmode')));
+t((await stranka.locator('#btn-klavesnice').getAttribute('aria-pressed')) === 'true',
+  'a dá o sobě vědět i odečítači obrazovky');
+
+await stranka.locator('#vstup-isbn').pressSequentially('80-7203-068-X');
+t((await stranka.inputValue('#vstup-isbn')) === '80-7203-068-X',
+  'písmeno X se dá do pole napsat', await stranka.inputValue('#vstup-isbn'));
+
+await stranka.click('#form-rucne button[type=submit]');
+await pockejNaNabidku(stranka);
+t((await stranka.locator('#nabidka-isbn').inputValue()) === '978-80-7203-068-2',
+  'nabídka ukáže staré číslo převedené na ISBN-13',
+  await stranka.locator('#nabidka-isbn').inputValue());
+t((await stranka.locator('#nabidka-nazev').inputValue()).includes('Kniha se starým ISBN'),
+  'a kniha se podle něj dohledala', await stranka.locator('#nabidka-nazev').inputValue());
+
+await stranka.click('#btn-pridat');
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+t((await stranka.locator('tbody tr').first().locator('td.isbn').innerText()) === '978-80-7203-068-2',
+  'a v tabulce stojí převedená',
+  await stranka.locator('tbody tr').first().locator('td.isbn').innerText());
+
+// Zpátky na číslice, ať se dál zadává jako obvykle.
+await stranka.click('#btn-klavesnice');
+t((await stranka.locator('#vstup-isbn').getAttribute('inputmode')) === 'numeric',
+  'přepínač jde vrátit zpátky na číslice');
+
+/* -------------------------------------------------- časopis podle ISSN */
+
+// Databáze, které ISSN znají, jsou v testu odstřižené — jde o to, že číslo
+// projde kontrolou, uloží se ve správném tvaru a řádek vznikne.
+await zadejIsbn(stranka, '0378-5955');
+await pockejNaNabidku(stranka);
+t((await stranka.locator('#nabidka-isbn').inputValue()) === '0378-5955',
+  'ISSN se ukazuje rozdělené uprostřed', await stranka.locator('#nabidka-isbn').inputValue());
+const stavIssn = await stranka.locator('#nabidka-stav').innerText();
+t(stavIssn.includes('ISSN 0378-5955'), 'a hláška mluví o ISSN, ne o ISBN', stavIssn);
+t(!stavIssn.includes('Google Books') && !stavIssn.includes('Open Library'),
+  'na ISSN se ptají jen zdroje, které periodika vedou', stavIssn);
+
+// Opravit číslo jde i tady, takže i tohle pole potřebuje přepínač klávesnice.
+t((await stranka.locator('#nabidka-isbn').getAttribute('inputmode')) === 'numeric',
+  'pole v nabídce má taky číselnou klávesnici');
+await stranka.click('#btn-klavesnice-nabidka');
+t((await stranka.locator('#nabidka-isbn').getAttribute('inputmode')) === 'text',
+  'a stejný přepínač na písmena');
+await stranka.click('#btn-klavesnice-nabidka');
+
+await stranka.click('#btn-pridat');
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+t((await stranka.locator('tbody tr').count()) === 2, 'časopis se do tabulky přidá',
+  String(await stranka.locator('tbody tr').count()));
+t((await stranka.locator('tbody tr').first().locator('td.isbn').innerText()) === '0378-5955',
+  'i v tabulce', await stranka.locator('tbody tr').first().locator('td.isbn').innerText());
+
+// Čárový kód časopisu (prefix 977) je totéž ISSN — nesmí vzniknout druhý řádek.
+await zadejIsbn(stranka, '9770378595002');
+await pockejNaNabidku(stranka);
+t((await stranka.locator('#nabidka-isbn').inputValue()) === '0378-5955',
+  'z kódu časopisu se dopočítá ISSN', await stranka.locator('#nabidka-isbn').inputValue());
+t(await stranka.locator('#nabidka-upozorneni').isVisible(),
+  'a nabídka upozorní, že tenhle titul už v knihovně je');
+
+await stranka.click('#btn-pridat');
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+t((await stranka.locator('tbody tr').count()) === 2, 'takže jen přibude kus',
+  String(await stranka.locator('tbody tr').count()));
+
+// Časopis dál nepotřebujeme; ať se počítají jen knihy.
+stranka.once('dialog', (d) => d.accept());
+await stranka.locator('tbody tr').first().locator('.ikona-tlacitko').click();
+await stranka.waitForTimeout(200);
+t((await stranka.locator('tbody tr').count()) === 1, 'časopis se dá smazat');
+
+/* --------------------------------------- hledání podle názvu a autora */
+
+await stranka.evaluate(() => { document.querySelector('.rucne').open = true; });
+await stranka.fill('#vstup-nazev', 'Kniha');
+await stranka.click('#form-podle-nazvu button[type=submit]');
+await stranka.waitForSelector('#vysledky-hledani:not([hidden]) .vysledek', { timeout: 10000 });
+
+const nalezy = stranka.locator('#vysledky-hledani .vysledek');
+t((await nalezy.count()) === 2, 'podle názvu se nabídnou obě knihy, které mu odpovídají',
+  String(await nalezy.count()));
+t((await nalezy.first().innerText()).includes('978-80-'), 'u nálezu je vidět ISBN s pomlčkami',
+  await nalezy.first().innerText());
+t((await stranka.locator('#vysledky-hledani .vysledek-stav', { hasText: 'už v knihovně' })
+    .count()) === 1,
+  'kniha, kterou už knihovna má, je v nabídce označená');
+
+// Autor navíc zúží nabídku — hledá se podle obojího, ne jen podle názvu.
+await stranka.fill('#vstup-autor', 'Novák');
+await stranka.click('#form-podle-nazvu button[type=submit]');
+await stranka.waitForFunction(
+  () => document.querySelectorAll('#vysledky-hledani .vysledek').length === 1,
+  null, { timeout: 10000 }).catch(() => {});
+t((await nalezy.count()) === 1, 's autorem zbude jediná kniha', String(await nalezy.count()));
+t((await nalezy.first().innerText()).includes('Kniha z Karolina'), 'a je to ta správná',
+  await nalezy.first().innerText());
+
+const dotazyPodleNazvu = dotazyNaGoogle.filter((d) => d.includes('intitle'));
+t(dotazyPodleNazvu.some((d) => d.includes('inauthor')), 'do dotazu jde název i autor',
+  dotazyPodleNazvu.join(' | '));
+t(dotazyPodleNazvu.every((d) => !d.includes('isbn:')), 'a nemíchá se s hledáním podle čísla');
+
+// Klepnutí knihu rovnou neuloží — otevře nabídku předvyplněnou z nálezu.
+await nalezy.first().click();
+await pockejNaNabidku(stranka);
+t((await stranka.locator('#nabidka-nazev').inputValue()).includes('Kniha z Karolina'),
+  'vybraná kniha se otevře v nabídce k potvrzení',
+  await stranka.locator('#nabidka-nazev').inputValue());
+t((await stranka.locator('#nabidka-isbn').inputValue()) === '978-80-242-6870-5',
+  'se svým ISBN', await stranka.locator('#nabidka-isbn').inputValue());
+
+await stranka.click('#btn-pridat');
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+t((await stranka.locator('#pocet').innerText()) === '2', 'po potvrzení přibude do tabulky',
+  await stranka.locator('#pocet').innerText());
+t((await stranka.locator('tbody tr').first().locator('td').nth(4).innerText()) === 'Karolinum',
+  'a s údaji dohledanými podle čísla');
+t((await nalezy.first().innerText()).includes('už v knihovně'),
+  'v nabídce se hned označí jako přidaná', await nalezy.first().innerText());
 
 /* ------------------------------------------------------------- poličky */
 
@@ -615,7 +807,8 @@ const strankaOcr = await kontextOcr.newPage();
 
 // Hlídá se, odkud se tahá kód. Dotazy do databází knih a obrázky obálek
 // z cizích serverů jsou v pořádku — o ty tu nejde.
-const DATOVE_ZDROJE = ['googleapis.com', 'openlibrary.org', 'obalkyknih.cz', 'knihovny.cz'];
+const DATOVE_ZDROJE = ['googleapis.com', 'openlibrary.org', 'obalkyknih.cz',
+                       'knihovny.cz', 'crossref.org'];
 const zvenku = [];
 strankaOcr.on('request', (r) => {
   const url = new URL(r.url());
@@ -625,7 +818,7 @@ strankaOcr.on('request', (r) => {
 });
 await strankaOcr.route('**/books/v1/volumes**', odpovezJakoGoogleBooks);
 for (const vzor of ['**/openlibrary.org/**', '**/obalkyknih.cz/**', '**/knihovny.cz/**',
-                    '**/covers.openlibrary.org/**']) {
+                    '**/api.crossref.org/**', '**/covers.openlibrary.org/**']) {
   await strankaOcr.route(vzor, (r) => r.abort());
 }
 

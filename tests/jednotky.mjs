@@ -4,9 +4,10 @@
  * Spuštění:  node tests/jednotky.mjs
  */
 
-import { jeIsbn10, jeIsbn13, jeKnizniKod, isbn10Na13, naFormat, normalizuj } from '../js/isbn.js';
+import { jeIsbn10, jeIsbn13, jeIssn, jeKnizniKod, isbn10Na13, issnZKodu, naFormat, navrhniOpravu,
+         normalizuj, rozpoznej } from '../js/isbn.js';
 import { najdiIsbnVTextu } from '../js/ocr.js';
-import { najdiKnihu } from '../js/lookup.js';
+import { hledejPodleTextu, najdiKnihu } from '../js/lookup.js';
 
 // Ukládání i záloha pracují s localStorage prohlížeče; v Node ho zastoupí tahle
 // drobná náhrada, aby šlo testovat poličky bez spouštění prohlížeče.
@@ -41,6 +42,58 @@ t(isbn10Na13('0306406152') === '9780306406157', 'převod ISBN-10 na 13');
 t(normalizuj('978-80-7335-506-7') === '9788073355067', 'pomlčky se odstraní');
 t(normalizuj('nesmysl') === null, 'nesmysl se odmítne');
 t(!jeKnizniKod('4006381333931'), 'EAN od potravin není kniha');
+
+// Starší desetimístná ISBN mají kontrolní číslici 10, která se píše jako X.
+// Do aplikace se dřív nedala zadat: pole mělo číselnou klávesnici, na které
+// písmeno není. Ověřuje se proto celá cesta takového čísla.
+t(jeIsbn10('80-7203-068-X'), 'ISBN-10 s kontrolní číslicí X');
+t(normalizuj('80-7203-068-X') === '9788072030682', 'X se převede na ISBN-13',
+  String(normalizuj('80-7203-068-X')));
+t(normalizuj('80-7203-068-x') === '9788072030682', 'na velikosti písmene nezáleží');
+t(jeKnizniKod('80-7203-068-X'), 'a je to knižní kód');
+t(normalizuj('043942089X') === '9780439420891', 'zahraniční ISBN-10 s X',
+  String(normalizuj('043942089X')));
+t(normalizuj('80-7203-068-1') === null, 'špatná kontrolní číslice místo X neprojde');
+
+nadpis('ISSN a periodika');
+t(jeIssn('0378-5955'), 'platné ISSN');
+t(!jeIssn('0378-5956'), 'špatná kontrolní číslice neprojde');
+t(jeIssn('1050-124X'), 'ISSN s kontrolní číslicí X');
+t(naFormat('03785955') === '0378-5955', 'ISSN se dělí uprostřed', naFormat('03785955'));
+
+// Čárový kód časopisu: 977 + sedm číslic ISSN + dvojčíslí varianty + kontrola.
+// Kontrolní číslice ISSN v kódu není, dopočítá se.
+t(issnZKodu('9770378595002') === '03785955', 'ISSN z čárového kódu časopisu',
+  String(issnZKodu('9770378595002')));
+t(issnZKodu('9770378595019') === '03785955', 'jiné číslo vydání dá stejné ISSN',
+  String(issnZKodu('9770378595019')));
+t(issnZKodu('9770378595003') === null, 'kód s rozbitou kontrolní číslicí neprojde');
+t(issnZKodu('9788073355067') === null, 'knižní kód není periodikum');
+
+nadpis('Rozpoznání čísla');
+t(rozpoznej('978-80-7335-506-7')?.druh === 'kniha', 'ISBN je kniha');
+t(rozpoznej('80-7203-068-X')?.kod === '9788072030682', 'staré ISBN se převede');
+t(rozpoznej('0378-5955')?.druh === 'periodikum', 'ISSN je periodikum');
+t(rozpoznej('9770378595002')?.kod === '03785955', 'kód časopisu se převede na ISSN');
+t(rozpoznej('4006381333931') === null, 'EAN od potravin neprojde');
+t(rozpoznej('nesmysl') === null, 'nesmysl neprojde');
+
+nadpis('Návrh opravy kontrolní číslice');
+// Skutečný případ z používání: 0-8006-0773-3 z knihy Childsovy Old Testament
+// Theology neprojde, protože kontrolní číslice má být 2. Není to starý formát,
+// jen nesedí poslední číslice — a tu jde z těch ostatních dopočítat.
+t(!jeIsbn10('0-8006-0773-3'), 'chybná kontrolní číslice se pozná');
+t(navrhniOpravu('0-8006-0773-3') === '9780800607739', 'a nabídne se opravené číslo',
+  String(navrhniOpravu('0-8006-0773-3')));
+t(naFormat(navrhniOpravu('0-8006-0773-3')) === '978-0-8006-0773-9', 'i s pomlčkami',
+  naFormat(String(navrhniOpravu('0-8006-0773-3'))));
+t(navrhniOpravu('0306406152') === null, 'u platného čísla se nenabízí nic');
+t(navrhniOpravu('9788073355066') === '9788073355067', 'totéž u třináctimístného',
+  String(navrhniOpravu('9788073355066')));
+t(navrhniOpravu('0378-5956') === '03785955', 'a u ISSN', String(navrhniOpravu('0378-5956')));
+t(navrhniOpravu('4006381333931') === null, 'u kódu od zboží by návrh jen mátl');
+t(navrhniOpravu('1234567890123') === null, 'stejně tak u čísla bez knižního prefixu');
+t(navrhniOpravu('nesmysl') === null, 'a u nesmyslu není co navrhnout');
 
 nadpis('Dělení pomlčkami');
 // Kde pomlčky patří, se řídí oficiálními rozsahy — proto konkrétní příklady
@@ -467,6 +520,226 @@ nadpis('Hlášení o zdrojích');
   t(adresy.some((u) => u.includes('lookfor=9788073355067')), 'Knihovny.cz dostanou holé číslo');
   t(!adresy.some((u) => u.includes('obalkyknih')),
     'Obálky knih se neptáme — z prohlížeče se z nich číst nedá');
+}
+
+/* ------------------------------------- hledání podle názvu a autora */
+
+nadpis('Hledání podle názvu a autora');
+{
+  const adresy = [];
+  globalThis.fetch = (url) => {
+    adresy.push(url);
+
+    if (url.includes('knihovny.cz')) {
+      return odpoved({ records: [
+        {
+          title: 'Babička : obrazy venkovského života /',
+          authors: { primary: { 'Němcová, Božena, 1820-1862': {} } },
+          publishers: ['Argo,'],
+          publicationDates: ['2016'],
+          languages: ['cze'],
+          cleanIsbn: '9788025717721',
+        },
+        // Starší vydání ISBN nemají — nabídnout se nedá, jen spočítat.
+        { title: 'Babička', authors: { primary: { 'Němcová, Božena': {} } } },
+      ] });
+    }
+
+    if (url.includes('googleapis')) {
+      return odpoved({ items: [{ volumeInfo: {
+        title: 'Babička',
+        authors: ['Božena Němcová'],
+        publisher: 'Argo',
+        publishedDate: '2016-01-01',
+        imageLinks: { thumbnail: 'http://books.google.com/obalka.jpg' },
+        industryIdentifiers: [
+          { type: 'OTHER', identifier: 'XYZ12345' },
+          { type: 'ISBN_13', identifier: '9788025717721' },
+        ],
+      } }] });
+    }
+
+    if (url.includes('crossref')) {
+      return odpoved({ message: { items: [
+        // Crossref je hlavně na články — do nabídky nesmí.
+        { type: 'journal-article', title: ['Božena Němcová a babička v kultuře'],
+          ISSN: ['0378-5955'] },
+        { type: 'monograph', title: ['Babička'], author: [{ given: 'Božena', family: 'Němcová' }],
+          publisher: 'Vitalis', issued: { 'date-parts': [[2019]] }, ISBN: ['9788072030682'] },
+      ] } });
+    }
+
+    return odpoved({ docs: [{
+      title: 'The Grandmother',
+      author_name: ['Bozena Nemcova'],
+      first_publish_year: 1891,
+      publisher: ['Vitalis'],
+      isbn: ['nesmysl', '9788072030682'],
+      cover_i: 42,
+    }] });
+  };
+
+  const { vysledky, bezCisla, nedostupne } =
+    await hledejPodleTextu({ nazev: 'Babička', autor: 'Němcová' });
+
+  t(vysledky.length === 2, 'ze čtyř zdrojů zbydou dvě různé knihy', String(vysledky.length));
+  t(!nedostupne, 'zdroje odpověděly');
+  t(bezCisla === 1, 'nález bez čísla se do nabídky nedostane, ale spočítá se', String(bezCisla));
+
+  const [prvni, druha] = vysledky;
+  t(prvni.nazev === 'Babička : obrazy venkovského života', 'český katalog je první a bez interpunkce',
+    prvni.nazev);
+  t(prvni.autor === 'Božena Němcová', 'jméno se otočí a letopočty zmizí', prvni.autor);
+  t(prvni.isbn === '9788025717721', 'ISBN se vytáhne z pole cleanIsbn', prvni.isbn);
+  t(prvni.zdroj === 'Knihovny.cz, Google Books', 'stejná kniha z více zdrojů je v nabídce jednou',
+    prvni.zdroj);
+  t(prvni.obalka === 'https://books.google.com/obalka.jpg',
+    'a doplní se z nich, co první zdroj neměl', prvni.obalka);
+  t(druha.isbn === '9788072030682', 'z hromádky čísel u díla projde jen platné ISBN', druha.isbn);
+  t(druha.rok === '2019', 'u sloučeného nálezu vyhraje rok od vydavatele z Crossrefu', druha.rok);
+  t(druha.zdroj === 'Crossref, Open Library', 'a uvedou se oba zdroje', druha.zdroj);
+  t(!vysledky.some((k) => k.nazev.includes('v kultuře')),
+    'článek z časopisu se mezi knihy neplete',
+    vysledky.map((k) => k.nazev).join(' | '));
+
+  t(adresy.some((u) => u.includes('intitle') && u.includes('inauthor')),
+    'Google dostane název i autora zvlášť', adresy.find((u) => u.includes('googleapis')));
+  t(adresy.some((u) => u.includes('knihovny.cz') && u.includes('type=AllFields')),
+    'katalog hledá napříč poli, když je vyplněné obojí');
+  t(adresy.some((u) => u.includes('field%5B%5D=cleanIsbn')),
+    'a vyžádá si i ISBN — jinak by nález nešel uložit');
+  t(adresy.some((u) => u.includes('openlibrary.org/search.json') && u.includes('author=')),
+    'Open Library dostane autora jako vlastní parametr');
+}
+
+{
+  // S jedním vyplněným polem se hledá přímo v jeho rejstříku, ne napříč vším.
+  const adresy = [];
+  globalThis.fetch = (url) => (adresy.push(url), odpoved({}));
+
+  await hledejPodleTextu({ nazev: 'Babička' });
+  t(adresy.some((u) => u.includes('knihovny.cz') && u.includes('type=Title')),
+    'samotný název hledá katalog v názvech');
+
+  adresy.length = 0;
+  await hledejPodleTextu({ autor: 'Němcová' });
+  t(adresy.some((u) => u.includes('knihovny.cz') && u.includes('type=Author')),
+    'samotný autor v autorech');
+}
+
+{
+  // Prázdný dotaz nemá koho obtěžovat.
+  let dotazu = 0;
+  globalThis.fetch = () => (dotazu++, odpoved({}));
+  const { vysledky } = await hledejPodleTextu({ nazev: '  ', autor: '' });
+  t(vysledky.length === 0 && dotazu === 0, 'prázdný dotaz nikam neodejde', String(dotazu));
+}
+
+{
+  globalThis.fetch = () => vypadek();
+  const { vysledky, nedostupne, selhalyZdroje } = await hledejPodleTextu({ nazev: 'Babička' });
+  t(vysledky.length === 0 && nedostupne, 'úplný výpadek se pozná i při hledání podle názvu');
+  t(selhalyZdroje.length === 4, 'a jmenují se všechny zdroje, které mlčely',
+    selhalyZdroje.join(', '));
+}
+
+/* ----------------------------------- dohledání periodika podle ISSN */
+
+nadpis('Dohledání periodika');
+{
+  const adresy = [];
+  globalThis.fetch = (url) => {
+    adresy.push(url);
+    if (url.includes('knihovny.cz')) {
+      return odpoved({ records: [{
+        title: 'Respekt /',
+        publishers: ['R-Presse,'],
+        publicationDates: ['1990'],
+        languages: ['cze'],
+      }] });
+    }
+    if (url.includes('crossref')) {
+      return odpoved({ message: { title: 'Respekt', publisher: 'R-Presse' } });
+    }
+    return vypadek();
+  };
+
+  const casopis = await najdiKnihu('0378-5955');
+  t(casopis.nazev === 'Respekt', 'časopis se najde podle ISSN', casopis.nazev);
+  t(casopis.isbn === '03785955', 'a uloží se pod normalizovaným ISSN', casopis.isbn);
+  t(casopis.selhalyZdroje.length === 0,
+    'Google Books ani Open Library se na ISSN neptáme — ISSN neznají',
+    casopis.selhalyZdroje.join(', '));
+  t(!adresy.some((u) => u.includes('googleapis') || u.includes('openlibrary')),
+    'takže tam žádný dotaz neodejde', adresy.join(' | '));
+  t(adresy.some((u) => u.includes('lookfor=03785955') && u.includes('type=ISN')),
+    'katalog dostane ISSN do rejstříku ISN');
+  t(adresy.some((u) => u.includes('/journals/03785955')),
+    'Crossref se ptá na záznam časopisu, ne na jeho články', adresy.join(' | '));
+}
+
+{
+  // Skener chytí čárový kód časopisu (prefix 977), ne přímo ISSN.
+  const adresy = [];
+  globalThis.fetch = (url) => (adresy.push(url), odpoved({}));
+  await najdiKnihu('9770378595002');
+  t(adresy.every((u) => u.includes('03785955')), 'z kódu časopisu se dopočítá ISSN',
+    adresy.join(' | '));
+}
+
+{
+  // Neznámé ISSN vrací Crossref stavem 404 — to není výpadek zdroje.
+  globalThis.fetch = (url) => url.includes('crossref')
+    ? Promise.resolve({ ok: false, status: 404 })
+    : odpoved({});
+  const casopis = await najdiKnihu('0378-5955');
+  t(!casopis.nalezeno && !casopis.nedostupne && casopis.selhalyZdroje.length === 0,
+    'stav 404 znamená „neznám“, ne „nedostupný“', casopis.selhalyZdroje.join(', '));
+}
+
+nadpis('Crossref u knih');
+{
+  const adresy = [];
+  globalThis.fetch = (url) => {
+    adresy.push(url);
+    if (!url.includes('crossref')) return vypadek();
+    return odpoved({ message: { items: [
+      // Kapitoly sdílejí ISBN s celou knihou — název kapitoly do tabulky nepatří.
+      { type: 'book-chapter', title: ['Kapitola třetí'], ISBN: ['9780306406157'] },
+      { type: 'monograph', title: ['Structure and Interpretation of Computer Programs'],
+        author: [{ given: 'Harold', family: 'Abelson' }, { given: 'Gerald Jay', family: 'Sussman' }],
+        publisher: 'MIT Press', issued: { 'date-parts': [[1996, 7, 25]] },
+        ISBN: ['9780306406157'] },
+    ] } });
+  };
+
+  const kniha = await najdiKnihu('9780306406157');
+  t(kniha.nazev === 'Structure and Interpretation of Computer Programs',
+    'z Crossrefu se bere kniha, ne kapitola z ní', kniha.nazev);
+  t(kniha.autor === 'Harold Abelson, Gerald Jay Sussman', 'jména se poskládají', kniha.autor);
+  t(kniha.rok === '1996', 'rok z pole issued', kniha.rok);
+  t(kniha.vydavatel === 'MIT Press', 'vydavatel');
+  t(adresy.some((u) => u.includes('filter=isbn%3A9780306406157')), 'hledá se podle ISBN');
+  t(adresy.some((u) => u.includes('select=')), 'a vyžádají se jen potřebná pole — jinak by ' +
+    'odpověď táhla i seznamy citací');
+}
+
+{
+  // Open Library má dva rejstříky a neshodnou se; když mlčí první, zkusí se druhý.
+  const adresy = [];
+  globalThis.fetch = (url) => {
+    adresy.push(url);
+    if (url.includes('search.json')) {
+      return odpoved({ docs: [{ title: 'Jen v rejstříku', author_name: ['Někdo'],
+                                isbn: ['9780306406157'] }] });
+    }
+    if (url.includes('openlibrary')) return odpoved({});
+    return vypadek();
+  };
+  const kniha = await najdiKnihu('9780306406157');
+  t(kniha.nazev === 'Jen v rejstříku', 'druhý rejstřík Open Library zabere', kniha.nazev);
+  t(adresy.some((u) => u.includes('search.json') && u.includes('isbn=9780306406157')),
+    'a ptá se přímo na ISBN');
 }
 
 console.log(selhani === 0 ? '\nVŠE PROŠLO' : `\n${selhani} testů selhalo`);
