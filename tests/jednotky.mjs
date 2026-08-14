@@ -7,8 +7,22 @@
 import { jeIsbn10, jeIsbn13, jeKnizniKod, isbn10Na13, naFormat, normalizuj } from '../js/isbn.js';
 import { najdiIsbnVTextu } from '../js/ocr.js';
 import { najdiKnihu } from '../js/lookup.js';
-import { doCsv, opravNazvySOdznakem, slucDuplicity, SLOUPCE } from '../js/storage.js';
-import { mailtoOdkaz, popisPoctu, popisPosledniZalohy } from '../js/zaloha.js';
+
+// Ukládání i záloha pracují s localStorage prohlížeče; v Node ho zastoupí tahle
+// drobná náhrada, aby šlo testovat poličky bez spouštění prohlížeče.
+// Oba moduly se proto načítají až za ní — bez localStorage by při prvním
+// dotazu spadly.
+const pamet = new Map();
+globalThis.localStorage = {
+  getItem: (klic) => (pamet.has(klic) ? pamet.get(klic) : null),
+  setItem: (klic, hodnota) => pamet.set(klic, String(hodnota)),
+  removeItem: (klic) => pamet.delete(klic),
+  clear: () => pamet.clear(),
+};
+
+const ulozne = await import('../js/storage.js');
+const { doCsv, opravNazvySOdznakem, slucDuplicity, SLOUPCE } = ulozne;
+const { mailtoOdkaz, popisPoctu, popisPosledniZalohy } = await import('../js/zaloha.js');
 
 let selhani = 0;
 const t = (ok, popis, detail = '') => {
@@ -70,6 +84,95 @@ nadpis('Duplicity');
   t(slucDuplicity([]).length === 0, 'prázdný seznam nevadí');
 }
 
+{
+  // Tentýž titul na dvou poličkách jsou dva výtisky na dvou místech —
+  // slití by právě tu informaci, o kterou u poliček jde, zahodilo.
+  const slouceno = slucDuplicity([
+    { id: 'a', isbn: '111', nazev: 'Kniha', policka: 'Obývák', kusu: 1 },
+    { id: 'b', isbn: '111', nazev: 'Kniha', policka: 'Ložnice', kusu: 1 },
+    { id: 'c', isbn: '111', nazev: 'Kniha', policka: 'Obývák', kusu: 2 },
+  ]);
+  t(slouceno.length === 2, 'stejná kniha na jiné poličce zůstane zvlášť');
+  t(slouceno.find((k) => k.policka === 'Obývák').kusu === 3,
+    'na téže poličce se kusy sečtou');
+}
+
+/* ------------------------------------------------------------- poličky */
+
+nadpis('Poličky');
+{
+  localStorage.clear();
+
+  t(ulozne.pridejPolicku('  Obývák   dole ') === 'Obývák dole', 'název se uklidí od mezer',
+    ulozne.pridejPolicku('  Obývák   dole '));
+  t(ulozne.pridejPolicku('obývák dole') === 'Obývák dole',
+    'polička lišící se jen velikostí písmen se nezaloží podruhé');
+  t(ulozne.pridejPolicku('   ') === null, 'polička bez názvu se nezaloží');
+
+  ulozne.pridejPolicku('Ložnice');
+  t(ulozne.policky().join('|') === 'Ložnice|Obývák dole', 'seznam je seřazený česky',
+    ulozne.policky().join('|'));
+
+  // Stejný titul na dvou poličkách = dva záznamy, opakovaný sken = další kus.
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Kniha', policka: 'Obývák dole' });
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Kniha', policka: 'Ložnice' });
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Kniha', policka: 'Ložnice' });
+  t(ulozne.vsechny().length === 2, 'dvě poličky = dva záznamy');
+  t(ulozne.podleIsbn('9788073355067', 'Ložnice').kusu === 2,
+    'druhý sken na téže poličce přidá kus');
+  t(ulozne.podleIsbn('9788073355067', 'Obývák dole').kusu === 1,
+    'a druhé poličky se to netýká');
+  t(ulozne.vsudePodleIsbn('9788073355067').length === 2, 'titul se najde napříč poličkami');
+  t(ulozne.podleIsbn('9788073355067', 'Půda') === null, 'na jiné poličce kniha není');
+
+  t(ulozne.obsahPolicky('Ložnice').kusu === 2, 'přehled poličky počítá kusy');
+  t(ulozne.obsahPolicky('Ložnice').titulu === 1, 'a odděleně tituly');
+
+  // Nová polička se založí i tehdy, když ji uživatel jen napíše u knihy.
+  ulozne.pridej({ isbn: '9780306406157', nazev: 'Jiná', policka: 'Půda' });
+  t(ulozne.policky().includes('Půda'), 'polička z nové knihy se doplní do seznamu');
+
+  ulozne.prejmenujPolicku('Ložnice', 'Ložnice u okna');
+  t(ulozne.policky().includes('Ložnice u okna') && !ulozne.policky().includes('Ložnice'),
+    'přejmenování se projeví v seznamu');
+  t(ulozne.podleIsbn('9788073355067', 'Ložnice u okna')?.kusu === 2,
+    'a knihy se přejmenovanou poličkou nesou dál');
+
+  // Přejmenování na už existující poličku obě slije — kniha tam nesmí být dvakrát.
+  ulozne.prejmenujPolicku('Ložnice u okna', 'Obývák dole');
+  t(ulozne.podleIsbn('9788073355067', 'Obývák dole')?.kusu === 3,
+    'slitím poliček se kusy sečtou', String(ulozne.podleIsbn('9788073355067', 'Obývák dole')?.kusu));
+  t(ulozne.vsudePodleIsbn('9788073355067').length === 1, 'a zbyde jediný záznam');
+
+  const dotcenych = ulozne.smazPolicku('Obývák dole');
+  t(dotcenych === 1, 'zrušení poličky ohlásí, kolika knih se to týká');
+  t(ulozne.vsechny().length === 2, 'knihy se zrušením poličky nemažou');
+  t(ulozne.podleIsbn('9788073355067', '')?.kusu === 3, 'jen zůstanou bez zařazení');
+  t(!ulozne.policky().includes('Obývák dole'), 'a polička ze seznamu zmizí');
+
+  // Aktivní polička se drží mezi skeny; po zrušení nesmí zůstat viset.
+  ulozne.nastavAktivniPolicku('Půda');
+  t(ulozne.aktivniPolicka() === 'Půda', 'aktivní polička se pamatuje');
+  ulozne.smazPolicku('Půda');
+  t(ulozne.aktivniPolicka() === '', 'po zrušení se aktivní polička uvolní');
+}
+
+{
+  // Záloha z jiného telefonu přinese poličky jen u knih — musí se dopočítat.
+  localStorage.clear();
+  ulozne.importuj([
+    { isbn: '9788073355067', nazev: 'Kniha', policka: 'Chodba', kusu: 1 },
+    { isbn: '9788073355067', nazev: 'Kniha', policka: 'Sklep', kusu: 1 },
+  ]);
+  t(ulozne.vsechny().length === 2, 'import rozliší tentýž titul na dvou poličkách');
+  t(ulozne.policky().join('|') === 'Chodba|Sklep', 'poličky ze zálohy se doplní do seznamu',
+    ulozne.policky().join('|'));
+
+  const znovu = ulozne.importuj([{ isbn: '9788073355067', nazev: 'Kniha', policka: 'Sklep' }]);
+  t(znovu === 0, 'opakovaný import téhož záznamu nic nepřidá');
+  localStorage.clear();
+}
+
 /* ------------------------------------------------------------- záloha */
 
 nadpis('Záloha e-mailem');
@@ -106,7 +209,8 @@ nadpis('Záloha e-mailem');
 
 nadpis('Stav zálohy');
 {
-  // Bez localStorage (Node) se modul chová jako při první návštěvě.
+  // Prázdné úložiště znamená, že se ještě nezálohovalo.
+  localStorage.clear();
   t(popisPosledniZalohy(3).includes('ještě nedělali'), 'nezálohovaná tabulka to řekne',
     popisPosledniZalohy(3));
   t(popisPosledniZalohy(0).includes('prázdná'), 'u prázdné tabulky se nestraší',
@@ -139,7 +243,7 @@ nadpis('Export do CSV');
   const csv = doCsv([
     { isbn: '9788024268705', nazev: 'Kniha z Karolina', autor: 'Jan Novák', rok: '2015',
       vydavatel: 'Karolinum', poznamka: 'půjčeno Petrovi', kusu: 3, pridano: '2026-08-12',
-      zdroj: 'Knihovny.cz', stran: '253', jazyk: 'cs' },
+      zdroj: 'Knihovny.cz', stran: '253', jazyk: 'cs', policka: 'Obývák dole' },
     { isbn: '9780306406157', nazev: 'Bez kusů', autor: '' },
   ]);
   const radky = csv.replace(/^﻿/, '').split('\r\n');
@@ -154,7 +258,7 @@ nadpis('Export do CSV');
     hlavicka.slice(1, 3).join(', '));
   t(hlavicka.join(';') ===
       'Unikátní identifikátor definice knihy (ISBN);Autor;Název;Rok vydání (titul);' +
-      'Vydavatelství (titul);Počet;Poznámka',
+      'Vydavatelství (titul);Počet;Polička;Poznámka',
     'názvy sloupců odpovídají polím importu', hlavicka.join(';'));
 
   // Kvůli tomuhle celá změna vznikla: pod hlavičkou musí stát ten údaj,
@@ -164,6 +268,8 @@ nadpis('Export do CSV');
   t(hodnota('Počet') === '3', 'pod „Počet“ je počet kusů', hodnota('Počet'));
   t(hodnota('Rok vydání (titul)') === '2015', 'rok vydání');
   t(hodnota('Vydavatelství (titul)') === 'Karolinum', 'vydavatelství');
+  t(hodnota('Polička') === 'Obývák dole', 'polička, aby se kniha dala najít na místě',
+    hodnota('Polička'));
   t(hodnota('Poznámka') === 'půjčeno Petrovi', 'poznámka');
 
   // Holé třináctimístné číslo si Excel přepíše na 9,78807E+12.
@@ -177,8 +283,9 @@ nadpis('Export do CSV');
   // Prázdné sloupce by při párování polí importu jen mátly.
   t(!hlavicka.includes('Zdroj údajů') && !hlavicka.includes('Přidáno'),
     'vnitřní údaje aplikace v exportu nejsou', hlavicka.join(';'));
-  t(SLOUPCE.every((s) => ['isbn', 'autor', 'nazev', 'rok', 'vydavatel', 'kusu', 'poznamka']
-      .includes(s.klic)),
+  t(SLOUPCE.every((s) =>
+      ['isbn', 'autor', 'nazev', 'rok', 'vydavatel', 'kusu', 'policka', 'poznamka']
+        .includes(s.klic)),
     'exportuje se jen to, co aplikace umí vyplnit',
     SLOUPCE.map((s) => s.klic).join(', '));
   t(radky.length === 3, 'řádek na knihu a jedna hlavička', String(radky.length));

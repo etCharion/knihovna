@@ -17,7 +17,7 @@
 
 <header class="hlavicka">
   <h1>📚 Knihovna</h1>
-  <p class="podtitul">Naskenuj čárový kód, zbytek si aplikace najde sama.</p>
+  <p class="podtitul">Naskenuj čárový kód, údaje si aplikace najde sama — uloží je až na tvoje potvrzení.</p>
 </header>
 
 <main>
@@ -39,7 +39,24 @@
       Aplikace potřebuje přístup ke kameře. Data zůstávají jen ve vašem telefonu.
     </p>
 
-    <details class="rucne">
+    <div class="pole pole-policka">
+      <label for="vyber-policka">Skenuji do poličky</label>
+      <select id="vyber-policka" aria-describedby="napoveda-policka"></select>
+    </div>
+    <p class="napoveda" id="napoveda-policka">
+      Poličku nabídne aplikace u každé nové knihy — a jde ji tam ještě změnit.
+    </p>
+
+    <details class="rozbalovaci">
+      <summary>Spravovat poličky</summary>
+      <ul class="seznam-policek" id="seznam-policek"></ul>
+      <button type="button" class="tlacitko" id="btn-nova-policka">➕ Nová polička</button>
+      <p class="napoveda">
+        Zrušením poličky se knihy nemažou — jen zůstanou bez zařazení.
+      </p>
+    </details>
+
+    <details class="rucne rozbalovaci">
       <summary>Zadat ISBN ručně</summary>
       <form id="form-rucne" class="radek-formulare">
         <input
@@ -63,6 +80,7 @@
   <section class="karta">
     <div class="zahlavi-tabulky">
       <h2>Moje knihy <span class="pocet" id="pocet">0</span></h2>
+      <select id="filtr-policka" aria-label="Zobrazit jen jednu poličku"></select>
       <input id="hledat" type="search" placeholder="Hledat v tabulce…" aria-label="Hledat v tabulce">
     </div>
 
@@ -82,6 +100,7 @@
             <th data-radit="rok">Rok</th>
             <th data-radit="vydavatel">Vydavatel</th>
             <th data-radit="isbn">ISBN</th>
+            <th data-radit="policka">Polička</th>
             <th>Poznámka</th>
             <th class="sloupec-akce"></th>
           </tr>
@@ -149,6 +168,64 @@
      Tabulka je uložená jen v tomto zařízení — zálohu pošlete na Disk, e-mailem
      nebo do složky v počítači.</p>
 </footer>
+
+<!-- ----------------------------------- potvrzení každé načtené knihy -->
+<!-- Nic se neuloží samo. Načtený kód se nejdřív ukáže tady, aby šlo
+     opravit špatně přečtené ISBN a upravit údaje ještě před přidáním. -->
+<div class="prekryv" id="prekryv" hidden>
+  <section class="karta nabidka" role="dialog" aria-modal="true" aria-labelledby="nabidka-nadpis">
+    <h2 id="nabidka-nadpis">Přidat knihu?</h2>
+
+    <p class="stav" id="nabidka-stav" role="status" aria-live="polite"></p>
+    <p class="poznamka-nabidky" id="nabidka-upozorneni" hidden></p>
+
+    <div class="pole">
+      <label for="nabidka-isbn">ISBN</label>
+      <div class="radek-formulare">
+        <input id="nabidka-isbn" type="text" inputmode="numeric" autocomplete="off"
+               placeholder="978-80-…">
+        <button type="button" class="tlacitko" id="btn-znovu">🔎 Vyhledat</button>
+      </div>
+      <p class="napoveda">Přečetl skener číslo špatně? Opravte ho a vyhledejte znovu.</p>
+    </div>
+
+    <div class="pole">
+      <label for="nabidka-nazev">Název</label>
+      <input id="nabidka-nazev" type="text" autocomplete="off">
+    </div>
+
+    <div class="pole">
+      <label for="nabidka-autor">Autor</label>
+      <input id="nabidka-autor" type="text" autocomplete="off">
+    </div>
+
+    <div class="dvojice">
+      <div class="pole">
+        <label for="nabidka-rok">Rok</label>
+        <input id="nabidka-rok" type="text" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="pole">
+        <label for="nabidka-vydavatel">Vydavatel</label>
+        <input id="nabidka-vydavatel" type="text" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="pole">
+      <label for="nabidka-policka">Polička</label>
+      <select id="nabidka-policka"></select>
+    </div>
+
+    <div class="pole">
+      <label for="nabidka-poznamka">Poznámka</label>
+      <input id="nabidka-poznamka" type="text" autocomplete="off">
+    </div>
+
+    <div class="tlacitka">
+      <button type="button" class="tlacitko hlavni" id="btn-pridat">✓ Přidat do knihovny</button>
+      <button type="button" class="tlacitko nebezpecne" id="btn-zahodit">Zahodit</button>
+    </div>
+  </section>
+</div>
 
 <div id="hlaska" class="hlaska" role="status" aria-live="polite" hidden></div>
 
