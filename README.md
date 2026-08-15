@@ -27,6 +27,8 @@ a po potvrzení uloží do tabulky. Běží jako statická stránka na GitHub Pa
   desetimístných čísel končících písmenem **X**.
 - **Časopisy podle ISSN** — zadané ručně, nebo naskenované z čárového kódu
   s prefixem 977.
+- **Knihy z doby před ISBN** — starší české tituly ISBN nemají, vedou se proto
+  pod číslem České národní bibliografie (ČNB).
 - **Hledání podle názvu a autora** pro knihy, které ISBN vytištěné nemají:
   z nabídky vyberete tu svou a přidá se do tabulky.
 - **Návrh opravy**, když číslo neprojde kontrolou — poslední číslice ISBN je
@@ -150,11 +152,10 @@ takže záznam vyjde stejně úplný, jako kdyby se kniha naskenovala; doplníte
 poličku a knihu potvrdíte. Kniha, kterou knihovna už má, je v nabídce
 označená i s tím, na kterých poličkách stojí.
 
-> **Nabízejí se jen knihy, které ISBN mají.** Aplikace vede tabulku právě
-> podle něj, takže záznam bez čísla by neměl podle čeho vzniknout. Kolik
-> takových nálezů se vynechalo, se pod nabídkou napíše. Když je vaše kniha
-> mezi nimi, přidejte řádek přes ruční zadání ISBN jiného vydání téhož titulu
-> a název s autorem si v tabulce přepište.
+> **Nabízejí se knihy, které mají nějaké číslo** — ISBN, ISSN, nebo u starších
+> českých titulů ČNB (viz níže). Tabulka totiž stojí na jednom čísle na řádek,
+> takže záznam úplně bez čísla by neměl podle čeho vzniknout. Kolik takových
+> nálezů se vynechalo, se pod nabídkou napíše.
 
 ### Staré ISBN končící písmenem X
 
@@ -187,6 +188,31 @@ jen o jednu nesedící číslici.
 > databáze knih, takže se stejně nic nedohledá. Knihu v tom případě přidejte
 > **hledáním podle názvu a autora** a číslo z obálky si opište do poznámky.
 
+### Knihy vydané před rokem 1989
+
+Do systému ISBN se Československo zapojilo až **v roce 1989**. Všechno starší
+ISBN prostě nemá a nikdy mít nebude — v tiráži bývá jen číslo publikace
+a tematická skupina, což jsou čísla vydavatelská, ne celostátně jedinečná.
+
+Národní knihovna ale takovým knihám přiděluje **číslo České národní
+bibliografie** (`cnb000123456`). Je jedinečné, stálé a katalogy pod ním starší
+tituly vedou. Aplikace ho proto bere jako náhradní číslo, když ISBN chybí:
+
+- najdete knihu **hledáním podle názvu a autora**, ČNB se vezme z katalogu
+  a kniha jde přidat úplně stejně jako každá jiná;
+- číslo jde i **zadat ručně** do stejného pole jako ISBN;
+- řádek se pod ním počítá — druhý sken téže knihy přidá kus, ne nový řádek —
+  a funguje u něj polička i všechno ostatní.
+
+> **Sloupec ISBN u takové knihy zůstává prázdný** a prázdný jde i do exportu.
+> ČNB tam nepatří: knihovní systém čeká v tom sloupci ISBN a cizí číslo by ho
+> jen zmátlo. V tabulce ČNB uvidíte jako šedý odznak vedle prázdného pole,
+> v záloze do JSON je uložené taky. Kdyby se ISBN později přece jen našlo,
+> stačí ho do pole dopsat.
+
+Údaje k ČNB dohledávají **jen Knihovny.cz** — je to české číslo a zahraniční
+databáze ho neznají.
+
 ### Časopisy a ISSN
 
 Periodika ISBN nemají, mají osmimístné **ISSN** (`1234-5678`). Zadat ho jde do
@@ -202,6 +228,7 @@ při importu čeká jinde, přesuňte sloupec v Excelu.
 
 > Údaje k ISSN dohledávají jen Knihovny.cz a Crossref — Google Books ani
 > Open Library periodika nevedou, takže se jich aplikace na ISSN ani neptá.
+> Stejně tak se jen českého katalogu ptá na ČNB.
 
 ### Špatně přečtené ISBN u už uložené knihy
 
@@ -265,12 +292,12 @@ s nimi dalo dál pracovat.
 Aplikace se zeptá **všech zdrojů naráz** a odpovědi složí dohromady: jeden zná
 název a autora, jiný má obálku. Výpadek jednoho zdroje tak nezastaví ostatní.
 
-| Zdroj | K čemu je nejlepší | ISSN |
+| Zdroj | K čemu je nejlepší | Rozumí číslům |
 |---|---|---|
-| [Knihovny.cz](https://www.knihovny.cz/) | **české knihy** — katalogy zhruba stovky českých knihoven včetně Národní knihovny | ano |
-| [Google Books](https://developers.google.com/books) | zahraniční tituly (viz limit dotazů níže) | ne |
-| [Crossref](https://api.crossref.org/) | zahraniční tituly, hlavně odborné — metadata od samotných vydavatelů, bez kvóty | ano |
-| [Open Library](https://openlibrary.org/dev/docs/api/books) | starší a anglicky psané knihy, obálky | ne |
+| [Knihovny.cz](https://www.knihovny.cz/) | **české knihy** — katalogy zhruba stovky českých knihoven včetně Národní knihovny | ISBN, ISSN, ČNB |
+| [Google Books](https://developers.google.com/books) | zahraniční tituly (viz limit dotazů níže) | ISBN |
+| [Crossref](https://api.crossref.org/) | zahraniční tituly, hlavně odborné — metadata od samotných vydavatelů, bez kvóty | ISBN, ISSN |
+| [Open Library](https://openlibrary.org/dev/docs/api/books) | starší a anglicky psané knihy, obálky | ISBN |
 
 České zdroje jsou v pořadí první, takže když má knihu víc katalogů, přednost
 dostane český záznam — se správnou diakritikou a českým názvem. Knihovnické
@@ -481,8 +508,8 @@ se načítá rovnou, Tesseract (7 MB) až když si někdo řekne o čtení čís
 ### Testy
 
 Testy jsou tři sady. `tests/jednotky.mjs` běží v Node během vteřiny a kontroluje
-dělení ISBN, čísla končící X, ISSN i čárové kódy časopisů, návrh opravy
-kontrolní číslice, vytahování čísla z rozpoznaného textu, slučování duplicit,
+dělení ISBN, čísla končící X, ISSN i čárové kódy časopisů, ČNB u knih bez ISBN,
+návrh opravy kontrolní číslice, vytahování čísla z rozpoznaného textu, slučování duplicit,
 práci s poličkami, hledání podle názvu a autora, sestavení e-mailové zálohy
 a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
 skutečném prohlížeči včetně obojího skenování a potvrzovací nabídky: Chromiu
@@ -528,6 +555,10 @@ přehodily. Aplikace nabídne, jak by číslo vypadalo s opravenou kontrolní
 kvótu, která bývá vyčerpaná — v hlášce to poznáte podle `vyčerpaný limit
 dotazů`. Crossref zaskočí u odborných titulů, u beletrie ale ne vždy. Trvale to
 řeší vlastní klíč, viz *Google Books a limit dotazů*.
+
+**Stará česká kniha se nedá přidat.** Knihy vydané před rokem 1989 ISBN nemají.
+Najděte je hledáním podle názvu a autora — vezme se jim číslo ČNB a přidat pak
+jdou normálně. Viz *Knihy vydané před rokem 1989* výše.
 
 **Hledání podle názvu nic nenajde.** Zkuste jen část názvu bez podtitulu,
 u autora samotné příjmení. České katalogy vedou jména ve tvaru `Novák, Jan`,

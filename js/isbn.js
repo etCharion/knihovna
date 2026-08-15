@@ -118,21 +118,49 @@ export function issnZKodu(kod) {
   return sedm + kontrolniCisliceIssn(sedm);
 }
 
+/* --------------------------------------------- knihy z doby před ISBN */
+
 /**
- * Jediné místo, kde se rozhoduje, co vlastně přišlo ze skeneru nebo z ručního
- * zadání: kniha (ISBN-13), periodikum (ISSN), nebo nic z toho.
+ * Číslo České národní bibliografie, například `cnb000123456`.
  *
- * Aplikace vede knihy i časopisy v jedné tabulce pod jedním číslem, takže
- * všechno ostatní si vystačí s vrácenou dvojicí a druhy nemusí rozlišovat.
+ * Do systému ISBN se Československo zapojilo až v roce 1989, takže starší
+ * knihy žádné ISBN nemají a nikdy mít nebudou. Národní knihovna jim ale
+ * přiděluje číslo ČNB — celostátně jedinečné a stálé — a v katalozích jsou
+ * pod ním. Pro takovou knihu je to jediné rozumné číslo, pod kterým ji
+ * tabulka může vést.
+ *
+ * Kontrolní číslici ČNB nemá, takže se ověřuje jen tvar. Překlep se tu na
+ * rozdíl od ISBN nepozná — proto se ČNB nikdy nebere z rozpoznávání textu
+ * ani ze skeneru, jen z katalogu nebo z ručního opsání.
+ */
+export function jeCnb(kod) {
+  return /^cnb\d{6,12}$/.test(String(kod || '').toLowerCase().replace(/[\s-]/g, ''));
+}
+
+export function normalizujCnb(kod) {
+  const k = String(kod || '').toLowerCase().replace(/[\s-]/g, '');
+  return jeCnb(k) ? k : null;
+}
+
+/**
+ * Jediné místo, kde se rozhoduje, co vlastně přišlo ze skeneru, z katalogu
+ * nebo z ručního zadání — a jak se tomu číslu říká.
+ *
+ * Aplikace vede knihy i časopisy v jedné tabulce, každý řádek pod jedním
+ * číslem. Všechno ostatní si proto vystačí s vrácenou dvojicí a jednotlivé
+ * druhy čísel rozlišovat nemusí.
  */
 export function rozpoznej(kod) {
-  if (jeKnizniKod(kod)) return { kod: normalizuj(kod), druh: 'kniha' };
+  if (jeKnizniKod(kod)) return { kod: normalizuj(kod), cislo: 'ISBN' };
 
   const zKodu = issnZKodu(kod);
-  if (zKodu) return { kod: zKodu, druh: 'periodikum' };
+  if (zKodu) return { kod: zKodu, cislo: 'ISSN' };
 
   const issn = normalizujIssn(kod);
-  if (issn) return { kod: issn, druh: 'periodikum' };
+  if (issn) return { kod: issn, cislo: 'ISSN' };
+
+  const cnb = normalizujCnb(kod);
+  if (cnb) return { kod: cnb, cislo: 'ČNB' };
 
   return null;
 }
@@ -189,6 +217,10 @@ export function navrhniOpravu(kod) {
  * kdežto holé třináctimístné číslo si přepíše na 9,78807E+12.
  */
 export function naFormat(isbn13) {
+  // ČNB se nedělí a `ocisti` by z něj vyhodilo písmena, takže rovnou stranou.
+  const cnb = normalizujCnb(isbn13);
+  if (cnb) return cnb;
+
   const k = ocisti(isbn13);
   if (jeIssn(k)) return `${k.slice(0, 4)}-${k.slice(4)}`;
   if (!/^\d{13}$/.test(k)) return k;

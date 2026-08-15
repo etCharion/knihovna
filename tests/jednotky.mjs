@@ -4,8 +4,8 @@
  * Spuštění:  node tests/jednotky.mjs
  */
 
-import { jeIsbn10, jeIsbn13, jeIssn, jeKnizniKod, isbn10Na13, issnZKodu, naFormat, navrhniOpravu,
-         normalizuj, rozpoznej } from '../js/isbn.js';
+import { jeCnb, jeIsbn10, jeIsbn13, jeIssn, jeKnizniKod, isbn10Na13, issnZKodu, naFormat,
+         navrhniOpravu, normalizuj, rozpoznej } from '../js/isbn.js';
 import { najdiIsbnVTextu } from '../js/ocr.js';
 import { hledejPodleTextu, najdiKnihu } from '../js/lookup.js';
 
@@ -70,11 +70,22 @@ t(issnZKodu('9770378595019') === '03785955', 'jiné číslo vydání dá stejné
 t(issnZKodu('9770378595003') === null, 'kód s rozbitou kontrolní číslicí neprojde');
 t(issnZKodu('9788073355067') === null, 'knižní kód není periodikum');
 
+nadpis('ČNB — knihy z doby před ISBN');
+// Do systému ISBN se Československo zapojilo až v roce 1989. Starší knihy
+// mají jen číslo České národní bibliografie a v katalozích jsou pod ním.
+t(jeCnb('cnb000123456'), 'platný tvar ČNB');
+t(jeCnb('CNB 000123456'), 'velikost písmen ani mezery nevadí');
+t(!jeCnb('cnb12'), 'příliš krátké číslo neprojde');
+t(!jeCnb('000123456'), 'samotné číslice bez cnb neprojdou');
+t(naFormat('CNB-000123456') === 'cnb000123456', 'ČNB se ukládá jednotně malými písmeny',
+  naFormat('CNB-000123456'));
+
 nadpis('Rozpoznání čísla');
-t(rozpoznej('978-80-7335-506-7')?.druh === 'kniha', 'ISBN je kniha');
+t(rozpoznej('978-80-7335-506-7')?.cislo === 'ISBN', 'ISBN se pozná');
 t(rozpoznej('80-7203-068-X')?.kod === '9788072030682', 'staré ISBN se převede');
-t(rozpoznej('0378-5955')?.druh === 'periodikum', 'ISSN je periodikum');
+t(rozpoznej('0378-5955')?.cislo === 'ISSN', 'ISSN se pozná');
 t(rozpoznej('9770378595002')?.kod === '03785955', 'kód časopisu se převede na ISSN');
+t(rozpoznej('cnb000123456')?.cislo === 'ČNB', 'ČNB se pozná');
 t(rozpoznej('4006381333931') === null, 'EAN od potravin neprojde');
 t(rozpoznej('nesmysl') === null, 'nesmysl neprojde');
 
@@ -290,6 +301,37 @@ nadpis('Odznak v názvu');
 }
 
 /* ------------------------------------------------------- export do CSV */
+
+nadpis('Tabulka pod číslem ČNB');
+{
+  localStorage.clear();
+
+  // Klíčem řádku je ISBN, a když chybí, ČNB — jinak by se všechny knihy
+  // bez ISBN slily do jednoho řádku.
+  ulozne.pridej({ isbn: '', cnb: 'cnb000111111', nazev: 'První stará kniha' });
+  ulozne.pridej({ isbn: '', cnb: 'cnb000222222', nazev: 'Druhá stará kniha' });
+  t(ulozne.vsechny().length === 2, 'dvě knihy bez ISBN jsou dva řádky',
+    String(ulozne.vsechny().length));
+
+  ulozne.pridej({ isbn: '', cnb: 'cnb000111111', nazev: 'První stará kniha' });
+  t(ulozne.vsechny().length === 2, 'a druhý sken téže knihy nedělá třetí řádek');
+  t(ulozne.podleIsbn('cnb000111111').kusu === 2, 'jen přičte kus');
+  t(ulozne.vsudePodleIsbn('cnb000222222').length === 1, 'najde se i napříč poličkami');
+
+  // Do sloupce, který import čeká jako ISBN, ČNB nepatří.
+  const csv = doCsv(ulozne.vsechny());
+  const hlavicka = csv.replace(/^﻿/, '').split('\r\n')[0].split(';');
+  const radek = csv.replace(/^﻿/, '').split('\r\n')[1].split(';');
+  t(radek[hlavicka.indexOf('Unikátní identifikátor definice knihy (ISBN)')] === '',
+    'v exportu zůstane sloupec ISBN u takové knihy prázdný',
+    `„${radek[hlavicka.indexOf('Unikátní identifikátor definice knihy (ISBN)')]}“`);
+  t(!csv.includes('cnb000'), 'a ČNB se do exportu pro knihovní systém neplete');
+
+  // V záloze do JSON je naopak uložené všechno, ať se dá tabulka obnovit.
+  t(ulozne.doJson().includes('cnb000111111'), 'v záloze JSON ale ČNB zůstává');
+
+  localStorage.clear();
+}
 
 nadpis('Export do CSV');
 {
@@ -695,6 +737,59 @@ nadpis('Dohledání periodika');
   const casopis = await najdiKnihu('0378-5955');
   t(!casopis.nalezeno && !casopis.nedostupne && casopis.selhalyZdroje.length === 0,
     'stav 404 znamená „neznám“, ne „nedostupný“', casopis.selhalyZdroje.join(', '));
+}
+
+nadpis('Kniha bez ISBN — dohledání podle ČNB');
+{
+  const adresy = [];
+  globalThis.fetch = (url) => {
+    adresy.push(url);
+    if (!url.includes('knihovny.cz')) return vypadek();
+    return odpoved({ records: [{
+      title: 'Traktor v socialistickém zemědělství /',
+      authors: { primary: { 'Novotný, Josef, 1921-1988': {} } },
+      publishers: ['Státní zemědělské nakladatelství,'],
+      publicationDates: ['1974'],
+      languages: ['cze'],
+      nbn: ['cnb000123456'],
+    }] });
+  };
+
+  const kniha = await najdiKnihu('cnb000123456');
+  t(kniha.nazev === 'Traktor v socialistickém zemědělství', 'kniha se najde podle ČNB',
+    kniha.nazev);
+  t(kniha.isbn === '', 'sloupec ISBN u ní zůstane prázdný', `„${kniha.isbn}“`);
+  t(kniha.cnb === 'cnb000123456', 'a číslo se uloží do vlastního pole', kniha.cnb);
+  t(kniha.selhalyZdroje.length === 0,
+    'ČNB rozumí jen český katalog, ostatních se aplikace neptá',
+    kniha.selhalyZdroje.join(', '));
+  t(adresy.length === 1 && adresy[0].includes('type=AllFields'),
+    'ČNB se hledá napříč poli, ne v rejstříku ISN', adresy.join(' | '));
+}
+
+{
+  // Nálezy podle názvu: co nemá ISBN ani ISSN, jede pod ČNB.
+  globalThis.fetch = (url) => url.includes('knihovny.cz')
+    ? odpoved({ records: [
+        { title: 'Kniha z roku 1974', publicationDates: ['1974'], nbn: ['cnb000123456'] },
+        { title: 'Novější kniha', cleanIsbn: '9788073355067', nbn: ['cnb000999999'] },
+        { title: 'Kniha, kterou katalog nezná pod žádným číslem' },
+      ] })
+    : vypadek();
+
+  const { vysledky, bezCisla } = await hledejPodleTextu({ nazev: 'Kniha' });
+  t(vysledky.length === 2, 'nabídnou se obě knihy, které nějaké číslo mají',
+    String(vysledky.length));
+
+  const stara = vysledky.find((k) => k.nazev === 'Kniha z roku 1974');
+  t(stara.cnb === 'cnb000123456' && stara.isbn === '', 'stará kniha jede pod ČNB',
+    `isbn „${stara.isbn}“, cnb „${stara.cnb}“`);
+
+  const nova = vysledky.find((k) => k.nazev === 'Novější kniha');
+  t(nova.isbn === '9788073355067' && !nova.cnb, 'když je ISBN, ČNB se nepoužije',
+    `isbn „${nova.isbn}“, cnb „${nova.cnb}“`);
+
+  t(bezCisla === 1, 'a bez čísla zůstane jen ten záznam, který žádné nemá', String(bezCisla));
 }
 
 nadpis('Crossref u knih');

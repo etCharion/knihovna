@@ -65,12 +65,25 @@ export function upravNazevPolicky(nazev) {
 }
 
 /**
- * Kniha se pozná podle ISBN *a* poličky. Stejný titul na dvou poličkách
- * jsou dva záznamy — jinak by nešlo dohledat, kde který výtisk stojí.
- * Když se poličky nepoužívají, chová se všechno jako dřív (prázdný název).
+ * Číslo, pod kterým tabulka řádek vede.
+ *
+ * U knih po roce 1989 je to ISBN, u časopisů ISSN. Starší české knihy žádné
+ * nemají — ty jedou pod číslem České národní bibliografie. Vede se ve
+ * vlastním poli, aby zůstalo poznat, že to ISBN není: sloupec ISBN u nich
+ * zůstává prázdný a prázdný jde i do exportu, kde by ČNB knihovní systém
+ * jen zmátlo.
+ */
+export function cisloZaznamu(kniha) {
+  return kniha?.isbn || kniha?.cnb || '';
+}
+
+/**
+ * Kniha se pozná podle svého čísla *a* poličky. Stejný titul na dvou
+ * poličkách jsou dva záznamy — jinak by nešlo dohledat, kde který výtisk
+ * stojí. Když se poličky nepoužívají, chová se všechno jako dřív.
  */
 function klicZaznamu(kniha) {
-  return `${kniha.isbn}\u0000${upravNazevPolicky(kniha.policka)}`;
+  return `${cisloZaznamu(kniha)}\u0000${upravNazevPolicky(kniha.policka)}`;
 }
 
 function nactiPolicky() {
@@ -294,15 +307,17 @@ export function vsechny() {
   return nacti();
 }
 
-/** Kniha s tímhle ISBN na téhle poličce — jinde stejný titul stát může. */
+/** Kniha s tímhle číslem na téhle poličce — jinde stejný titul stát může. */
 export function podleIsbn(isbn, policka = '') {
   const cisty = upravNazevPolicky(policka);
-  return nacti().find((k) => k.isbn === isbn && upravNazevPolicky(k.policka) === cisty) || null;
+  return nacti().find(
+    (k) => cisloZaznamu(k) === isbn && upravNazevPolicky(k.policka) === cisty
+  ) || null;
 }
 
 /** Všechny výtisky téhož titulu napříč poličkami — kvůli hlášce „máte i v ložnici“. */
 export function vsudePodleIsbn(isbn) {
-  return nacti().filter((k) => k.isbn === isbn);
+  return nacti().filter((k) => cisloZaznamu(k) === isbn);
 }
 
 /**
@@ -313,7 +328,7 @@ export function pridej(kniha) {
   const knihy = nacti();
   const policka = upravNazevPolicky(kniha.policka);
   const existujici = knihy.find(
-    (k) => k.isbn === kniha.isbn && upravNazevPolicky(k.policka) === policka
+    (k) => cisloZaznamu(k) === cisloZaznamu(kniha) && upravNazevPolicky(k.policka) === policka
   );
 
   if (existujici) {
@@ -380,7 +395,7 @@ export function importuj(polozky) {
   let pridano = 0;
 
   for (const polozka of polozky) {
-    if (!polozka?.isbn || znama.has(klicZaznamu(polozka))) continue;
+    if (!cisloZaznamu(polozka) || znama.has(klicZaznamu(polozka))) continue;
     knihy.push({
       id: polozka.id || crypto.randomUUID(),
       kusu: Number(polozka.kusu) || 1,

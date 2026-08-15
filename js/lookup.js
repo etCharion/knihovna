@@ -13,7 +13,8 @@
  * si tyhle služby neporadí. Pomlčky jsou jen pro zobrazení uživateli.
  */
 
-import { jeIssn, jeKnizniKod, normalizuj, normalizujIssn, ocisti, rozpoznej } from './isbn.js';
+import { jeIssn, jeKnizniKod, normalizuj, normalizujCnb, normalizujIssn, ocisti,
+         rozpoznej } from './isbn.js';
 
 // Na mobilních datech bývají odpovědi pomalé, proto raději delší strpení.
 const TIMEOUT_MS = 12000;
@@ -137,6 +138,15 @@ function prvniIssn(kandidati) {
   return '';
 }
 
+/** A totéž pro číslo České národní bibliografie u knih z doby před ISBN. */
+function prvniCnb(kandidati) {
+  for (const kandidat of [].concat(kandidati || [])) {
+    const cnb = normalizujCnb(kandidat);
+    if (cnb) return cnb;
+  }
+  return '';
+}
+
 function zGoogleBooks(polozka) {
   if (!polozka?.title) return null;
   return {
@@ -210,8 +220,15 @@ async function googleBooksPodleTextu({ nazev, autor }) {
  * takže se na něj dá ptát rovnou z prohlížeče. Bez výslovného výčtu polí by
  * vrátilo jen identifikátor záznamu, proto ten seznam v každém dotazu.
  */
+/*
+ * `nbn` je číslo národní bibliografie (u nás ČNB) — jediné číslo, které mají
+ * i knihy vydané před rokem 1989. Kdyby ho API pod tímhle jménem nevracelo,
+ * neplatná jména polí VuFind mlčky přeskočí: starší knihy se pak jen dál
+ * nebudou dát z nabídky přidat, nic se nerozbije.
+ */
 const POLE_KNIHOVNY = ['title', 'authors', 'publishers', 'publicationDates', 'languages',
-                       'physicalDescriptions', 'cleanIsbn', 'isbns', 'cleanIssn', 'issns'];
+                       'physicalDescriptions', 'cleanIsbn', 'isbns', 'cleanIssn', 'issns',
+                       'nbn'];
 
 async function knihovnyCzDotaz(lookfor, type, limit) {
   const parametry = new URLSearchParams({ lookfor, type, limit: String(limit) });
@@ -243,9 +260,12 @@ function zKnihovnyCz(zaznam) {
   };
 }
 
-/** Rejstřík `ISN` obsahuje ISBN i ISSN, takže na obojí stačí jeden dotaz. */
+/**
+ * Rejstřík `ISN` obsahuje ISBN i ISSN, takže na obojí stačí jeden dotaz.
+ * ČNB v něm ale není — to se hledá napříč poli.
+ */
 async function knihovnyCz(kod) {
-  const [zaznam] = await knihovnyCzDotaz(kod, 'ISN', 1);
+  const [zaznam] = await knihovnyCzDotaz(kod, normalizujCnb(kod) ? 'AllFields' : 'ISN', 1);
   return zKnihovnyCz(zaznam);
 }
 
@@ -266,10 +286,12 @@ async function knihovnyCzPodleTextu({ nazev, autor }) {
   return zaznamy.map((zaznam) => {
     const kniha = zKnihovnyCz(zaznam);
     if (!kniha) return null;
-    // U periodik ISBN nebývá, zato je tam ISSN — do tabulky jde to, co je.
-    const kod = prvniIsbn(zaznam.cleanIsbn || zaznam.isbns)
-      || prvniIssn(zaznam.cleanIssn || zaznam.issns);
-    return { ...kniha, isbn: kod };
+    // Co je: ISBN u novějších knih, ISSN u periodik, ČNB u toho, co vyšlo
+    // před rokem 1989. Pořadí je od nejsdělnějšího čísla k tomu poslednímu.
+    const isbn = prvniIsbn(zaznam.cleanIsbn || zaznam.isbns);
+    const issn = prvniIssn(zaznam.cleanIssn || zaznam.issns);
+    const cnb = prvniCnb(zaznam.nbn);
+    return { ...kniha, isbn: isbn || issn, cnb: isbn || issn ? '' : cnb };
   }).filter(Boolean);
 }
 
@@ -432,32 +454,33 @@ async function openLibraryPodleTextu({ nazev, autor }) {
  * ho vyplnil. České katalogy jsou proto první — většina skenovaných knih
  * bude česká a jejich záznamy mají správnou diakritiku i české názvy.
  *
- * `druhy` říká, na co se daného zdroje má vůbec smysl ptát. Google Books ani
- * Open Library periodika podle ISSN neznají, takže se jich na ně neptáme —
- * jinak by jen zdržely a v hlášce se objevily jako zdroj, který nic nenašel.
+ * `cisla` říká, na co se daného zdroje má vůbec smysl ptát. Google Books ani
+ * Open Library neznají ani ISSN, ani ČNB, takže se jich na ně neptáme — jinak
+ * by jen zdržely a v hlášce se objevily jako zdroj, který nic nenašel. ČNB
+ * přiděluje česká Národní knihovna, takže tomu rozumí jen český katalog.
  */
 const ZDROJE = [
   {
     nazev: 'Knihovny.cz',
-    druhy: ['kniha', 'periodikum'],
+    cisla: ['ISBN', 'ISSN', 'ČNB'],
     hledej: knihovnyCz,
     hledejText: knihovnyCzPodleTextu,
   },
   {
     nazev: 'Google Books',
-    druhy: ['kniha'],
+    cisla: ['ISBN'],
     hledej: googleBooks,
     hledejText: googleBooksPodleTextu,
   },
   {
     nazev: 'Crossref',
-    druhy: ['kniha', 'periodikum'],
+    cisla: ['ISBN', 'ISSN'],
     hledej: crossref,
     hledejText: crossrefPodleTextu,
   },
   {
     nazev: 'Open Library',
-    druhy: ['kniha'],
+    cisla: ['ISBN'],
     hledej: openLibrary,
     hledejText: openLibraryPodleTextu,
   },
@@ -487,7 +510,8 @@ export function nahradniObalka(isbn) {
 export async function najdiKnihu(kodVstup) {
   const rozpoznane = rozpoznej(kodVstup);
   const isbn = rozpoznane?.kod || ocisti(kodVstup);
-  const zdroje = ZDROJE.filter((zdroj) => zdroj.druhy.includes(rozpoznane?.druh || 'kniha'));
+  const jeCnbCislo = rozpoznane?.cislo === 'ČNB';
+  const zdroje = ZDROJE.filter((zdroj) => zdroj.cisla.includes(rozpoznane?.cislo || 'ISBN'));
 
   const odpovedi = await Promise.allSettled(zdroje.map((zdroj) => zdroj.hledej(isbn)));
 
@@ -524,7 +548,10 @@ export async function najdiKnihu(kodVstup) {
 
   return {
     ...kniha,
-    isbn,
+    // ČNB do sloupce ISBN nepatří — má vlastní pole a sloupec ISBN u takové
+    // knihy zůstává prázdný, aby ho import knihovního systému nepotkal.
+    isbn: jeCnbCislo ? '' : isbn,
+    cnb: jeCnbCislo ? isbn : '',
     nalezeno,
     nedostupne: !nekdoOdpovedel,
     zdroj: prispeli.join(', '),
@@ -566,14 +593,15 @@ export async function hledejPodleTextu({ nazev = '', autor = '' } = {}) {
     nekdoOdpovedel = true;
 
     for (const nalez of odpoved.value || []) {
-      if (!nalez.isbn) {
+      const cislo = nalez.isbn || nalez.cnb;
+      if (!cislo) {
         bezCisla++;
         continue;
       }
 
-      const drivejsi = podleCisla.get(nalez.isbn);
+      const drivejsi = podleCisla.get(cislo);
       if (!drivejsi) {
-        podleCisla.set(nalez.isbn, { ...nalez, zdroje: [zdroj.nazev] });
+        podleCisla.set(cislo, { ...nalez, zdroje: [zdroj.nazev] });
         continue;
       }
       // Stejný titul z dalšího zdroje jen doplní, co u toho prvního chybí.

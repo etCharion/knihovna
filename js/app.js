@@ -88,9 +88,6 @@ function pocetSlovem(kolik, jedna, dve, pet) {
   return `${kolik} ${kolik === 1 ? jedna : kolik < 5 ? dve : pet}`;
 }
 
-/** Jak se v hláškách jmenuje číslo, o které zrovna jde. */
-const jmenoCisla = (druh) => (druh === 'periodikum' ? 'ISSN' : 'ISBN');
-
 /* ------------------------------------------------------------ poličky */
 
 /**
@@ -320,6 +317,19 @@ function bunkaIsbn(kniha) {
   prvek.dataset.prazdny = 'ISBN';
   prvek.textContent = naFormat(kniha.isbn);
   td.appendChild(prvek);
+
+  // Kniha z doby před ISBN. Číslo ČNB se ukáže vedle prázdného pole, ne v něm:
+  // ISBN to není, do sloupce ISBN nepatří a v exportu tam taky nebude. Pole
+  // zůstává k dispozici, kdyby se ISBN později přece jen dohledalo.
+  if (kniha.cnb) {
+    const odznak = document.createElement('span');
+    odznak.className = 'odznak-cnb';
+    odznak.textContent = kniha.cnb;
+    odznak.title = 'Číslo České národní bibliografie — kniha vyšla před zavedením ISBN';
+    td.appendChild(document.createTextNode(' '));
+    td.appendChild(odznak);
+  }
+
   td.addEventListener('click', (udalost) => {
     if (udalost.target === td) prvek.focus();
   });
@@ -344,15 +354,14 @@ function bunkaIsbn(kniha) {
 
     if (!rozpoznane) {
       const navrh = navrhniOpravu(zadane);
-      oznam('To není platné ISBN ani ISSN — zkontrolujte číslice.', 'chyba');
+      oznam('To není platné ISBN, ISSN ani ČNB — zkontrolujte číslice.', 'chyba');
       nastavStav(navrh
         ? `U ${zadane} nesedí kontrolní číslice — podle zbytku čísla by mělo být ${naFormat(navrh)}.`
         : `Číslo ${zadane} neprošlo kontrolou, v tabulce zůstalo původní.`);
       return vratPuvodni();
     }
 
-    const { kod: nove, druh } = rozpoznane;
-    const cislo = jmenoCisla(druh);
+    const { kod: nove, cislo } = rozpoznane;
     if (nove === kniha.isbn) return vratPuvodni();
     if (ulozne.podleIsbn(nove, kniha.policka)) {
       oznam(`Titul s tímto ${cislo} už na téhle poličce je.`, 'varovani');
@@ -360,7 +369,11 @@ function bunkaIsbn(kniha) {
     }
 
     const prazdneUdaje = Object.fromEntries(POLE_O_KNIZE.map((pole) => [pole, '']));
-    ulozne.uprav(kniha.id, { isbn: nove, ...prazdneUdaje });
+    ulozne.uprav(kniha.id, {
+      isbn: cislo === 'ČNB' ? '' : nove,
+      cnb: cislo === 'ČNB' ? nove : '',
+      ...prazdneUdaje,
+    });
     cekaSeNaVyhledani.add(nove);
     nastavStav(`Opraveno na ${naFormat(nove)}, hledám údaje …`);
     vykresli();
@@ -581,7 +594,7 @@ function zavriNabidku() {
 /** Dohledá údaje k číslu v nabídce a vyplní jimi formulář. */
 async function vyhledejDoNabidky(isbn, zHledani = null) {
   const moje = poradiNabidky;
-  const cislo = jmenoCisla(rozpoznej(isbn)?.druh);
+  const cislo = rozpoznej(isbn)?.cislo || 'ISBN';
   const platna = () => jeNabidkaOtevrena() && poradiNabidky === moje;
 
   btnPridat.disabled = true;
@@ -634,15 +647,18 @@ function pridejZNabidky() {
       zkontrolujDuplicitu();
       return oznam('Číslo neprošlo kontrolou — v poli je návrh opravy.', 'varovani');
     }
-    return oznam('To není platné ISBN ani ISSN — zkontrolujte číslice.', 'chyba');
+    return oznam('To není platné ISBN, ISSN ani ČNB — zkontrolujte číslice.', 'chyba');
   }
 
+  // ČNB má vlastní pole; sloupec ISBN u takové knihy zůstává prázdný.
+  const jeCnbCislo = rozpoznane.cislo === 'ČNB';
   const isbn = rozpoznane.kod;
 
   const policka = ulozne.upravNazevPolicky(poleNabidky.policka.value);
   const { zaznam, duplicita } = ulozne.pridej({
     ...nabizenaKniha,
-    isbn,
+    isbn: jeCnbCislo ? '' : isbn,
+    cnb: jeCnbCislo ? isbn : '',
     nazev: poleNabidky.nazev.value.trim(),
     autor: poleNabidky.autor.value.trim(),
     rok: poleNabidky.rok.value.trim(),
@@ -790,7 +806,7 @@ btnZnovu.addEventListener('click', async () => {
       zkontrolujDuplicitu();
       return oznam('Číslo neprošlo kontrolou — v poli je návrh opravy.', 'varovani');
     }
-    return oznam('To není platné ISBN ani ISSN — zkontrolujte číslice.', 'chyba');
+    return oznam('To není platné ISBN, ISSN ani ČNB — zkontrolujte číslice.', 'chyba');
   }
   poleNabidky.isbn.value = naFormat(rozpoznane.kod);
   await vyhledejDoNabidky(rozpoznane.kod);
@@ -915,10 +931,11 @@ prvek('form-rucne').addEventListener('submit', async (udalost) => {
       return;
     }
 
-    oznam('To není platné ISBN ani ISSN — zkontrolujte číslice.', 'chyba');
+    oznam('To není platné ISBN, ISSN ani ČNB — zkontrolujte číslice.', 'chyba');
     nastavStav(
       `Číslo ${hodnota} neprošlo kontrolou. Přepište ho přesně tak, jak je v knize — ` +
-      'včetně koncového X. Písmeno napíšete po přepnutí klávesnice tlačítkem „X“.'
+      'včetně koncového X. Písmeno napíšete po přepnutí klávesnice tlačítkem „X“. ' +
+      'Kniha z doby před rokem 1989 ISBN nemá; tam pomůže hledání podle názvu.'
     );
     return;
   }
@@ -984,15 +1001,18 @@ function polozkaNalezu(nalez) {
     return cast;
   };
 
+  // Číslo nálezu je ISBN, ISSN, nebo — u knih z doby před ISBN — ČNB.
+  const cislo = ulozne.cisloZaznamu(nalez);
+
   radek('vysledek-nazev', nalez.nazev);
   const popis = [nalez.autor, nalez.rok, nalez.vydavatel].filter(Boolean).join(' · ');
   if (popis) radek('vysledek-popis', popis);
-  radek('vysledek-isbn', `${naFormat(nalez.isbn)} · ${nalez.zdroj}`);
+  radek('vysledek-isbn', `${naFormat(cislo)} · ${nalez.zdroj}`);
   const stavPolozky = radek('vysledek-stav', '');
 
   // Napříč poličkami: tentýž titul může stát na několika místech.
   const obnovStav = () => {
-    const vytisky = ulozne.vsudePodleIsbn(nalez.isbn);
+    const vytisky = ulozne.vsudePodleIsbn(cislo);
     const kusu = vytisky.reduce((soucet, k) => soucet + (Number(k.kusu) || 1), 0);
     const mista = [...new Set(vytisky.map((k) => ulozne.upravNazevPolicky(k.policka)))]
       .filter(Boolean);
@@ -1008,7 +1028,7 @@ function polozkaNalezu(nalez) {
   tlacitko.addEventListener('click', async () => {
     tlacitko.disabled = true;
     try {
-      await zpracujKod(nalez.isbn, nalez);
+      await zpracujKod(cislo, nalez);
     } finally {
       tlacitko.disabled = false;
     }
