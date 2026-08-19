@@ -535,6 +535,52 @@ stranka.once('dialog', (d) => d.accept());
 await staraKniha.locator('.ikona-tlacitko').click();
 await stranka.waitForTimeout(200);
 
+/* --------------------------------- kniha úplně bez čísla (ani ČNB) */
+
+// Nejstarší tituly nemají ani ISBN, ani ČNB — katalog jim ho nepřidělil.
+// Uložit se musí dát i tak, jen bez počítání kusů.
+await stranka.evaluate(() => { document.querySelector('.rucne').open = true; });
+await stranka.fill('#vstup-nazev', 'Kniha');
+await stranka.click('#form-podle-nazvu button[type=submit]');
+await stranka.waitForSelector('#vysledky-hledani:not([hidden]) .vysledek', { timeout: 10000 });
+
+const radkuPredBezCisla = await stranka.locator('tbody tr').count();
+await stranka.locator('#vysledky-hledani .vysledek').first().click();
+await pockejNaNabidku(stranka);
+await stranka.fill('#nabidka-isbn', '');
+await stranka.fill('#nabidka-nazev', 'Kniha bez jakéhokoliv čísla');
+t(await stranka.locator('#nabidka-upozorneni').isVisible(),
+  'nabídka řekne, že bez čísla nejde poznat duplicita');
+
+await stranka.click('#btn-pridat');
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+t((await stranka.locator('tbody tr').count()) === radkuPredBezCisla + 1,
+  'kniha bez čísla se přidá', String(await stranka.locator('tbody tr').count()));
+
+const bezCisla = stranka.locator('tbody tr').first();
+t((await bezCisla.locator('td').nth(1).innerText()).includes('bez jakéhokoliv čísla'),
+  's vyplněnými údaji', await bezCisla.locator('td').nth(1).innerText());
+t((await bezCisla.locator('td.isbn').innerText()).trim() === '',
+  'a s prázdným sloupcem ISBN', `„${await bezCisla.locator('td.isbn').innerText()}“`);
+
+// Bez čísla není podle čeho poznat duplicitu — druhé přidání je nový řádek.
+await stranka.locator('#vysledky-hledani .vysledek').first().click();
+await pockejNaNabidku(stranka);
+await stranka.fill('#nabidka-isbn', '');
+await stranka.fill('#nabidka-nazev', 'Kniha bez jakéhokoliv čísla');
+await stranka.click('#btn-pridat');
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+t((await stranka.locator('tbody tr').count()) === radkuPredBezCisla + 2,
+  'a druhé přidání zakládá další řádek, ne kus',
+  String(await stranka.locator('tbody tr').count()));
+
+for (let i = 0; i < 2; i++) {
+  stranka.once('dialog', (d) => d.accept());
+  await stranka.locator('tbody tr').first().locator('.ikona-tlacitko').click();
+  await stranka.waitForTimeout(200);
+}
+await stranka.fill('#vstup-nazev', '');
+
 /* --------------------------------------- hledání podle názvu a autora */
 
 await stranka.evaluate(() => { document.querySelector('.rucne').open = true; });

@@ -540,6 +540,16 @@ function zkontrolujDuplicitu() {
   const naPolicce = isbn ? ulozne.podleIsbn(isbn, policka) : null;
   const jinde = isbn ? ulozne.vsudePodleIsbn(isbn).filter((k) => k !== naPolicce) : [];
 
+  // Bez čísla se duplicita poznat nedá — a je poctivější to říct, než mlčet.
+  if (!isbn) {
+    nabidkaUpozorneni.textContent =
+      'Kniha nemá ISBN ani jiné číslo. Uložit se dá, ale nejde poznat, jestli ji ' +
+      'v knihovně už nemáte — každé přidání proto založí nový řádek.';
+    nabidkaUpozorneni.hidden = false;
+    btnPridat.textContent = '✓ Přidat do knihovny';
+    return;
+  }
+
   if (naPolicce) {
     const kde = policka ? `na poličce „${policka}“` : 'v knihovně';
     nabidkaUpozorneni.textContent =
@@ -597,6 +607,17 @@ async function vyhledejDoNabidky(isbn, zHledani = null) {
   const cislo = rozpoznej(isbn)?.cislo || 'ISBN';
   const platna = () => jeNabidkaOtevrena() && poradiNabidky === moje;
 
+  // Bez čísla není podle čeho se ptát. Údaje z nabídky hledání ale v poli už
+  // jsou, takže je co potvrdit — jen se u takové knihy nebudou počítat kusy.
+  if (!rozpoznej(isbn)) {
+    nastavNabidkuStav(
+      'Kniha nemá ISBN ani jiné číslo. Údaje zkontrolujte a doplňte ručně; ' +
+      'uloží se tak, jak je necháte.'
+    );
+    zkontrolujDuplicitu();
+    return;
+  }
+
   btnPridat.disabled = true;
   btnZnovu.disabled = true;
   nastavNabidkuStav(`Hledám ${naFormat(isbn)} …`);
@@ -639,20 +660,27 @@ async function vyhledejDoNabidky(isbn, zHledani = null) {
 
 /** Uloží knihu z nabídky do tabulky. */
 function pridejZNabidky() {
-  const rozpoznane = rozpoznej(poleNabidky.isbn.value);
-  if (!rozpoznane) {
-    const navrh = navrhniOpravu(poleNabidky.isbn.value);
+  const zadane = poleNabidky.isbn.value.trim();
+  const rozpoznane = rozpoznej(zadane);
+
+  // Prázdné pole je v pořádku: starší knihy žádné číslo nemají a uložit
+  // se přesto musí dát. Nesmysl v poli je ale pořád nesmysl.
+  if (!rozpoznane && zadane) {
+    const navrh = navrhniOpravu(zadane);
     if (navrh) {
       poleNabidky.isbn.value = naFormat(navrh);
       zkontrolujDuplicitu();
       return oznam('Číslo neprošlo kontrolou — v poli je návrh opravy.', 'varovani');
     }
-    return oznam('To není platné ISBN, ISSN ani ČNB — zkontrolujte číslice.', 'chyba');
+    return oznam(
+      'To není platné ISBN, ISSN ani ČNB. Opravte ho, nebo pole nechte prázdné.',
+      'chyba'
+    );
   }
 
   // ČNB má vlastní pole; sloupec ISBN u takové knihy zůstává prázdný.
-  const jeCnbCislo = rozpoznane.cislo === 'ČNB';
-  const isbn = rozpoznane.kod;
+  const jeCnbCislo = rozpoznane?.cislo === 'ČNB';
+  const isbn = rozpoznane?.kod || '';
 
   const policka = ulozne.upravNazevPolicky(poleNabidky.policka.value);
   const { zaznam, duplicita } = ulozne.pridej({
@@ -704,7 +732,9 @@ function doplnChybejici(kniha, zHledani) {
 async function zpracujKod(vstupniKod, zHledani = null) {
   const rozpoznane = rozpoznej(vstupniKod);
 
-  if (!rozpoznane) {
+  // Kniha vybraná z nabídky se smí přidat i bez čísla — starší tituly žádné
+  // nemají. U skenu a ručního zadání je nečitelné číslo pořád chyba.
+  if (!rozpoznane && !zHledani) {
     nastavStav(
       `Kód ${vstupniKod} nevypadá na knihu ani na časopis — čekají se čísla ` +
       'začínající 978 nebo 979 (ISBN), případně 977 (ISSN). Zkuste jiný kód.'
@@ -716,10 +746,12 @@ async function zpracujKod(vstupniKod, zHledani = null) {
     return;
   }
 
-  const { kod } = rozpoznane;
+  const kod = rozpoznane?.kod || '';
   skener.potvrzeniSkenu();
   otevriNabidku(kod, zHledani);
-  nastavStav(`Načteno ${naFormat(kod)} — potvrďte přidání.`);
+  nastavStav(kod
+    ? `Načteno ${naFormat(kod)} — potvrďte přidání.`
+    : 'Kniha bez čísla — zkontrolujte údaje a potvrďte přidání.');
   await vyhledejDoNabidky(kod, zHledani);
 }
 
@@ -798,6 +830,9 @@ btnZahodit.addEventListener('click', () => {
 btnZnovu.addEventListener('click', async () => {
   const rozpoznane = rozpoznej(poleNabidky.isbn.value);
   if (!rozpoznane) {
+    if (!poleNabidky.isbn.value.trim()) {
+      return oznam('Bez čísla není podle čeho hledat — údaje dopište ručně.', 'varovani');
+    }
     // Poslední číslice je kontrolní, takže jde spočítat, jak by číslo vypadalo,
     // kdyby byl přehmat právě v ní. Návrh čeká v poli na potvrzení.
     const navrh = navrhniOpravu(poleNabidky.isbn.value);
@@ -811,6 +846,10 @@ btnZnovu.addEventListener('click', async () => {
   poleNabidky.isbn.value = naFormat(rozpoznane.kod);
   await vyhledejDoNabidky(rozpoznane.kod);
 });
+
+// Upozornění na duplicitu i popisek tlačítka závisí na čísle v poli, takže
+// se přepočítají při každé úpravě — číslo se tu opravuje i maže.
+poleNabidky.isbn.addEventListener('input', zkontrolujDuplicitu);
 
 // Enter v čísle znamená „vyhledej znovu“, v ostatních polích rovnou „přidej“.
 poleNabidky.isbn.addEventListener('keydown', (udalost) => {
@@ -1094,18 +1133,9 @@ prvek('form-podle-nazvu').addEventListener('submit', async (udalost) => {
   nastavStav('Hledám v databázích knih …');
 
   try {
-    const { vysledky, selhalyZdroje, nedostupne, bezCisla } =
-      await hledejPodleTextu({ nazev, autor });
+    const { vysledky, selhalyZdroje, nedostupne } = await hledejPodleTextu({ nazev, autor });
 
-    // Záznamy bez čísla se nenabízejí a u starších titulů je to častý případ —
-    // bez vysvětlení by prázdná nebo krátká nabídka vypadala jako chyba.
     const poznamky = [];
-    if (bezCisla) {
-      poznamky.push(
-        `${pocetSlovem(bezCisla, 'nález', 'nálezy', 'nálezů')} bez ISBN i ISSN se nenabízí — ` +
-        'aplikace vede tabulku podle čísla.'
-      );
-    }
     if (selhalyZdroje.length) poznamky.push(`Neodpověděly: ${selhalyZdroje.join(', ')}.`);
     const poznamka = poznamky.join(' ');
 
