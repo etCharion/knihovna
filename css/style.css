@@ -112,6 +112,66 @@ main { padding: 0 .75rem; }
   opacity: .9;
 }
 
+/* ------------------------------------------------ čtecí proužek na číslo */
+
+/* Úzký pruh na jeden řádek textu. Velký rámeček se pro čtení tištěného ISBN
+   neosvědčil: pletla se do něj čísla těsně nad ním a pod ním (rok vydání,
+   cena, číslo publikace). Proužek jde posunout tahem a spodním úchytem se
+   mu mění výška, takže uživatel přesně určí, který řádek se přečte. */
+.ctecka { position: absolute; inset: 0; }
+
+.ctecka-pruh {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  border: 2px solid rgba(255, 255, 255, .95);
+  border-radius: 6px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .45);
+  cursor: grab;
+  touch-action: none;          /* tah patří proužku, ne rolování stránky */
+}
+
+.ctecka-pruh.tahne-se { cursor: grabbing; border-color: #ffd166; }
+
+/* Úchyt na spodní hraně mění výšku proužku. Přesahuje ven, aby se do něj
+   dalo trefit prstem i u nízkého proužku. */
+.ctecka-uchyt {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  width: 72px;
+  height: 28px;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.ctecka-uchyt::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 5px;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, .95);
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+}
+
+.ctecka-napoveda {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: .5rem;
+  margin: 0;
+  padding: 0 .75rem;
+  font-size: .8rem;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
+}
+
 /* ------------------------------------------------------------ tlačítka */
 
 .tlacitka {
@@ -436,6 +496,44 @@ tr.nacita-se { opacity: .55; }
   border-radius: 999px;
 }
 
+/* ------------------------------------------- výběr řádků a hromadné akce */
+
+.sloupec-vyber { width: 34px; min-width: 34px; padding-right: 0; }
+.sloupec-vyber input { width: 20px; height: 20px; }
+
+.sloupec-kusu { width: 4.5rem; min-width: 4.5rem; }
+.sloupec-kusu input {
+  width: 3.5rem;
+  padding: .3rem .35rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  border: 1px solid var(--ram);
+  border-radius: 6px;
+  background: var(--karta);
+  color: var(--text);
+}
+
+/* Řádek, který už šel do knihovního systému. Poznat to má jít koutkem oka,
+   ne aby to přebíjelo obsah — proto jen proužek u kraje. */
+tr.odeslana td:first-child { box-shadow: inset 3px 0 0 var(--uspech); }
+
+.lista-vyberu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .75rem;
+  padding: .6rem .75rem;
+  background: var(--pozadi);
+  border: 1px solid var(--ram);
+  border-radius: 10px;
+}
+
+.lista-vyberu[hidden] { display: none; }
+.lista-vyberu .tlacitko { flex: 0 1 auto; min-height: 40px; }
+.lista-vyberu select { flex: 1 1 10rem; }
+.pocet-vyberu { font-weight: 600; }
+
 /* ------------------------------------------- nabídka před přidáním knihy */
 
 /* Překryv, ne posuvná karta pod tabulkou: načtená kniha čeká na rozhodnutí
@@ -445,10 +543,12 @@ tr.nacita-se { opacity: .55; }
   inset: 0;
   z-index: 20;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   padding: 1rem .75rem calc(1rem + env(safe-area-inset-bottom));
-  overflow-y: auto;
+  /* Neroluje se překryv, ale obsah nabídky — tlačítka díky tomu zůstávají
+     dole na obrazovce. */
+  overflow: hidden;
   background: rgba(0, 0, 0, .55);
 }
 
@@ -458,15 +558,73 @@ tr.nacita-se { opacity: .55; }
    pod prstem hýbe tabulka místo formuláře. */
 body.bez-posunu { overflow: hidden; }
 
+/* Nabídka se roluje uvnitř, ne celá. Tlačítka tak zůstanou na obrazovce
+   i u knihy s rozbalenými poli — dřív byla u každé knihy pod ohybem a na
+   potvrzení se muselo nejdřív odrolovat. */
 .nabidka {
+  display: flex;
+  flex-direction: column;
   width: min(100%, 34rem);
-  margin: auto;
   max-width: none;
+  max-height: 100%;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
 }
 
+.nabidka-obsah {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.nabidka-lista {
+  flex: none;
+  display: flex;
+  gap: .5rem;
+  padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom));
+  background: var(--karta);
+  border-top: 1px solid var(--ram);
+}
+
+.nabidka-lista .tlacitko { margin: 0; }
+.nabidka-lista .hlavni { flex: 1 1 auto; }
+.nabidka-lista .nebezpecne { flex: 0 1 auto; }
+
 .nabidka h2 { margin-bottom: .5rem; }
-.nabidka .stav { margin-bottom: .5rem; }
-.nabidka .tlacitka { margin: 1rem 0 0; }
+.nabidka .stav { margin: .5rem 0; }
+
+/* Shrnutí toho, co se načetlo. Jediná část, kterou uživatel u drtivé
+   většiny knih vůbec čte — proto stojí nahoře a sama o sobě. */
+.shrnuti {
+  display: flex;
+  gap: .75rem;
+  align-items: flex-start;
+  padding: .6rem;
+  background: var(--pozadi);
+  border-radius: 10px;
+}
+
+.shrnuti-obalka {
+  flex: none;
+  width: 48px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--karta);
+}
+
+.shrnuti-text { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.shrnuti-nazev { font-size: 1.05rem; line-height: 1.3; }
+.shrnuti-autor { color: var(--text-slaby); }
+.shrnuti-cislo {
+  font-size: .85rem;
+  color: var(--text-slaby);
+  font-variant-numeric: tabular-nums;
+}
+
+.shrnuti.hleda-se .shrnuti-nazev { color: var(--text-slaby); font-style: italic; }
 
 .poznamka-nabidky {
   margin: 0 0 .75rem;
@@ -516,6 +674,28 @@ body.bez-posunu { overflow: hidden; }
 .hlaska.uspech { background: var(--uspech); color: #fff; }
 .hlaska.varovani { background: var(--varovani); color: #fff; }
 .hlaska.chyba { background: var(--chyba); color: #fff; }
+
+/* Krok zpět visí přímo v hlášce: omyl se pozná hned po něm a jinam by se
+   pro něj chodit nemělo. */
+.hlaska { display: flex; align-items: center; gap: .75rem; }
+.hlaska[hidden] { display: none; }
+.hlaska span { flex: 1 1 auto; }
+
+.hlaska-zpet {
+  flex: none;
+  min-height: 36px;
+  padding: .3rem .8rem;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  background: rgba(255, 255, 255, .18);
+  border: 1px solid rgba(255, 255, 255, .5);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.hlaska-zpet:hover { background: rgba(255, 255, 255, .3); }
+.hlaska-zpet[hidden] { display: none; }
 
 /* ------------------------------------------------------------ patička */
 

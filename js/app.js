@@ -16,8 +16,15 @@ const kamera = prvek('kamera');
 const btnSkenovat = prvek('btn-skenovat');
 const btnSvetlo = prvek('btn-svetlo');
 const btnCislo = prvek('btn-cislo');
+const btnKod = prvek('btn-kod');
+const hledacek = prvek('hledacek');
+const ctecka = prvek('ctecka');
+const cteckaPruh = prvek('ctecka-pruh');
+const cteckaUchyt = prvek('ctecka-uchyt');
 const stav = prvek('stav');
 const hlaska = prvek('hlaska');
+const hlaskaText = prvek('hlaska-text');
+const btnZpet = prvek('btn-zpet');
 const telo = prvek('telo-tabulky');
 const tabulka = prvek('tabulka');
 const prazdno = prvek('prazdno');
@@ -27,7 +34,13 @@ const panelNalezu = prvek('vysledky-hledani');
 
 const vyberPolicka = prvek('vyber-policka');
 const filtrPolicka = prvek('filtr-policka');
+const filtrStav = prvek('filtr-stav');
 const seznamPolicek = prvek('seznam-policek');
+
+const listaVyberu = prvek('lista-vyberu');
+const pocetVyberu = prvek('pocet-vyberu');
+const hromadnaPolicka = prvek('hromadna-policka');
+const vybratVse = prvek('vybrat-vse');
 
 const prekryv = prvek('prekryv');
 const btnPridat = prvek('btn-pridat');
@@ -35,6 +48,11 @@ const btnZahodit = prvek('btn-zahodit');
 const btnZnovu = prvek('btn-znovu');
 const nabidkaStav = prvek('nabidka-stav');
 const nabidkaUpozorneni = prvek('nabidka-upozorneni');
+const nabidkaUpravy = prvek('nabidka-upravy');
+const nabidkaObalka = prvek('nabidka-obalka');
+const shrnutiNazev = prvek('shrnuti-nazev');
+const shrnutiAutor = prvek('shrnuti-autor');
+const shrnutiCislo = prvek('shrnuti-cislo');
 const poleNabidky = {
   isbn: prvek('nabidka-isbn'),
   nazev: prvek('nabidka-nazev'),
@@ -42,6 +60,7 @@ const poleNabidky = {
   rok: prvek('nabidka-rok'),
   vydavatel: prvek('nabidka-vydavatel'),
   policka: prvek('nabidka-policka'),
+  kusu: prvek('nabidka-kusu'),
   poznamka: prvek('nabidka-poznamka'),
 };
 
@@ -59,6 +78,12 @@ let cekaSeNaVyhledani = new Set();
 
 /** Hodnota pro „všechny poličky“ ve filtru — prázdný řetězec už znamená „bez poličky“. */
 const VSECHNY_POLICKY = '\u0000vse';
+
+/** Zaškrtnuté řádky pro hromadné akce. Drží se i přes překreslení tabulky. */
+const vybrane = new Set();
+
+/** Filtr podle toho, jestli řádek už šel do knihovního systému. */
+let zobrazenyStav = 'vse';
 // Zvolený filtr se drží v proměnné, ne v rozbalovátku: „bez poličky“ je
 // prázdný řetězec a od dosud nenaplněného <select> by se nedal odlišit.
 let zobrazenaPolicka = VSECHNY_POLICKY;
@@ -68,16 +93,47 @@ const NOVA_POLICKA = '\u0000nova';
 
 /* ------------------------------------------------------------ pomůcky */
 
+/**
+ * Hláška ve spodní liště, volitelně s krokem zpět.
+ *
+ * `zpet` je popis akce, kterou jde vzít zpátky. Snímek tabulky se pořizuje
+ * před akcí a drží se jen po dobu, co je hláška vidět — je to pojistka pro
+ * omyl, který se pozná hned (naskenovaná sousední kniha, ukliknuté smazání),
+ * ne plnohodnotná historie úprav.
+ */
 let casovacHlasky = null;
-function oznam(text, druh = 'info') {
-  hlaska.textContent = text;
+let vratitSnimek = null;
+
+function schovejHlasku() {
+  hlaska.hidden = true;
+  btnZpet.hidden = true;
+  vratitSnimek = null;
+}
+
+function oznam(text, druh = 'info', zpet = null) {
+  hlaskaText.textContent = text;
   hlaska.className = `hlaska ${druh}`;
   hlaska.hidden = false;
+  vratitSnimek = zpet;
+  btnZpet.hidden = !zpet;
   clearTimeout(casovacHlasky);
-  casovacHlasky = setTimeout(() => {
-    hlaska.hidden = true;
-  }, 3500);
+  casovacHlasky = setTimeout(schovejHlasku, zpet ? 10000 : 3500);
 }
+
+btnZpet.addEventListener('click', () => {
+  const snimek = vratitSnimek;
+  if (!snimek) return;
+  clearTimeout(casovacHlasky);
+  schovejHlasku();
+
+  if (!ulozne.obnovSnimek(snimek)) {
+    return oznam('Krok zpět se nepodařil.', 'chyba');
+  }
+  vybrane.clear();
+  obnovPolicky();
+  vykresli();
+  oznam('Vráceno zpět.', 'uspech');
+});
 
 function nastavStav(text) {
   stav.textContent = text;
@@ -229,6 +285,9 @@ function vyfiltrovane() {
     knihy = knihy.filter((k) => ulozne.upravNazevPolicky(k.policka) === zobrazenaPolicka);
   }
 
+  if (zobrazenyStav === 'nove') knihy = knihy.filter((k) => !ulozne.jeOdeslana(k));
+  else if (zobrazenyStav === 'odeslane') knihy = knihy.filter((k) => ulozne.jeOdeslana(k));
+
   if (dotaz) {
     knihy = knihy.filter((k) =>
       ['nazev', 'autor', 'isbn', 'vydavatel', 'poznamka', 'rok', 'policka']
@@ -352,6 +411,19 @@ function bunkaIsbn(kniha) {
     const zadane = prvek.textContent.trim();
     const rozpoznane = rozpoznej(zadane);
 
+    // Prázdné pole je v pořádku — stejně jako v nabídce. Kniha bez čísla je
+    // běžná věc a špatně naskenované číslo u ní musí jít odstranit, aniž by
+    // se mazal celý řádek.
+    if (!zadane) {
+      if (!kniha.isbn && !kniha.cnb) return;
+      ulozne.uprav(kniha.id, { isbn: '', cnb: '' });
+      kniha.isbn = '';
+      kniha.cnb = '';
+      oznam('Číslo odstraněno — kniha zůstala bez něj.', 'varovani');
+      nastavStav('Bez čísla se u knihy nepočítají kusy: každé další přidání založí nový řádek.');
+      return vykresli();
+    }
+
     if (!rozpoznane) {
       const navrh = navrhniOpravu(zadane);
       oznam('To není platné ISBN, ISSN ani ČNB — zkontrolujte číslice.', 'chyba');
@@ -432,9 +504,76 @@ function bunkaPolicka(kniha) {
   return td;
 }
 
+/**
+ * Buňka s počtem kusů.
+ *
+ * Třídní sada učebnic je ve školní knihovně nejběžnější položka vůbec —
+ * dvacet pět kusů jedné čítanky se nedá pořizovat dvaceti pěti skeny.
+ * Změna počtu zároveň vrací knihu mezi neodeslané: v knihovním systému
+ * je od té chvíle zastaralá.
+ */
+function bunkaKusu(kniha) {
+  const td = document.createElement('td');
+  td.className = 'sloupec-kusu';
+
+  const vstup = document.createElement('input');
+  vstup.type = 'number';
+  vstup.min = '1';
+  vstup.max = '9999';
+  vstup.step = '1';
+  vstup.inputMode = 'numeric';
+  vstup.value = String(Number(kniha.kusu) || 1);
+  vstup.setAttribute('aria-label', `Počet kusů knihy ${kniha.nazev || naFormat(kniha.isbn)}`);
+
+  const uloz = () => {
+    const novy = ulozne.upravPocetKusu(vstup.value);
+    vstup.value = String(novy);
+    if (novy === (Number(kniha.kusu) || 1)) return;
+    ulozne.nastavKusu(kniha.id, novy);
+    kniha.kusu = novy;
+    vykresli();
+  };
+
+  vstup.addEventListener('change', uloz);
+  vstup.addEventListener('keydown', (udalost) => {
+    if (udalost.key === 'Enter') {
+      udalost.preventDefault();
+      vstup.blur();
+    }
+  });
+
+  td.appendChild(vstup);
+  return td;
+}
+
+/** Zaškrtávátko pro hromadné akce. */
+function bunkaVyberu(kniha) {
+  const td = document.createElement('td');
+  td.className = 'sloupec-vyber';
+
+  const vstup = document.createElement('input');
+  vstup.type = 'checkbox';
+  vstup.checked = vybrane.has(kniha.id);
+  vstup.setAttribute('aria-label', `Vybrat ${kniha.nazev || naFormat(kniha.isbn)}`);
+  vstup.addEventListener('change', () => {
+    if (vstup.checked) vybrane.add(kniha.id);
+    else vybrane.delete(kniha.id);
+    vykresliListuVyberu();
+  });
+
+  td.appendChild(vstup);
+  return td;
+}
+
 function radek(kniha) {
   const tr = document.createElement('tr');
   if (cekaSeNaVyhledani.has(kniha.isbn)) tr.classList.add('nacita-se');
+  if (ulozne.jeOdeslana(kniha)) {
+    tr.classList.add('odeslana');
+    tr.title = `Odesláno do knihovního systému ${kniha.odeslano}`;
+  }
+
+  tr.appendChild(bunkaVyberu(kniha));
 
   const tdObalka = document.createElement('td');
   tdObalka.className = 'sloupec-obalka';
@@ -468,6 +607,7 @@ function radek(kniha) {
   tr.appendChild(bunka(kniha.rok));
   tr.appendChild(bunka(kniha.vydavatel));
   tr.appendChild(bunkaIsbn(kniha));
+  tr.appendChild(bunkaKusu(kniha));
   tr.appendChild(bunkaPolicka(kniha));
   tr.appendChild(bunkaKUprave(kniha, 'poznamka', 'Poznámka'));
 
@@ -479,9 +619,13 @@ function radek(kniha) {
   smazat.setAttribute('aria-label', `Smazat ${kniha.nazev || kniha.isbn}`);
   smazat.textContent = '✕';
   smazat.addEventListener('click', () => {
-    if (!confirm(`Smazat „${kniha.nazev || kniha.isbn}“ z tabulky?`)) return;
+    // Potvrzovací okno tu není: mazání jde vzít zpátky a dvě potvrzení za
+    // sebou by jen zdržovala. Zpět je v hlášce deset vteřin.
+    const snimek = ulozne.snimek();
     ulozne.smaz(kniha.id);
+    vybrane.delete(kniha.id);
     vykresli();
+    oznam(`Smazáno: ${kniha.nazev || naFormat(kniha.isbn) || 'kniha bez čísla'}.`, 'varovani', snimek);
   });
   tdAkce.appendChild(smazat);
   tr.appendChild(tdAkce);
@@ -489,20 +633,58 @@ function radek(kniha) {
   return tr;
 }
 
+/** Lišta hromadných akcí — ukáže se, až je něco zaškrtnuté. */
+function vykresliListuVyberu(zobrazene = vyfiltrovane()) {
+  // Zaškrtnutý řádek mohl mezitím zmizet (smazání, sloučení kusů).
+  const zname = new Set(ulozne.vsechny().map((k) => k.id));
+  for (const id of vybrane) if (!zname.has(id)) vybrane.delete(id);
+
+  listaVyberu.hidden = vybrane.size === 0;
+  if (vybrane.size) {
+    pocetVyberu.textContent = `Vybráno ${pocetSlovem(vybrane.size, 'kniha', 'knihy', 'knih')}`;
+    naplnVyberPolicek(hromadnaPolicka, '', { sNovou: true });
+    // Rozbalovátko je tu příkaz, ne zobrazení stavu — proto nahoře výzva,
+    // aby se „Bez poličky“ nedalo splést s tím, kde knihy zrovna stojí.
+    const vyzva = document.createElement('option');
+    vyzva.value = '';
+    vyzva.textContent = 'Přesunout na poličku…';
+    vyzva.disabled = true;
+    vyzva.selected = true;
+    hromadnaPolicka.prepend(vyzva);
+  }
+
+  vybratVse.checked = zobrazene.length > 0 && zobrazene.every((k) => vybrane.has(k.id));
+  vybratVse.indeterminate = !vybratVse.checked && zobrazene.some((k) => vybrane.has(k.id));
+}
+
 function vykresli() {
   const knihy = vyfiltrovane();
-  const celkem = ulozne.vsechny().length;
+  const vsechny = ulozne.vsechny();
+  const { titulu, kusu, novych } = ulozne.souhrn(vsechny);
   const filtrovanaPolicka = zobrazenaPolicka !== VSECHNY_POLICKY;
 
   telo.replaceChildren(...knihy.map(radek));
-  pocet.textContent = String(celkem);
+
+  // Řádek je titul na jedné poličce, kusů může být na řádku víc — u knihovny
+  // se čeká odpověď na „kolik máme knih“, což jsou kusy.
+  pocet.textContent = titulu === kusu ? String(titulu) : `${titulu} / ${kusu} ks`;
+  pocet.title = `${pocetSlovem(titulu, 'titul', 'tituly', 'titulů')}, ` +
+    `${pocetSlovem(kusu, 'kus', 'kusy', 'kusů')}`;
+
   tabulka.hidden = knihy.length === 0;
   prazdno.hidden = knihy.length !== 0;
-  prazdno.textContent = celkem === 0
+  prazdno.textContent = titulu === 0
     ? 'Zatím tu nic není. Naskenujte první knihu.'
-    : filtrovanaPolicka
-      ? 'Na téhle poličce nic takového není.'
-      : 'Hledání nic nenašlo.';
+    : zobrazenyStav === 'nove'
+      ? 'Všechno už je odeslané do knihovního systému.'
+      : zobrazenyStav === 'odeslane'
+        ? 'Zatím nebylo odeslané nic.'
+        : filtrovanaPolicka
+          ? 'Na téhle poličce nic takového není.'
+          : 'Hledání nic nenašlo.';
+
+  vykresliListuVyberu(knihy);
+  vykresliStavExportu(novych, titulu);
 
   for (const obnov of obnovyNalezu) obnov();
 }
@@ -532,10 +714,32 @@ function nastavNabidkuStav(text) {
   nabidkaStav.textContent = text;
 }
 
+/**
+ * Pole, do kterých uživatel v otevřené nabídce sám psal.
+ *
+ * Údaje teď chodí průběžně, jak jednotlivé databáze odpovídají — a co si
+ * uživatel mezitím opsal z knihy, mu pozdější odpověď přepsat nesmí.
+ */
+const rucneUpravena = new Set();
+
+/** Kolik kusů se má přidat. */
+function kusuZNabidky() {
+  return ulozne.upravPocetKusu(poleNabidky.kusu.value);
+}
+
+/** Liší se něco v polích od toho, co už je uložené? Kvůli nabídce oprav. */
+function udajeSeLisi(ulozena) {
+  return ['nazev', 'autor', 'rok', 'vydavatel'].some(
+    (pole) => poleNabidky[pole].value.trim() && poleNabidky[pole].value.trim() !== (ulozena[pole] || '')
+  );
+}
+
 /** Ukáže, jestli tenhle titul v knihovně už někde je — ať se omylem nezdvojí. */
 function zkontrolujDuplicitu() {
   const isbn = rozpoznej(poleNabidky.isbn.value)?.kod || '';
   const policka = ulozne.upravNazevPolicky(poleNabidky.policka.value);
+  const kusu = kusuZNabidky();
+  const kusuNavic = kusu === 1 ? 'další kus' : `dalších ${kusu} kusů`;
 
   const naPolicce = isbn ? ulozne.podleIsbn(isbn, policka) : null;
   const jinde = isbn ? ulozne.vsudePodleIsbn(isbn).filter((k) => k !== naPolicce) : [];
@@ -552,11 +756,13 @@ function zkontrolujDuplicitu() {
 
   if (naPolicce) {
     const kde = policka ? `na poličce „${policka}“` : 'v knihovně';
-    nabidkaUpozorneni.textContent =
-      `Tenhle titul už ${kde} máte (${naPolicce.kusu || 1}×). Přidáním přibude další kus, ` +
-      'upravené údaje se nepoužijí.';
+    const prepsat = udajeSeLisi(naPolicce);
+    nabidkaUpozorneni.textContent = prepsat
+      ? `Tenhle titul už ${kde} máte (${naPolicce.kusu || 1}×). Přibude ${kusuNavic} ` +
+        'a údaje se přepíšou těmi z nabídky.'
+      : `Tenhle titul už ${kde} máte (${naPolicce.kusu || 1}×). Přibude ${kusuNavic}.`;
     nabidkaUpozorneni.hidden = false;
-    btnPridat.textContent = '➕ Přidat další kus';
+    btnPridat.textContent = prepsat ? '➕ Přidat kus a opravit údaje' : `➕ Přidat ${kusuNavic}`;
     return;
   }
 
@@ -570,11 +776,39 @@ function zkontrolujDuplicitu() {
   btnPridat.textContent = '✓ Přidat do knihovny';
 }
 
-function vyplnNabidku(kniha) {
-  poleNabidky.nazev.value = kniha.nazev || '';
-  poleNabidky.autor.value = kniha.autor || '';
-  poleNabidky.rok.value = kniha.rok || '';
-  poleNabidky.vydavatel.value = kniha.vydavatel || '';
+/** Shrnutí nahoře v nabídce — jediná část, kterou uživatel u většiny knih čte. */
+function vykresliShrnuti() {
+  const nazev = poleNabidky.nazev.value.trim();
+  const cislo = poleNabidky.isbn.value.trim();
+
+  shrnutiNazev.textContent = nazev || 'Zatím bez názvu';
+  shrnutiNazev.closest('.shrnuti').classList.toggle('hleda-se', !nazev);
+  shrnutiAutor.textContent = poleNabidky.autor.value.trim();
+
+  const rok = poleNabidky.rok.value.trim();
+  const vydavatel = poleNabidky.vydavatel.value.trim();
+  shrnutiCislo.textContent = [cislo || 'bez čísla', vydavatel, rok].filter(Boolean).join(' · ');
+
+  const obalka = nabizenaKniha?.obalka;
+  nabidkaObalka.hidden = !obalka;
+  if (obalka) nabidkaObalka.src = obalka;
+}
+
+/**
+ * Vyplní formulář dohledanými údaji.
+ *
+ * `jenChybejici` se použije u průběžných odpovědí: přepisovat se smí jen to,
+ * co je prázdné a čeho se uživatel nedotkl. Až doběhne poslední zdroj,
+ * složí se záznam znovu v pořadí zdrojů (český katalog má přednost) a pole
+ * se dorovnají — proto tam `jenChybejici` neplatí pro nedotčená pole.
+ */
+function vyplnNabidku(kniha, { jenChybejici = false } = {}) {
+  for (const pole of ['nazev', 'autor', 'rok', 'vydavatel']) {
+    if (rucneUpravena.has(pole)) continue;
+    if (jenChybejici && poleNabidky[pole].value.trim()) continue;
+    poleNabidky[pole].value = kniha[pole] || '';
+  }
+  vykresliShrnuti();
 }
 
 /**
@@ -584,21 +818,32 @@ function vyplnNabidku(kniha) {
  */
 function otevriNabidku(isbn, zHledani = null) {
   poradiNabidky++;
+  rucneUpravena.clear();
   nabizenaKniha = Object.fromEntries(POLE_O_KNIZE.map((pole) => [pole, zHledani?.[pole] || '']));
   poleNabidky.isbn.value = naFormat(isbn);
   poleNabidky.poznamka.value = '';
+  poleNabidky.kusu.value = '1';
   vyplnNabidku(zHledani || {});
   naplnVyberPolicek(poleNabidky.policka, ulozne.aktivniPolicka(), { sNovou: true });
+  // Pole k úpravě jsou zavřená: u drtivé většiny knih se do nich nesahá
+  // a rolovat kvůli nim k potvrzení by se muselo u každé.
+  nabidkaUpravy.open = false;
   prekryv.hidden = false;
   document.body.classList.add('bez-posunu');
   // Že je kniha už v knihovně, se ví hned — nemusí se čekat na dohledání údajů.
   zkontrolujDuplicitu();
+  // Zaměření na potvrzení: Enter tím knihu přidá, aniž by se muselo klepat.
+  btnPridat.focus();
 }
 
 function zavriNabidku() {
   prekryv.hidden = true;
   nabizenaKniha = null;
+  rucneUpravena.clear();
   document.body.classList.remove('bez-posunu');
+  // Další stejný kód je od téhle chvíle záměr (druhý výtisk), ne zákmit
+  // kamery — čekat s knihou v ruce na doběhnutí prodlevy nedává smysl.
+  skener.zapomenPosledniKod();
 }
 
 /** Dohledá údaje k číslu v nabídce a vyplní jimi formulář. */
@@ -618,16 +863,34 @@ async function vyhledejDoNabidky(isbn, zHledani = null) {
     return;
   }
 
-  btnPridat.disabled = true;
+  // Tlačítko „Přidat“ zůstává živé: kniha jde potvrdit i dřív, než dohledání
+  // doběhne. Dřív se čekalo na poslední odpověď a jedna mlčící databáze
+  // držela uživatele u zamčeného tlačítka — u každé knihy zvlášť.
   btnZnovu.disabled = true;
   nastavNabidkuStav(`Hledám ${naFormat(isbn)} …`);
 
   try {
-    const kniha = doplnChybejici(await najdiKnihu(isbn), zHledani || {});
+    // Průběžné odpovědi vyplňují jen to, co je prázdné; poslední složení
+    // v pořadí zdrojů pak případně přepíše, co dorazilo z rychlejšího,
+    // ale méně důvěryhodného zdroje (anglický název u české knihy).
+    const prubezne = (castecna) => {
+      if (!platna()) return;
+      nabizenaKniha = Object.fromEntries(
+        POLE_O_KNIZE.map((pole) => [pole, castecna[pole] || nabizenaKniha?.[pole] || ''])
+      );
+      vyplnNabidku(castecna, { jenChybejici: true });
+      if (castecna.nazev) nastavNabidkuStav(`Nalezeno v: ${castecna.zdroj}. Ostatní zdroje ještě dobíhají…`);
+    };
+
+    const kniha = doplnChybejici(await najdiKnihu(isbn, { prubezne }), zHledani || {});
     if (!platna()) return;          // nabídka se mezitím zahodila nebo vyměnila
 
     nabizenaKniha = Object.fromEntries(POLE_O_KNIZE.map((pole) => [pole, kniha[pole] || '']));
     vyplnNabidku(kniha);
+
+    // Když se nic nenašlo, pole k úpravě se rozbalí sama — název a autora
+    // bude stejně potřeba dopsat ručně.
+    if (!kniha.nalezeno) nabidkaUpravy.open = true;
 
     if (kniha.nalezeno) {
       nastavNabidkuStav(`Nalezeno v: ${kniha.zdroj}. Zkontrolujte údaje a knihu přidejte.`);
@@ -651,7 +914,6 @@ async function vyhledejDoNabidky(isbn, zHledani = null) {
     if (platna()) nastavNabidkuStav('Nepodařilo se spojit s databázemi knih. Zkuste vyhledat znovu.');
   } finally {
     if (platna()) {
-      btnPridat.disabled = false;
       btnZnovu.disabled = false;
       zkontrolujDuplicitu();
     }
@@ -683,17 +945,33 @@ function pridejZNabidky() {
   const isbn = rozpoznane?.kod || '';
 
   const policka = ulozne.upravNazevPolicky(poleNabidky.policka.value);
-  const { zaznam, duplicita } = ulozne.pridej({
-    ...nabizenaKniha,
-    isbn: jeCnbCislo ? '' : isbn,
-    cnb: jeCnbCislo ? isbn : '',
-    nazev: poleNabidky.nazev.value.trim(),
-    autor: poleNabidky.autor.value.trim(),
-    rok: poleNabidky.rok.value.trim(),
-    vydavatel: poleNabidky.vydavatel.value.trim(),
-    poznamka: poleNabidky.poznamka.value.trim(),
-    policka,
-  });
+  const kusu = kusuZNabidky();
+  const stavajici = isbn ? ulozne.podleIsbn(isbn, policka) : null;
+  const prepsatUdaje = !!stavajici && udajeSeLisi(stavajici);
+
+  // Snímek před uložením — omyl (naskenovaná sousední kniha) se pozná hned
+  // a musí jít vzít zpátky jedním klepnutím.
+  const snimek = ulozne.snimek();
+
+  let zaznam;
+  let duplicita;
+  let pribylo;
+  try {
+    ({ zaznam, duplicita, pribylo } = ulozne.pridej({
+      ...nabizenaKniha,
+      isbn: jeCnbCislo ? '' : isbn,
+      cnb: jeCnbCislo ? isbn : '',
+      nazev: poleNabidky.nazev.value.trim(),
+      autor: poleNabidky.autor.value.trim(),
+      rok: poleNabidky.rok.value.trim(),
+      vydavatel: poleNabidky.vydavatel.value.trim(),
+      poznamka: poleNabidky.poznamka.value.trim(),
+      policka,
+    }, { kusu, prepsatUdaje }));
+  } catch (chyba) {
+    console.error(chyba);
+    return oznam(chyba.message, 'chyba');
+  }
 
   ulozne.nastavAktivniPolicku(policka);
   zavriNabidku();
@@ -701,11 +979,16 @@ function pridejZNabidky() {
   vykresli();
 
   const kde = policka ? ` na poličku „${policka}“` : '';
+  const nazevKnihy = zaznam.nazev || naFormat(isbn) || 'kniha bez čísla';
   if (duplicita) {
-    oznam(`„${zaznam.nazev || naFormat(isbn)}“ už tam byla — přidán ${zaznam.kusu}. kus.`, 'varovani');
-    nastavStav(`Přibyl další kus${kde}. Můžete skenovat dál.`);
+    oznam(
+      `„${nazevKnihy}“ už tam byla — teď je ${pocetSlovem(zaznam.kusu, 'kus', 'kusy', 'kusů')}.`,
+      'varovani', snimek
+    );
+    const sloveso = pribylo === 1 ? 'Přibyl' : pribylo < 5 ? 'Přibyly' : 'Přibylo';
+    nastavStav(`${sloveso} ${pocetSlovem(pribylo, 'kus', 'kusy', 'kusů')}${kde}. Můžete skenovat dál.`);
   } else {
-    oznam(`✓ ${zaznam.nazev || naFormat(isbn)}${zaznam.autor ? ' — ' + zaznam.autor : ''}`, 'uspech');
+    oznam(`✓ ${nazevKnihy}${zaznam.autor ? ' — ' + zaznam.autor : ''}`, 'uspech', snimek);
     nastavStav(`Přidáno${kde}. Můžete skenovat dál.`);
   }
 }
@@ -764,6 +1047,12 @@ async function prepniSkenovani() {
     kamera.hidden = true;
     btnSvetlo.hidden = true;
     btnCislo.hidden = true;
+    btnKod.hidden = true;
+    rezimCisla = false;
+    ctecka.hidden = true;
+    hledacek.hidden = false;
+    btnCislo.textContent = '🔢 Číst tištěné číslo';
+    btnCislo.classList.remove('hlavni');
     btnSkenovat.textContent = '📷 Spustit skenování';
     nastavStav('Skenování zastaveno.');
     return;
@@ -778,7 +1067,7 @@ async function prepniSkenovani() {
     btnSkenovat.textContent = '⏹ Zastavit';
     btnSvetlo.hidden = !skener.maSvetlo();
     btnCislo.hidden = false;
-    nastavStav('Namiřte čárový kód do rámečku. Kniha žádný nemá? Zaměřte na řádek s číslem ISBN a klepněte na „Přečíst číslo ISBN“.');
+    nastavStav('Namiřte čárový kód do rámečku. Kniha žádný nemá? Klepněte na „Číst tištěné číslo“.');
   } catch (chyba) {
     kamera.hidden = true;
     console.error(chyba);
@@ -849,7 +1138,22 @@ btnZnovu.addEventListener('click', async () => {
 
 // Upozornění na duplicitu i popisek tlačítka závisí na čísle v poli, takže
 // se přepočítají při každé úpravě — číslo se tu opravuje i maže.
-poleNabidky.isbn.addEventListener('input', zkontrolujDuplicitu);
+poleNabidky.isbn.addEventListener('input', () => {
+  zkontrolujDuplicitu();
+  vykresliShrnuti();
+});
+
+// Co uživatel napsal sám, mu odpověď databáze, která dorazí později,
+// přepsat nesmí.
+for (const pole of ['nazev', 'autor', 'rok', 'vydavatel']) {
+  poleNabidky[pole].addEventListener('input', () => {
+    rucneUpravena.add(pole);
+    vykresliShrnuti();
+    zkontrolujDuplicitu();
+  });
+}
+
+poleNabidky.kusu.addEventListener('input', zkontrolujDuplicitu);
 
 // Enter v čísle znamená „vyhledej znovu“, v ostatních polích rovnou „přidej“.
 poleNabidky.isbn.addEventListener('keydown', (udalost) => {
@@ -909,31 +1213,221 @@ filtrPolicka.addEventListener('change', () => {
   vykresli();
 });
 
+filtrStav.addEventListener('change', () => {
+  zobrazenyStav = filtrStav.value;
+  vykresli();
+});
+
+/* --------------------------------------------------------- hromadné akce */
+
+vybratVse.addEventListener('change', () => {
+  const zobrazene = vyfiltrovane();
+  for (const kniha of zobrazene) {
+    if (vybratVse.checked) vybrane.add(kniha.id);
+    else vybrane.delete(kniha.id);
+  }
+  vykresli();
+});
+
+prvek('btn-vyber-zrusit').addEventListener('click', () => {
+  vybrane.clear();
+  vykresli();
+});
+
+hromadnaPolicka.addEventListener('change', () => {
+  const nova = vyresVolbuPolicky(hromadnaPolicka);
+  if (nova === null) return;
+
+  const snimek = ulozne.snimek();
+  const { dotcenych, slouceno } = ulozne.presunVice([...vybrane], nova);
+  vybrane.clear();
+  obnovPolicky();
+  vykresli();
+
+  if (!dotcenych) return oznam('Vybrané knihy už tam stály.', 'info');
+  oznam(
+    `Přesunuto ${pocetSlovem(dotcenych, 'kniha', 'knihy', 'knih')} na „${nova || 'bez poličky'}“.` +
+    (slouceno ? ' Některé se slily a kusy se sečetly.' : ''),
+    slouceno ? 'varovani' : 'uspech',
+    snimek
+  );
+});
+
+prvek('btn-vyber-odeslano').addEventListener('click', () => {
+  const snimek = ulozne.snimek();
+  const dotcenych = ulozne.oznacOdeslane([...vybrane]);
+  vybrane.clear();
+  vykresli();
+  oznam(`Označeno za odeslané: ${pocetSlovem(dotcenych, 'kniha', 'knihy', 'knih')}.`, 'uspech', snimek);
+});
+
+prvek('btn-vyber-neodeslano').addEventListener('click', () => {
+  const snimek = ulozne.snimek();
+  const dotcenych = ulozne.zrusOdeslani([...vybrane]);
+  vybrane.clear();
+  vykresli();
+  oznam(`Vráceno mezi nové: ${pocetSlovem(dotcenych, 'kniha', 'knihy', 'knih')}.`, 'uspech', snimek);
+});
+
+prvek('btn-vyber-smazat').addEventListener('click', () => {
+  const kolik = vybrane.size;
+  if (!kolik) return;
+  const snimek = ulozne.snimek();
+  ulozne.smazVice([...vybrane]);
+  vybrane.clear();
+  vykresli();
+  oznam(`Smazáno ${pocetSlovem(kolik, 'kniha', 'knihy', 'knih')}.`, 'varovani', snimek);
+});
+
 /* ------------------------------------------------- přečtení ISBN z čísla */
 
 /**
- * Pro knihy bez čárového kódu: vyfotí se rámeček a z obrázku se přečte
- * vytištěné číslo ISBN. Trvá to pár vteřin, proto se to spouští klepnutím
- * a ne průběžně jako čtení čárových kódů.
+ * Čtení tištěného čísla má vlastní režim, ne jen tlačítko.
+ *
+ * Rámeček na čárový kód je velký, a když se z něj četlo tištěné ISBN,
+ * pletla se do čísla řádka nad ním i pod ním — rok vydání, cena, číslo
+ * publikace. OCR nedodrží pořadí řádků, takže výsledek pak neprošel
+ * kontrolní číslicí, i když bylo samotné ISBN přečtené dobře.
+ *
+ * V režimu čtení čísla je proto vidět úzký proužek na jeden řádek, který
+ * jde tahem posunout a spodním úchytem mu změnit výšku. Čte se přesně
+ * z něj — co uživatel ohraničí, to se přečte.
  */
+const KLIC_PROUZKU = 'knihovna.prouzek.v1';
+let rezimCisla = false;
+
+function nactiProuzek() {
+  try {
+    return ocr.omezProuzek(JSON.parse(localStorage.getItem(KLIC_PROUZKU) || 'null') || {});
+  } catch {
+    return ocr.omezProuzek({});
+  }
+}
+
+let prouzek = nactiProuzek();
+
+function ulozProuzek() {
+  try {
+    localStorage.setItem(KLIC_PROUZKU, JSON.stringify(prouzek));
+  } catch {
+    /* nastavení proužku není nic, kvůli čemu by se mělo cokoliv zastavit */
+  }
+}
+
+function vykresliProuzek() {
+  const okraj = ocr.OKRAJ_PROUZKU * 100;
+  cteckaPruh.style.left = `${okraj}%`;
+  cteckaPruh.style.right = `${okraj}%`;
+  cteckaPruh.style.top = `${(prouzek.stred - prouzek.vyska / 2) * 100}%`;
+  cteckaPruh.style.height = `${prouzek.vyska * 100}%`;
+}
+
+function nastavRezimCisla(zapnout) {
+  rezimCisla = zapnout;
+  ctecka.hidden = !zapnout;
+  hledacek.hidden = zapnout;
+  btnKod.hidden = !zapnout;
+  btnCislo.textContent = zapnout ? '📖 Přečíst číslo' : '🔢 Číst tištěné číslo';
+  btnCislo.classList.toggle('hlavni', zapnout);
+  if (zapnout) {
+    vykresliProuzek();
+    nastavStav(
+      'Zaměřte proužek přesně na řádek s číslem ISBN — tahem ho posunete, ' +
+      'spodním úchytem změníte výšku. Pak klepněte na „Přečíst číslo“.'
+    );
+  } else {
+    nastavStav('Namiřte čárový kód do rámečku.');
+  }
+}
+
+/**
+ * Posun a změna výšky proužku prstem.
+ *
+ * Počítá se v podílech výšky obrazu, protože v nich pracuje i výřez pro OCR —
+ * proužek na obrazovce a čtená oblast tak zůstávají tatáž věc.
+ */
+function pripojTahani() {
+  let druh = null;
+  let zacatekY = 0;
+  let zacatekHodnota = 0;
+
+  const vyskaObrazu = () => kamera.getBoundingClientRect().height || 1;
+
+  const zacni = (udalost, novyDruh) => {
+    druh = novyDruh;
+    zacatekY = udalost.clientY;
+    zacatekHodnota = novyDruh === 'posun' ? prouzek.stred : prouzek.vyska;
+    try {
+      // Prst může sjet mimo proužek; se zachyceným ukazatelem tah pokračuje.
+      udalost.currentTarget.setPointerCapture?.(udalost.pointerId);
+    } catch {
+      /* zachycení není nutné, tah funguje i bez něj */
+    }
+    cteckaPruh.classList.add('tahne-se');
+    udalost.preventDefault();
+  };
+
+  const tahni = (udalost) => {
+    if (!druh) return;
+    const posun = (udalost.clientY - zacatekY) / vyskaObrazu();
+    // Úchyt je na spodní hraně, takže tah dolů zvětšuje výšku na obě strany.
+    prouzek = ocr.omezProuzek(druh === 'posun'
+      ? { stred: zacatekHodnota + posun, vyska: prouzek.vyska }
+      : { stred: prouzek.stred, vyska: zacatekHodnota + posun * 2 });
+    vykresliProuzek();
+    udalost.preventDefault();
+  };
+
+  const skonci = () => {
+    if (!druh) return;
+    druh = null;
+    cteckaPruh.classList.remove('tahne-se');
+    ulozProuzek();
+  };
+
+  cteckaPruh.addEventListener('pointerdown', (u) => zacni(u, 'posun'));
+  cteckaUchyt.addEventListener('pointerdown', (u) => {
+    u.stopPropagation();          // úchyt mění výšku, neposouvá
+    zacni(u, 'vyska');
+  });
+
+  for (const prvek of [cteckaPruh, cteckaUchyt]) {
+    prvek.addEventListener('pointermove', tahni);
+    prvek.addEventListener('pointerup', skonci);
+    prvek.addEventListener('pointercancel', skonci);
+  }
+}
+
+pripojTahani();
+
+btnKod.addEventListener('click', () => nastavRezimCisla(false));
+
 btnCislo.addEventListener('click', async () => {
   if (!skener.jeSpusten()) return;
+
+  // První klepnutí režim zapne, teprve druhé čte — proužek se nejdřív musí
+  // dát zaměřit.
+  if (!rezimCisla) return nastavRezimCisla(true);
 
   btnCislo.disabled = true;
   const puvodniPopis = btnCislo.textContent;
   btnCislo.textContent = '⏳ Čtu…';
 
   try {
-    const { isbn, text } = await ocr.prectiIsbnZObrazu(video, nastavStav);
+    const { isbn, text } = await ocr.prectiIsbnZObrazu(video, nastavStav, prouzek);
 
     if (isbn) {
       await zpracujKod(isbn);
     } else if (text) {
-      oznam('Číslo ISBN se v obrázku nenašlo.', 'varovani');
-      nastavStav(`Přečteno „${text.replace(/\s+/g, ' ').slice(0, 40)}“, ale platné ISBN v tom není. Zkuste jít blíž, přisvítit, nebo číslo zadat ručně.`);
+      oznam('Číslo ISBN se v proužku nenašlo.', 'varovani');
+      nastavStav(
+        `Přečteno „${text.replace(/\s+/g, ' ').slice(0, 40)}“, ale platné ISBN v tom není. ` +
+        'Zkuste proužek zaměřit přesněji jen na řádek s číslem, jít blíž, přisvítit 🔦, ' +
+        'nebo číslo zadat ručně.'
+      );
     } else {
-      oznam('Z obrázku se nepodařilo nic přečíst.', 'varovani');
-      nastavStav('Namiřte na řádek s číslem ISBN, držte telefon v klidu a zkuste to znovu.');
+      oznam('Z proužku se nepodařilo nic přečíst.', 'varovani');
+      nastavStav('Namiřte proužek na řádek s číslem, držte telefon v klidu a zkuste to znovu.');
     }
   } catch (chyba) {
     console.error(chyba);
@@ -1189,12 +1683,62 @@ function stahniJson(knihy) {
   ulozne.stahni(ulozne.doJson(knihy), `knihovna-${casovaZnacka()}.json`, 'application/json');
 }
 
+/**
+ * Kolik knih ještě nešlo do knihovního systému — a co s tím jde dělat.
+ *
+ * Katalogizace police trvá týdny a export se dělá opakovaně. Bez téhle
+ * evidence zbývají dvě špatné možnosti: naimportovat pokaždé celou tabulku
+ * a knihovnu zdvojit, nebo v Excelu ručně vybírat, co je nové.
+ */
+function vykresliStavExportu(novych, titulu) {
+  const btnNove = prvek('btn-csv-nove');
+  const napoveda = prvek('napoveda-export');
+
+  btnNove.hidden = novych === 0;
+  btnNove.textContent = `⬇️ Export jen nových (${novych})`;
+
+  if (!titulu) {
+    napoveda.textContent = '';
+  } else if (!novych) {
+    napoveda.textContent = 'Všechny knihy už byly odeslané do knihovního systému.';
+  } else if (novych === titulu) {
+    napoveda.textContent =
+      'Do knihovního systému zatím nešlo nic. Po prvním exportu se odeslané knihy ' +
+      'označí a další export nabídne jen to, co přibylo.';
+  } else {
+    napoveda.textContent =
+      `Od posledního exportu ${novych === 1 ? 'přibyl' : novych < 5 ? 'přibyly' : 'přibylo'} ` +
+      `${pocetSlovem(novych, 'záznam', 'záznamy', 'záznamů')}. ` +
+      'Do EduPage stačí poslat je — celá tabulka by knihovnu zdvojila.';
+  }
+}
+
 prvek('btn-csv').addEventListener('click', () => {
   const knihy = knihyKZaloze();
   if (!knihy) return;
   stahniCsv(knihy);
   zaloha.zaznamenejExport(knihy);
   vykresliStavZalohy();
+});
+
+prvek('btn-csv-nove').addEventListener('click', () => {
+  const nove = ulozne.neodeslane();
+  if (!nove.length) return oznam('Nové knihy tu nejsou — všechno už bylo odeslané.', 'varovani');
+
+  stahniCsv(nove);
+  zaloha.zaznamenejExport(nove);
+
+  // Označí se až po stažení: kdyby stahování selhalo, zůstanou knihy mezi
+  // novými a export jde zopakovat.
+  const snimek = ulozne.snimek();
+  ulozne.oznacOdeslane(nove.map((k) => k.id));
+  vykresli();
+  vykresliStavZalohy();
+  oznam(
+    `Staženo ${pocetSlovem(nove.length, 'nová kniha', 'nové knihy', 'nových knih')} ` +
+    'a označeno za odeslané.',
+    'uspech', snimek
+  );
 });
 
 prvek('btn-json').addEventListener('click', () => {
@@ -1207,35 +1751,61 @@ prvek('btn-json').addEventListener('click', () => {
 
 prvek('btn-import').addEventListener('click', () => prvek('soubor-import').click());
 
+/**
+ * Načte zálohu JSON i tabulku CSV.
+ *
+ * CSV je tu kvůli tomu, aby šlo do aplikace dostat, co knihovna už má —
+ * pak se při skenování rovnou pozná, které knihy jsou opravdu nové. Zvládne
+ * vlastní export i soubor odjinud; sloupce se poznají podle názvu.
+ */
 prvek('soubor-import').addEventListener('change', async (udalost) => {
   const soubor = udalost.target.files?.[0];
   if (!soubor) return;
+
+  const snimek = ulozne.snimek();
   try {
-    const data = JSON.parse(await soubor.text());
-    if (!Array.isArray(data)) throw new Error('Soubor nemá očekávaný tvar.');
+    const text = await soubor.text();
+    const jeCsv = /\.csv$/i.test(soubor.name) || !text.trim().startsWith('[');
+
+    let data;
+    if (jeCsv) {
+      data = ulozne.zCsv(text);
+      if (!data.length) {
+        throw new Error('V CSV se nenašly rozpoznatelné sloupce ani řádky.');
+      }
+    } else {
+      data = JSON.parse(text);
+      if (!Array.isArray(data)) throw new Error('Soubor nemá očekávaný tvar.');
+    }
+
     const pridano = ulozne.importuj(data);
     const slouceno = ulozne.uklidDuplicity();
     obnovPolicky();
     vykresli();
     oznam(
-      `Načteno ${pridano} nových knih${slouceno ? `, sloučeno ${slouceno} duplicit` : ''}.`,
-      'uspech'
+      `Načteno ${pocetSlovem(pridano, 'nová kniha', 'nové knihy', 'nových knih')}` +
+      `${slouceno ? `, sloučeno ${slouceno} duplicit` : ''}.`,
+      'uspech', snimek
     );
   } catch (chyba) {
     console.error(chyba);
-    oznam('Soubor se nepodařilo načíst.', 'chyba');
+    oznam(`Soubor se nepodařilo načíst. ${chyba.message || ''}`.trim(), 'chyba');
   } finally {
     udalost.target.value = '';
   }
 });
 
 prvek('btn-smazat-vse').addEventListener('click', () => {
-  if (!ulozne.vsechny().length) return;
-  if (!confirm('Opravdu smazat celou tabulku? Tuhle akci nejde vzít zpět. Poličky zůstanou.')) return;
+  const kolik = ulozne.vsechny().length;
+  if (!kolik) return;
+  if (!confirm(`Opravdu smazat celou tabulku (${kolik} řádků)? Poličky zůstanou.`)) return;
+
+  const snimek = ulozne.snimek();
   ulozne.smazVse();
+  vybrane.clear();
   obnovPolicky();
   vykresli();
-  oznam('Tabulka vymazána. Poličky zůstaly.', 'varovani');
+  oznam('Tabulka vymazána. Poličky zůstaly.', 'varovani', snimek);
 });
 
 /* ---------------------------------------------- záloha mimo zařízení */
@@ -1397,6 +1967,15 @@ if (opraveneNazvy) {
 // Poličky ze zálohy z jiného telefonu se objeví u knih, ale v seznamu chybí.
 ulozne.uklidPolicky();
 obnovPolicky();
+
+// Bez tohohle smí prohlížeč úložiště při nedostatku místa sám vyhodit —
+// a katalogizace police se táhne týdny. Odpověď se neřeší: povolení nedá
+// každý prohlížeč a zálohy to stejně nenahrazuje.
+ulozne.zajistiTrvaleUloziste().then(({ podporovano, trvale }) => {
+  if (podporovano && !trvale) {
+    console.info('Prohlížeč zatím nepřidělil trvalé úložiště — dělejte si zálohy.');
+  }
+});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
