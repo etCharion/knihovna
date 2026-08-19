@@ -28,6 +28,11 @@ const KLIC_AKTIVNI = 'knihovna.policka-aktivni.v1';
  * umístění v importu jmenuje, se liší, a při párování se to dá vybrat ručně
  * (nebo sloupec přeskočit).
  *
+ * Místo vydání katalogy uvádějí, takže sloupec v exportu je; pojmenovaný je
+ * ve stejném duchu jako rok a vydavatelství. Jestli takové pole import nabízí,
+ * se ale u každého systému liší — když ne, sloupec se při párování přeskočí
+ * stejně jako polička.
+ *
  * ISBN se do CSV zapisuje s pomlčkami. Holé třináctimístné číslo si Excel
  * vyloží jako číslo a zobrazí ho jako 9,78807E+12; s pomlčkami je to text
  * a zůstane čitelné. V záloze do JSON se naopak drží holé číslice, aby se
@@ -39,6 +44,7 @@ export const SLOUPCE = [
   { klic: 'nazev', popis: 'Název' },
   { klic: 'rok', popis: 'Rok vydání (titul)' },
   { klic: 'vydavatel', popis: 'Vydavatelství (titul)' },
+  { klic: 'misto', popis: 'Místo vydání (titul)' },
   { klic: 'kusu', popis: 'Počet', doCsv: (kusu) => Number(kusu) || 1 },
   { klic: 'policka', popis: 'Polička' },
   { klic: 'poznamka', popis: 'Poznámka' },
