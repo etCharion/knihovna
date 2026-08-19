@@ -333,6 +333,44 @@ nadpis('Tabulka pod číslem ČNB');
   localStorage.clear();
 }
 
+nadpis('Kniha úplně bez čísla');
+{
+  localStorage.clear();
+
+  // Starší tituly nemají ani ISBN, ani ČNB. Uložit se musí dát i tak —
+  // jen se u nich nedá poznat duplicita, takže každé přidání je nový řádek.
+  ulozne.pridej({ isbn: '', cnb: '', nazev: 'Sebrané spisy', autor: 'Josef Václav Sládek' });
+  ulozne.pridej({ isbn: '', cnb: '', nazev: 'Jiná kniha bez čísla' });
+  ulozne.pridej({ isbn: '', cnb: '', nazev: 'Sebrané spisy', autor: 'Josef Václav Sládek' });
+
+  t(ulozne.vsechny().length === 3, 'každé přidání zakládá vlastní řádek',
+    String(ulozne.vsechny().length));
+  t(ulozne.podleIsbn('') === null, 'prázdné číslo nesmí sednout na žádnou knihu');
+  t(ulozne.vsudePodleIsbn('').length === 0, 'ani při hledání napříč poličkami');
+
+  // Úklid duplicit na startu je nesmí slít do jednoho.
+  t(slucDuplicity(ulozne.vsechny()).length === 3, 'a slučování duplicit se jich nedotkne',
+    String(slucDuplicity(ulozne.vsechny()).length));
+
+  // Přesto se dají spolehlivě obnovit ze zálohy — a dvojí načtení je nezdvojí.
+  const zaloha = JSON.parse(ulozne.doJson());
+  localStorage.clear();
+  t(ulozne.importuj(zaloha) === 3, 'ze zálohy se vrátí všechny');
+  t(ulozne.importuj(zaloha) === 0, 'a opakované načtení už nic nepřidá');
+  t(ulozne.vsechny().length === 3, 'takže řádků zůstane tolik, kolik jich bylo',
+    String(ulozne.vsechny().length));
+
+  const csv = doCsv(ulozne.vsechny());
+  const hlavicka = csv.replace(/^﻿/, '').split('\r\n')[0].split(';');
+  const radek = csv.replace(/^﻿/, '').split('\r\n')[1].split(';');
+  t(radek[hlavicka.indexOf('Unikátní identifikátor definice knihy (ISBN)')] === '',
+    'sloupec ISBN zůstane prázdný');
+  t(radek[hlavicka.indexOf('Název')] !== '', 'ale ostatní údaje v exportu jsou',
+    radek[hlavicka.indexOf('Název')]);
+
+  localStorage.clear();
+}
+
 nadpis('Export do CSV');
 {
   const csv = doCsv([
@@ -621,16 +659,18 @@ nadpis('Hledání podle názvu a autora');
     }] });
   };
 
-  const { vysledky, bezCisla, nedostupne } =
+  const { vysledky, nedostupne } =
     await hledejPodleTextu({ nazev: 'Babička', autor: 'Němcová' });
 
-  t(vysledky.length === 2, 'ze čtyř zdrojů zbydou dvě různé knihy', String(vysledky.length));
+  t(vysledky.length === 3, 'nabídne se všechno, co se našlo', String(vysledky.length));
   t(!nedostupne, 'zdroje odpověděly');
-  t(bezCisla === 1, 'nález bez čísla se do nabídky nedostane, ale spočítá se', String(bezCisla));
+  t(vysledky.filter((k) => !k.isbn && !k.cnb).length === 1,
+    'včetně knihy, která žádné číslo nemá');
 
-  const [prvni, druha] = vysledky;
-  t(prvni.nazev === 'Babička : obrazy venkovského života', 'český katalog je první a bez interpunkce',
-    prvni.nazev);
+  const prvni = vysledky.find((k) => k.isbn === '9788025717721');
+  const druha = vysledky.find((k) => k.isbn === '9788072030682');
+  t(vysledky[0].nazev === 'Babička : obrazy venkovského života',
+    'český katalog je první a bez interpunkce', vysledky[0].nazev);
   t(prvni.autor === 'Božena Němcová', 'jméno se otočí a letopočty zmizí', prvni.autor);
   t(prvni.isbn === '9788025717721', 'ISBN se vytáhne z pole cleanIsbn', prvni.isbn);
   t(prvni.zdroj === 'Knihovny.cz, Google Books', 'stejná kniha z více zdrojů je v nabídce jednou',
@@ -777,8 +817,8 @@ nadpis('Kniha bez ISBN — dohledání podle ČNB');
       ] })
     : vypadek();
 
-  const { vysledky, bezCisla } = await hledejPodleTextu({ nazev: 'Kniha' });
-  t(vysledky.length === 2, 'nabídnou se obě knihy, které nějaké číslo mají',
+  const { vysledky } = await hledejPodleTextu({ nazev: 'Kniha' });
+  t(vysledky.length === 3, 'nabídnou se všechny tři, i ta bez čísla',
     String(vysledky.length));
 
   const stara = vysledky.find((k) => k.nazev === 'Kniha z roku 1974');
@@ -789,27 +829,20 @@ nadpis('Kniha bez ISBN — dohledání podle ČNB');
   t(nova.isbn === '9788073355067' && !nova.cnb, 'když je ISBN, ČNB se nepoužije',
     `isbn „${nova.isbn}“, cnb „${nova.cnb}“`);
 
-  t(bezCisla === 1, 'a bez čísla zůstane jen ten záznam, který žádné nemá', String(bezCisla));
+  const bezCisla = vysledky.find((k) => k.nazev.includes('žádným číslem'));
+  t(bezCisla && !bezCisla.isbn && !bezCisla.cnb,
+    'kniha bez čísla se nabídne s prázdnými poli čísel');
 }
 
 {
-  // Na tom, ze kterého zdroje nálezy bez čísla jsou, je vidět, co s tím jde
-  // dělat: u Open Library nic (česká čísla nemá), u českého katalogu chybí ČNB.
-  globalThis.fetch = (url) => {
-    if (url.includes('knihovny.cz')) {
-      return odpoved({ records: [{ title: 'Bez čísla z katalogu' }] });
-    }
-    if (url.includes('openlibrary.org/search.json')) {
-      return odpoved({ docs: [{ title: 'Bez čísla z Open Library' },
-                              { title: 'Taky bez čísla' }] });
-    }
-    return vypadek();
-  };
+  // Dva nálezy bez čísla se nikdy neslijí — není podle čeho poznat, že jde
+  // o tutéž knihu. Stejný název u dvou různých vydání není důkaz.
+  globalThis.fetch = (url) => url.includes('knihovny.cz')
+    ? odpoved({ records: [{ title: 'Táž kniha' }, { title: 'Táž kniha' }] })
+    : vypadek();
 
-  const { bezCisla, bezCislaZdroje } = await hledejPodleTextu({ nazev: 'Sládek' });
-  t(bezCisla === 3, 'spočítají se všechny', String(bezCisla));
-  t(bezCislaZdroje['Knihovny.cz'] === 1 && bezCislaZdroje['Open Library'] === 2,
-    'a rozpadnou se podle zdrojů', JSON.stringify(bezCislaZdroje));
+  const { vysledky } = await hledejPodleTextu({ nazev: 'Táž' });
+  t(vysledky.length === 2, 'nálezy bez čísla stojí každý zvlášť', String(vysledky.length));
 }
 
 {

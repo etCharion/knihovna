@@ -81,9 +81,15 @@ export function cisloZaznamu(kniha) {
  * Kniha se pozná podle svého čísla *a* poličky. Stejný titul na dvou
  * poličkách jsou dva záznamy — jinak by nešlo dohledat, kde který výtisk
  * stojí. Když se poličky nepoužívají, chová se všechno jako dřív.
+ *
+ * Kniha bez čísla klíč nemá — vrací se null. Není totiž podle čeho poznat,
+ * že jde o tentýž titul: dva záznamy se stejným názvem klidně můžou být dvě
+ * různé knihy. Takové řádky se proto nikdy neslučují ani nepočítají kusy,
+ * každé přidání je nový řádek. To je ta cena za to, že jdou vůbec uložit.
  */
 function klicZaznamu(kniha) {
-  return `${cisloZaznamu(kniha)}\u0000${upravNazevPolicky(kniha.policka)}`;
+  const cislo = cisloZaznamu(kniha);
+  return cislo ? `${cislo}\u0000${upravNazevPolicky(kniha.policka)}` : null;
 }
 
 function nactiPolicky() {
@@ -214,11 +220,22 @@ export function obsahPolicky(nazev) {
  */
 export function slucDuplicity(knihy) {
   const podleKlice = new Map();
+  const vysledek = [];
 
   for (const kniha of knihy) {
-    const puvodni = podleKlice.get(klicZaznamu(kniha));
+    const klic = klicZaznamu(kniha);
+
+    // Kniha bez čísla se slučovat nedá — projde beze změny.
+    if (!klic) {
+      vysledek.push({ ...kniha });
+      continue;
+    }
+
+    const puvodni = podleKlice.get(klic);
     if (!puvodni) {
-      podleKlice.set(klicZaznamu(kniha), { ...kniha });
+      const kopie = { ...kniha };
+      podleKlice.set(klic, kopie);
+      vysledek.push(kopie);
       continue;
     }
 
@@ -233,7 +250,7 @@ export function slucDuplicity(knihy) {
     puvodni.poznamka = [...new Set(poznamky)].join('; ');
   }
 
-  return [...podleKlice.values()];
+  return vysledek;
 }
 
 /**
@@ -307,8 +324,13 @@ export function vsechny() {
   return nacti();
 }
 
-/** Kniha s tímhle číslem na téhle poličce — jinde stejný titul stát může. */
+/**
+ * Kniha s tímhle číslem na téhle poličce — jinde stejný titul stát může.
+ * Bez čísla se nehledá: prázdný dotaz by jinak sedl na každou knihu, která
+ * číslo nemá, a hlásil duplicitu tam, kde žádná není.
+ */
 export function podleIsbn(isbn, policka = '') {
+  if (!isbn) return null;
   const cisty = upravNazevPolicky(policka);
   return nacti().find(
     (k) => cisloZaznamu(k) === isbn && upravNazevPolicky(k.policka) === cisty
@@ -317,7 +339,7 @@ export function podleIsbn(isbn, policka = '') {
 
 /** Všechny výtisky téhož titulu napříč poličkami — kvůli hlášce „máte i v ložnici“. */
 export function vsudePodleIsbn(isbn) {
-  return nacti().filter((k) => cisloZaznamu(k) === isbn);
+  return isbn ? nacti().filter((k) => cisloZaznamu(k) === isbn) : [];
 }
 
 /**
@@ -327,8 +349,11 @@ export function vsudePodleIsbn(isbn) {
 export function pridej(kniha) {
   const knihy = nacti();
   const policka = upravNazevPolicky(kniha.policka);
-  const existujici = knihy.find(
-    (k) => cisloZaznamu(k) === cisloZaznamu(kniha) && upravNazevPolicky(k.policka) === policka
+  // Bez čísla není podle čeho poznat, že je to táž kniha — každé přidání
+  // proto zakládá nový řádek.
+  const cislo = cisloZaznamu(kniha);
+  const existujici = cislo && knihy.find(
+    (k) => cisloZaznamu(k) === cislo && upravNazevPolicky(k.policka) === policka
   );
 
   if (existujici) {
@@ -386,16 +411,27 @@ export function smazVse() {
 }
 
 /**
- * Sloučí importovaná data se stávajícími. Podle ISBN a poličky pozná,
+ * Klíč pro import. U knihy s číslem je to číslo a polička; kniha bez čísla
+ * se pozná podle svého vnitřního id, které přežije export i načtení zpět —
+ * díky tomu nahrání téže zálohy podruhé nezdvojí ani takové řádky.
+ */
+function klicImportu(polozka) {
+  return klicZaznamu(polozka) || (polozka?.id ? `id\u0000${polozka.id}` : null);
+}
+
+/**
+ * Sloučí importovaná data se stávajícími. Podle čísla a poličky pozná,
  * co už tam je, takže se dá bez obav nahrát i starší záloha.
  */
 export function importuj(polozky) {
   const knihy = nacti();
-  const znama = new Set(knihy.map(klicZaznamu));
+  const znama = new Set(knihy.map(klicImportu).filter(Boolean));
   let pridano = 0;
 
   for (const polozka of polozky) {
-    if (!cisloZaznamu(polozka) || znama.has(klicZaznamu(polozka))) continue;
+    if (!polozka || typeof polozka !== 'object') continue;
+    const klic = klicImportu(polozka);
+    if (klic && znama.has(klic)) continue;
     knihy.push({
       id: polozka.id || crypto.randomUUID(),
       kusu: Number(polozka.kusu) || 1,
@@ -404,7 +440,7 @@ export function importuj(polozky) {
       ...polozka,
       policka: upravNazevPolicky(polozka.policka),
     });
-    znama.add(klicZaznamu(polozka));
+    if (klic) znama.add(klic);
     pridano++;
   }
 

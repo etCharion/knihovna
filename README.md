@@ -27,8 +27,9 @@ a po potvrzení uloží do tabulky. Běží jako statická stránka na GitHub Pa
   desetimístných čísel končících písmenem **X**.
 - **Časopisy podle ISSN** — zadané ručně, nebo naskenované z čárového kódu
   s prefixem 977.
-- **Knihy z doby před ISBN** — starší české tituly ISBN nemají, vedou se proto
-  pod číslem České národní bibliografie (ČNB).
+- **Knihy bez ISBN** — starší tituly žádné nemají. Vedou se pod číslem České
+  národní bibliografie (ČNB), a když ho katalog neuvádí, uloží se i úplně
+  bez čísla.
 - **Hledání podle názvu a autora** pro knihy, které ISBN vytištěné nemají:
   z nabídky vyberete tu svou a přidá se do tabulky.
 - **Návrh opravy**, když číslo neprojde kontrolou — poslední číslice ISBN je
@@ -152,13 +153,9 @@ takže záznam vyjde stejně úplný, jako kdyby se kniha naskenovala; doplníte
 poličku a knihu potvrdíte. Kniha, kterou knihovna už má, je v nabídce
 označená i s tím, na kterých poličkách stojí.
 
-> **Nabízejí se knihy, které mají nějaké číslo** — ISBN, ISSN, nebo u starších
-> českých titulů ČNB (viz níže). Tabulka totiž stojí na jednom čísle na řádek,
-> takže záznam úplně bez čísla by neměl podle čeho vzniknout. Kolik takových
-> nálezů se vynechalo a **ze kterých zdrojů**, se pod nabídkou napíše — a to
-> je vodítko, co s tím jde dělat. Nález bez čísla z Open Library je normální
-> (české knihy z doby před ISBN nezná a víc už z ní nedostaneme); nález bez
-> čísla z Knihoven.cz naopak znamená, že se u něj nedohledalo ani ČNB.
+> **Nabízí se všechno, co se najde** — i knihy úplně bez čísla. Ty se dají
+> uložit stejně jako ostatní, jen se u nich nepočítají kusy; viz *Kniha úplně
+> bez čísla* níže.
 
 ### Staré ISBN končící písmenem X
 
@@ -215,6 +212,25 @@ tituly vedou. Aplikace ho proto bere jako náhradní číslo, když ISBN chybí:
 
 Údaje k ČNB dohledávají **jen Knihovny.cz** — je to české číslo a zahraniční
 databáze ho neznají.
+
+### Kniha úplně bez čísla
+
+ČNB má jen část záznamů: přiděluje ho Národní knihovna, takže záznamy, které
+se do katalogu dostaly odjinud (od nakladatele, od e-knihovny), ho nemají.
+A zahraniční databáze ho nemají nikdy.
+
+**Takovou knihu jde přidat i tak.** V nabídce ke schválení stačí nechat pole
+s číslem prázdné — název, autora, rok, vydavatele, poličku i poznámku vyplníte
+a kniha se uloží. Sloupec ISBN u ní zůstane prázdný, ostatní údaje ne.
+
+> **Jedna věc kvůli tomu nefunguje: počítání kusů.** Bez čísla nejde poznat,
+> jestli je to táž kniha, jakou už v tabulce máte — dva záznamy se stejným
+> názvem klidně můžou být dvě různá vydání. Každé přidání proto zakládá nový
+> řádek a nabídka na to předem upozorní. Když chcete mít u takové knihy víc
+> kusů, přepište si počet v exportu, nebo jí dejte poznámku.
+
+Ze zálohy se takové knihy vracejí spolehlivě — poznají se podle svého
+vnitřního čísla řádku, takže ani opakované načtení téže zálohy je nezdvojí.
 
 ### Časopisy a ISSN
 
@@ -511,8 +527,9 @@ se načítá rovnou, Tesseract (7 MB) až když si někdo řekne o čtení čís
 ### Testy
 
 Testy jsou tři sady. `tests/jednotky.mjs` běží v Node během vteřiny a kontroluje
-dělení ISBN, čísla končící X, ISSN i čárové kódy časopisů, ČNB u knih bez ISBN,
-návrh opravy kontrolní číslice, vytahování čísla z rozpoznaného textu, slučování duplicit,
+dělení ISBN, čísla končící X, ISSN i čárové kódy časopisů, ČNB i knihy úplně
+bez čísla, návrh opravy kontrolní číslice, vytahování čísla z rozpoznaného
+textu, slučování duplicit,
 práci s poličkami, hledání podle názvu a autora, sestavení e-mailové zálohy
 a chování při výpadku zdrojů. `tests/e2e.mjs` projede celou aplikaci ve
 skutečném prohlížeči včetně obojího skenování a potvrzovací nabídky: Chromiu
@@ -560,8 +577,9 @@ dotazů`. Crossref zaskočí u odborných titulů, u beletrie ale ne vždy. Trva
 řeší vlastní klíč, viz *Google Books a limit dotazů*.
 
 **Stará česká kniha se nedá přidat.** Knihy vydané před rokem 1989 ISBN nemají.
-Najděte je hledáním podle názvu a autora — vezme se jim číslo ČNB a přidat pak
-jdou normálně. Viz *Knihy vydané před rokem 1989* výše.
+Najděte je hledáním podle názvu a autora — vezme se jim číslo ČNB, a když ho
+katalog neuvádí, přidají se i bez čísla. Viz *Knihy vydané před rokem 1989*
+a *Kniha úplně bez čísla* výše.
 
 **Hledání podle názvu nic nenajde.** Zkuste jen část názvu bez podtitulu,
 u autora samotné příjmení. České katalogy vedou jména ve tvaru `Novák, Jan`,

@@ -575,27 +575,24 @@ export async function najdiKnihu(kodVstup) {
  * proto nabídka, ze které si uživatel vybere. Záznamy o témže titulu se z více
  * zdrojů slučují podle čísla, takže se jeden titul v nabídce neopakuje.
  *
- * Nálezy bez čísla se nenabízejí: aplikace vede tabulku právě podle něj, takže
- * takový řádek by neměl podle čeho vzniknout. Kolik jich bylo se vrací, a to
- * i po zdrojích — na tom je totiž vidět, jestli má cenu s tím něco dělat.
- * Že knihu bez čísla vrátila Open Library, je normální (české knihy z doby
- * před ISBN nezná a víc už z ní nevymáčkneme); že ji vrátil český katalog,
- * znamená, že se u ní nedohledalo ani ČNB, a to se spravit dá.
+ * Nabízí se všechno, co se našlo — i knihy úplně bez čísla. Starší české
+ * tituly ISBN nemají, ČNB u nich katalog uvádí jen někdy a zahraniční
+ * databáze ho neznají vůbec; kdyby se takové nálezy zahazovaly, nešly by
+ * do knihovny vůbec dostat. Kde číslo je, slučují se podle něj záznamy
+ * o témž titulu z více zdrojů; kde není, stojí každý nález sám za sebe —
+ * není totiž podle čeho poznat, že jde o tutéž knihu.
  */
 export async function hledejPodleTextu({ nazev = '', autor = '' } = {}) {
   const dotaz = { nazev: nazev.trim(), autor: autor.trim() };
-  const prazdno = {
-    vysledky: [], selhalyZdroje: [], nedostupne: false, bezCisla: 0, bezCislaZdroje: {},
-  };
+  const prazdno = { vysledky: [], selhalyZdroje: [], nedostupne: false };
   if (!dotaz.nazev && !dotaz.autor) return prazdno;
 
   const odpovedi = await Promise.allSettled(ZDROJE.map((zdroj) => zdroj.hledejText(dotaz)));
 
   const podleCisla = new Map();
+  const nabidka = [];
   const selhaly = [];
-  const bezCislaZdroje = {};
   let nekdoOdpovedel = false;
-  let bezCisla = 0;
 
   odpovedi.forEach((odpoved, poradi) => {
     const zdroj = ZDROJE[poradi];
@@ -609,15 +606,19 @@ export async function hledejPodleTextu({ nazev = '', autor = '' } = {}) {
 
     for (const nalez of odpoved.value || []) {
       const cislo = nalez.isbn || nalez.cnb;
+
+      // Bez čísla nejde poznat, že už tenhle titul v nabídce je — nález
+      // se proto přidá zvlášť a se žádným jiným se neslučuje.
       if (!cislo) {
-        bezCisla++;
-        bezCislaZdroje[zdroj.nazev] = (bezCislaZdroje[zdroj.nazev] || 0) + 1;
+        nabidka.push({ ...nalez, zdroje: [zdroj.nazev] });
         continue;
       }
 
       const drivejsi = podleCisla.get(cislo);
       if (!drivejsi) {
-        podleCisla.set(cislo, { ...nalez, zdroje: [zdroj.nazev] });
+        const zaznam = { ...nalez, zdroje: [zdroj.nazev] };
+        podleCisla.set(cislo, zaznam);
+        nabidka.push(zaznam);
         continue;
       }
       // Stejný titul z dalšího zdroje jen doplní, co u toho prvního chybí.
@@ -629,11 +630,9 @@ export async function hledejPodleTextu({ nazev = '', autor = '' } = {}) {
     }
   });
 
-  const vysledky = [...podleCisla.values()]
+  const vysledky = nabidka
     .slice(0, NALEZU_CELKEM)
     .map(({ zdroje, ...kniha }) => ({ ...kniha, zdroj: zdroje.join(', ') }));
 
-  return {
-    vysledky, selhalyZdroje: selhaly, nedostupne: !nekdoOdpovedel, bezCisla, bezCislaZdroje,
-  };
+  return { vysledky, selhalyZdroje: selhaly, nedostupne: !nekdoOdpovedel };
 }
