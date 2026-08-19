@@ -155,7 +155,10 @@ označená i s tím, na kterých poličkách stojí.
 > **Nabízejí se knihy, které mají nějaké číslo** — ISBN, ISSN, nebo u starších
 > českých titulů ČNB (viz níže). Tabulka totiž stojí na jednom čísle na řádek,
 > takže záznam úplně bez čísla by neměl podle čeho vzniknout. Kolik takových
-> nálezů se vynechalo, se pod nabídkou napíše.
+> nálezů se vynechalo a **ze kterých zdrojů**, se pod nabídkou napíše — a to
+> je vodítko, co s tím jde dělat. Nález bez čísla z Open Library je normální
+> (české knihy z doby před ISBN nezná a víc už z ní nedostaneme); nález bez
+> čísla z Knihoven.cz naopak znamená, že se u něj nedohledalo ani ČNB.
 
 ### Staré ISBN končící písmenem X
 

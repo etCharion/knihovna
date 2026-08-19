@@ -138,10 +138,19 @@ function prvniIssn(kandidati) {
   return '';
 }
 
-/** A totéž pro číslo České národní bibliografie u knih z doby před ISBN. */
+/**
+ * A totéž pro číslo České národní bibliografie u knih z doby před ISBN.
+ *
+ * Bere se z pole, o kterém se ví, že v něm ČNB je, takže se tu smí být
+ * shovívavější než u ručně zadaného čísla: katalogy ho uvádějí jednou
+ * s předponou (`cnb000123456`), jindy jako holé číslo. Předpona se v tom
+ * druhém případě doplní — jinak by číslo propadlo a kniha by se nedala
+ * nabídnout, přestože ji katalog identifikovat umí.
+ */
 function prvniCnb(kandidati) {
   for (const kandidat of [].concat(kandidati || [])) {
-    const cnb = normalizujCnb(kandidat);
+    const text = String(kandidat ?? '').trim();
+    const cnb = normalizujCnb(text) || normalizujCnb(`cnb${text}`);
     if (cnb) return cnb;
   }
   return '';
@@ -221,14 +230,14 @@ async function googleBooksPodleTextu({ nazev, autor }) {
  * vrátilo jen identifikátor záznamu, proto ten seznam v každém dotazu.
  */
 /*
- * `nbn` je číslo národní bibliografie (u nás ČNB) — jediné číslo, které mají
- * i knihy vydané před rokem 1989. Kdyby ho API pod tímhle jménem nevracelo,
- * neplatná jména polí VuFind mlčky přeskočí: starší knihy se pak jen dál
- * nebudou dát z nabídky přidat, nic se nerozbije.
+ * Poslední tři jsou číslo národní bibliografie (u nás ČNB) — jediné číslo,
+ * které mají i knihy vydané před rokem 1989. Pod jakým jménem ho tenhle
+ * katalog vydává, se nedalo ověřit, proto se říká o víc variant najednou:
+ * neplatná jména polí VuFind mlčky přeskočí, takže dotaz navíc nic nestojí.
  */
 const POLE_KNIHOVNY = ['title', 'authors', 'publishers', 'publicationDates', 'languages',
                        'physicalDescriptions', 'cleanIsbn', 'isbns', 'cleanIssn', 'issns',
-                       'nbn'];
+                       'nbn', 'cleanNbn', 'nbns'];
 
 async function knihovnyCzDotaz(lookfor, type, limit) {
   const parametry = new URLSearchParams({ lookfor, type, limit: String(limit) });
@@ -290,7 +299,7 @@ async function knihovnyCzPodleTextu({ nazev, autor }) {
     // před rokem 1989. Pořadí je od nejsdělnějšího čísla k tomu poslednímu.
     const isbn = prvniIsbn(zaznam.cleanIsbn || zaznam.isbns);
     const issn = prvniIssn(zaznam.cleanIssn || zaznam.issns);
-    const cnb = prvniCnb(zaznam.nbn);
+    const cnb = prvniCnb(zaznam.nbn ?? zaznam.cleanNbn ?? zaznam.nbns);
     return { ...kniha, isbn: isbn || issn, cnb: isbn || issn ? '' : cnb };
   }).filter(Boolean);
 }
@@ -566,19 +575,25 @@ export async function najdiKnihu(kodVstup) {
  * proto nabídka, ze které si uživatel vybere. Záznamy o témže titulu se z více
  * zdrojů slučují podle čísla, takže se jeden titul v nabídce neopakuje.
  *
- * Nálezy bez ISBN i ISSN se nenabízejí: aplikace vede tabulku právě podle
- * čísla, takže takový řádek by neměl podle čeho vzniknout. Kolik jich bylo,
- * se vrací — u starších titulů je to častý případ a je potřeba to říct.
+ * Nálezy bez čísla se nenabízejí: aplikace vede tabulku právě podle něj, takže
+ * takový řádek by neměl podle čeho vzniknout. Kolik jich bylo se vrací, a to
+ * i po zdrojích — na tom je totiž vidět, jestli má cenu s tím něco dělat.
+ * Že knihu bez čísla vrátila Open Library, je normální (české knihy z doby
+ * před ISBN nezná a víc už z ní nevymáčkneme); že ji vrátil český katalog,
+ * znamená, že se u ní nedohledalo ani ČNB, a to se spravit dá.
  */
 export async function hledejPodleTextu({ nazev = '', autor = '' } = {}) {
   const dotaz = { nazev: nazev.trim(), autor: autor.trim() };
-  const prazdno = { vysledky: [], selhalyZdroje: [], nedostupne: false, bezCisla: 0 };
+  const prazdno = {
+    vysledky: [], selhalyZdroje: [], nedostupne: false, bezCisla: 0, bezCislaZdroje: {},
+  };
   if (!dotaz.nazev && !dotaz.autor) return prazdno;
 
   const odpovedi = await Promise.allSettled(ZDROJE.map((zdroj) => zdroj.hledejText(dotaz)));
 
   const podleCisla = new Map();
   const selhaly = [];
+  const bezCislaZdroje = {};
   let nekdoOdpovedel = false;
   let bezCisla = 0;
 
@@ -596,6 +611,7 @@ export async function hledejPodleTextu({ nazev = '', autor = '' } = {}) {
       const cislo = nalez.isbn || nalez.cnb;
       if (!cislo) {
         bezCisla++;
+        bezCislaZdroje[zdroj.nazev] = (bezCislaZdroje[zdroj.nazev] || 0) + 1;
         continue;
       }
 
@@ -617,5 +633,7 @@ export async function hledejPodleTextu({ nazev = '', autor = '' } = {}) {
     .slice(0, NALEZU_CELKEM)
     .map(({ zdroje, ...kniha }) => ({ ...kniha, zdroj: zdroje.join(', ') }));
 
-  return { vysledky, selhalyZdroje: selhaly, nedostupne: !nekdoOdpovedel, bezCisla };
+  return {
+    vysledky, selhalyZdroje: selhaly, nedostupne: !nekdoOdpovedel, bezCisla, bezCislaZdroje,
+  };
 }

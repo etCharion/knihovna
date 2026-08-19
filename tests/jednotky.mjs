@@ -792,6 +792,40 @@ nadpis('Kniha bez ISBN — dohledání podle ČNB');
   t(bezCisla === 1, 'a bez čísla zůstane jen ten záznam, který žádné nemá', String(bezCisla));
 }
 
+{
+  // Na tom, ze kterého zdroje nálezy bez čísla jsou, je vidět, co s tím jde
+  // dělat: u Open Library nic (česká čísla nemá), u českého katalogu chybí ČNB.
+  globalThis.fetch = (url) => {
+    if (url.includes('knihovny.cz')) {
+      return odpoved({ records: [{ title: 'Bez čísla z katalogu' }] });
+    }
+    if (url.includes('openlibrary.org/search.json')) {
+      return odpoved({ docs: [{ title: 'Bez čísla z Open Library' },
+                              { title: 'Taky bez čísla' }] });
+    }
+    return vypadek();
+  };
+
+  const { bezCisla, bezCislaZdroje } = await hledejPodleTextu({ nazev: 'Sládek' });
+  t(bezCisla === 3, 'spočítají se všechny', String(bezCisla));
+  t(bezCislaZdroje['Knihovny.cz'] === 1 && bezCislaZdroje['Open Library'] === 2,
+    'a rozpadnou se podle zdrojů', JSON.stringify(bezCislaZdroje));
+}
+
+{
+  // Katalogy uvádějí ČNB jednou s předponou, jindy jako holé číslo.
+  globalThis.fetch = (url) => url.includes('knihovny.cz')
+    ? odpoved({ records: [{ title: 'S předponou', nbn: ['cnb000123456'] },
+                          { title: 'Holé číslo', nbn: ['000999888'] }] })
+    : vypadek();
+
+  const { vysledky } = await hledejPodleTextu({ nazev: 'Sládek' });
+  t(vysledky.length === 2, 'projdou obě podoby zápisu', String(vysledky.length));
+  t(vysledky.find((k) => k.nazev === 'Holé číslo')?.cnb === 'cnb000999888',
+    'holému číslu se předpona doplní',
+    String(vysledky.find((k) => k.nazev === 'Holé číslo')?.cnb));
+}
+
 nadpis('Crossref u knih');
 {
   const adresy = [];

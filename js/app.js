@@ -1094,16 +1094,22 @@ prvek('form-podle-nazvu').addEventListener('submit', async (udalost) => {
   nastavStav('Hledám v databázích knih …');
 
   try {
-    const { vysledky, selhalyZdroje, nedostupne, bezCisla } =
+    const { vysledky, selhalyZdroje, nedostupne, bezCisla, bezCislaZdroje } =
       await hledejPodleTextu({ nazev, autor });
 
     // Záznamy bez čísla se nenabízejí a u starších titulů je to častý případ —
     // bez vysvětlení by prázdná nebo krátká nabídka vypadala jako chyba.
+    // Zdroje se jmenují proto, že na nich je vidět, co s tím jde dělat:
+    // zahraniční databáze česká čísla nemají, kdežto u českého katalogu
+    // znamená chybějící číslo, že se nedohledalo ani ČNB.
     const poznamky = [];
     if (bezCisla) {
+      const podle = Object.entries(bezCislaZdroje)
+        .map(([zdroj, kolik]) => `${kolik}× ${zdroj}`)
+        .join(', ');
       poznamky.push(
-        `${pocetSlovem(bezCisla, 'nález', 'nálezy', 'nálezů')} bez ISBN i ISSN se nenabízí — ` +
-        'aplikace vede tabulku podle čísla.'
+        `${pocetSlovem(bezCisla, 'nález', 'nálezy', 'nálezů')} bez ISBN, ISSN i ČNB ` +
+        `se nenabízí (${podle}) — aplikace vede tabulku podle čísla.`
       );
     }
     if (selhalyZdroje.length) poznamky.push(`Neodpověděly: ${selhalyZdroje.join(', ')}.`);
