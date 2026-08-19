@@ -41,6 +41,7 @@ const poleNabidky = {
   autor: prvek('nabidka-autor'),
   rok: prvek('nabidka-rok'),
   vydavatel: prvek('nabidka-vydavatel'),
+  misto: prvek('nabidka-misto'),
   policka: prvek('nabidka-policka'),
   poznamka: prvek('nabidka-poznamka'),
 };
@@ -231,7 +232,7 @@ function vyfiltrovane() {
 
   if (dotaz) {
     knihy = knihy.filter((k) =>
-      ['nazev', 'autor', 'isbn', 'vydavatel', 'poznamka', 'rok', 'policka']
+      ['nazev', 'autor', 'isbn', 'cnb', 'vydavatel', 'misto', 'poznamka', 'rok', 'policka']
         .some((pole) => String(k[pole] || '').toLowerCase().includes(dotaz))
     );
   }
@@ -298,7 +299,8 @@ function bunkaKUprave(kniha, pole, zastupnyText) {
 }
 
 /** Pole, která patří ke knize samotné — po opravě čísla se dohledávají znovu. */
-const POLE_O_KNIZE = ['nazev', 'autor', 'rok', 'vydavatel', 'stran', 'jazyk', 'obalka', 'zdroj'];
+const POLE_O_KNIZE = ['nazev', 'autor', 'rok', 'vydavatel', 'misto', 'stran', 'jazyk',
+                      'obalka', 'zdroj'];
 
 /**
  * Buňka s ISBN (u periodik ISSN), kterou jde přepsat, když skener přečetl
@@ -467,6 +469,7 @@ function radek(kniha) {
   tr.appendChild(bunkaKUprave(kniha, 'autor', 'Doplňte autora'));
   tr.appendChild(bunka(kniha.rok));
   tr.appendChild(bunka(kniha.vydavatel));
+  tr.appendChild(bunka(kniha.misto));
   tr.appendChild(bunkaIsbn(kniha));
   tr.appendChild(bunkaPolicka(kniha));
   tr.appendChild(bunkaKUprave(kniha, 'poznamka', 'Poznámka'));
@@ -575,10 +578,11 @@ function vyplnNabidku(kniha) {
   poleNabidky.autor.value = kniha.autor || '';
   poleNabidky.rok.value = kniha.rok || '';
   poleNabidky.vydavatel.value = kniha.vydavatel || '';
+  poleNabidky.misto.value = kniha.misto || '';
 }
 
 /**
- * `zHledani` jsou údaje z nabídky hledání podle názvu a autora. Ukážou se hned,
+ * `zHledani` jsou údaje z nabídky hledání podle údajů o knize. Ukážou se hned,
  * ať uživatel vidí, kterou knihu vlastně vybral, a zůstanou v poli i tehdy,
  * když dohledání podle samotného čísla nic nevrátí.
  */
@@ -691,6 +695,7 @@ function pridejZNabidky() {
     autor: poleNabidky.autor.value.trim(),
     rok: poleNabidky.rok.value.trim(),
     vydavatel: poleNabidky.vydavatel.value.trim(),
+    misto: poleNabidky.misto.value.trim(),
     poznamka: poleNabidky.poznamka.value.trim(),
     policka,
   });
@@ -1015,10 +1020,10 @@ function pripojPrepinacKlavesnice(vstup, tlacitko) {
 pripojPrepinacKlavesnice(prvek('vstup-isbn'), prvek('btn-klavesnice'));
 pripojPrepinacKlavesnice(poleNabidky.isbn, prvek('btn-klavesnice-nabidka'));
 
-/* ------------------------------------------- hledání podle názvu a autora */
+/* --------------------------------------- hledání podle údajů o knize */
 
 /**
- * Nabídka knih nalezených podle názvu a autora.
+ * Nabídka knih nalezených podle údajů o knize.
  *
  * Vybraná kniha se do tabulky nepřidá rovnou z nabídky — pošle se do stejné
  * cesty jako naskenovaný kód, takže se otevře okno k potvrzení a údaje se
@@ -1044,7 +1049,8 @@ function polozkaNalezu(nalez) {
   const cislo = ulozne.cisloZaznamu(nalez);
 
   radek('vysledek-nazev', nalez.nazev);
-  const popis = [nalez.autor, nalez.rok, nalez.vydavatel].filter(Boolean).join(' · ');
+  const popis = [nalez.autor, nalez.rok, nalez.vydavatel, nalez.misto]
+    .filter(Boolean).join(' · ');
   if (popis) radek('vysledek-popis', popis);
   radek('vysledek-isbn', `${naFormat(cislo)} · ${nalez.zdroj}`);
   const stavPolozky = radek('vysledek-stav', '');
@@ -1115,13 +1121,51 @@ function vykresliNalezy(nalezy, poznamka) {
   }
 }
 
+/**
+ * Pole, podle kterých se hledá v databázích.
+ *
+ * Nakladatelství a rok jsou tu pro případ, kdy stejný titul vyšel několikrát:
+ * podle nich jde v nabídce poznat právě to vydání, které stojí v poličce.
+ */
+const poleHledani = {
+  nazev: prvek('vstup-nazev'),
+  autor: prvek('vstup-autor'),
+  vydavatel: prvek('vstup-vydavatel'),
+  rok: prvek('vstup-rok'),
+};
+
+/**
+ * Vyprázdní všechna pole hledání najednou a schová nabídku.
+ *
+ * Mazat čtyři pole po jednom je před každým novým hledáním otrava — a zapomenuté
+ * nakladatelství z minulého dotazu navíc tiše zúží ten další.
+ */
+function vymazPoleHledani() {
+  for (const pole of Object.values(poleHledani)) pole.value = '';
+  vykresliNalezy([]);
+}
+
+prvek('btn-vymazat-hledani').addEventListener('click', () => {
+  vymazPoleHledani();
+  poleHledani.nazev.focus();
+  nastavStav('Pole hledání jsou prázdná — můžete zadat nový dotaz.');
+});
+
 prvek('form-podle-nazvu').addEventListener('submit', async (udalost) => {
   udalost.preventDefault();
-  const nazev = prvek('vstup-nazev').value.trim();
-  const autor = prvek('vstup-autor').value.trim();
+  const dotaz = Object.fromEntries(
+    Object.entries(poleHledani).map(([klic, pole]) => [klic, pole.value.trim()])
+  );
 
-  if (!nazev && !autor) {
-    oznam('Vyplňte název knihy, autora, nebo obojí.', 'varovani');
+  if (!Object.values(dotaz).some(Boolean)) {
+    oznam('Vyplňte aspoň jedno pole — název, autora, nakladatelství, nebo rok.', 'varovani');
+    return;
+  }
+  // Zdroje umí jen čtyřmístný letopočet; „90. léta“ by se tiše ignorovalo
+  // a uživatel by si myslel, že se podle toho hledalo.
+  if (dotaz.rok && !/^\d{4}$/.test(dotaz.rok)) {
+    oznam('Rok zadejte jako čtyři číslice, třeba 1998.', 'varovani');
+    nastavStav(`„${dotaz.rok}“ není rok. Napište letopočet čtyřmi číslicemi, nebo pole nechte prázdné.`);
     return;
   }
 
@@ -1133,10 +1177,17 @@ prvek('form-podle-nazvu').addEventListener('submit', async (udalost) => {
   nastavStav('Hledám v databázích knih …');
 
   try {
-    const { vysledky, selhalyZdroje, nedostupne } = await hledejPodleTextu({ nazev, autor });
+    const { vysledky, selhalyZdroje, nedostupne, mimoRok } = await hledejPodleTextu(dotaz);
 
     const poznamky = [];
     if (selhalyZdroje.length) poznamky.push(`Neodpověděly: ${selhalyZdroje.join(', ')}.`);
+    // Jinak by uživatel viděl jen podivně krátkou nabídku a nevěděl proč.
+    if (mimoRok) {
+      poznamky.push(
+        `Dalších ${pocetSlovem(mimoRok, 'nález', 'nálezy', 'nálezů')} vyšlo v jiném roce ` +
+        `než ${dotaz.rok} — do nabídky se nedostaly. Bez roku se ukážou všechny.`
+      );
+    }
     const poznamka = poznamky.join(' ');
 
     vykresliNalezy(vysledky, poznamka);
@@ -1150,10 +1201,15 @@ prvek('form-podle-nazvu').addEventListener('submit', async (udalost) => {
       nastavStav(`Hledání se nepodařilo (${selhalyZdroje.join(', ')}). Zkontrolujte připojení.`);
     } else {
       oznam('Nic se nenašlo.', 'varovani');
-      nastavStav(
-        'Databáze takovou knihu neznají. Zkuste jen část názvu, samotné příjmení autora, ' +
-        `nebo jiný zápis jména. ${poznamka}`.trim()
-      );
+      // Čím víc polí je vyplněných, tím spíš je na vině právě jedno z nich —
+      // rada proto zní jinak, než když se hledalo podle samotného názvu.
+      const vyplnenych = Object.values(dotaz).filter(Boolean).length;
+      const rada = vyplnenych > 1
+        ? 'Databáze nic takového neznají. Zkuste některé pole nechat prázdné — ' +
+          'nakladatelství i rok se u vydání zapisují všelijak.'
+        : 'Databáze takovou knihu neznají. Zkuste jen část názvu, samotné příjmení autora, ' +
+          'nebo jiný zápis jména.';
+      nastavStav(`${rada} ${poznamka}`.trim());
     }
   } catch (chyba) {
     console.error(chyba);

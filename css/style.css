@@ -214,10 +214,10 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
-/* ------------------------------------------- hledání podle názvu a autora */
+/* ------------------------------------------- hledání podle údajů o knize */
 
-/* Na telefonu jsou pole pod sebou a tlačítko přes celou šířku, na širším
-   displeji se název s autorem srovnají vedle sebe. */
+/* Na telefonu jsou pole pod sebou a tlačítka přes celou šířku, na širším
+   displeji se pole srovnají vedle sebe. */
 .formular-hledani {
   display: flex;
   flex-wrap: wrap;
@@ -228,6 +228,9 @@ select {
 }
 
 .formular-hledani input { flex: 1 1 12rem; }
+/* Rok jsou čtyři číslice — celá šířka by tu byla k ničemu a pole pro
+   nakladatelství by se o ni zbytečně připravilo. */
+.formular-hledani input.uzke { flex: 1 1 6rem; }
 .formular-hledani .tlacitko { flex: 1 1 100%; }
 
 .vysledky { margin-top: .75rem; }
@@ -264,9 +267,10 @@ select {
 .pole > select { width: 100%; }
 .pole .napoveda { margin-top: .35rem; }
 
-/* Rok a vydavatel se na šířku telefonu ještě vejdou vedle sebe. */
-.dvojice { display: flex; flex-wrap: wrap; gap: .75rem; }
-.dvojice .pole { flex: 1 1 8rem; }
+/* Krátká pole (rok, vydavatel, místo vydání) stojí v nabídce vedle sebe;
+   na úzkém displeji se zalomí sama. */
+.vedle-sebe { display: flex; flex-wrap: wrap; gap: .75rem; }
+.vedle-sebe .pole { flex: 1 1 8rem; }
 
 /* ------------------------------------------------------------ poličky */
 
