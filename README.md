@@ -16,14 +16,16 @@ a po potvrzení uloží do tabulky. Běží jako statická stránka na GitHub Pa
 - **Přečtení ISBN z vytištěného čísla** — pro knihy, které čárový kód nemají:
   zaměříte na řádek s číslem posuvný čtecí proužek a klepnete na
   *Přečíst číslo*.
-- **Automatické dohledání údajů** — název, autor, vydavatel, rok, počet stran,
-  jazyk i obálka.
+- **Automatické dohledání údajů** — název, autor, vydavatel, **místo vydání**,
+  rok, počet stran, jazyk i obálka.
 - **Potvrzení u každé knihy** — nic se neuloží samo. Načtená kniha se ukáže
   v nabídce, kde jde opravit ISBN a vyhledat znovu, upravit údaje, vybrat
   poličku — a teprve pak ji přidat, nebo zahodit.
 - **Poličky** — kniha se ukládá s místem, kde stojí, takže jde zpětně dohledat.
   Tabulka se dá podle poličky filtrovat a knihu jde kdykoliv přeřadit jinam.
-- **Tabulka knih** s hledáním a řazením podle sloupců.
+- **Tabulka knih** s řazením podle sloupců a hledáním, které projde všechna
+  pole najednou — název, autora, rok, vydavatele, místo vydání, číslo,
+  poličku i poznámku.
 - **Ruční zadání ISBN**, když je kód poškozený nebo chybí — včetně starších
   desetimístných čísel končících písmenem **X**.
 - **Časopisy podle ISSN** — zadané ručně, nebo naskenované z čárového kódu
@@ -31,8 +33,9 @@ a po potvrzení uloží do tabulky. Běží jako statická stránka na GitHub Pa
 - **Knihy bez ISBN** — starší tituly žádné nemají. Vedou se pod číslem České
   národní bibliografie (ČNB), a když ho katalog neuvádí, uloží se i úplně
   bez čísla.
-- **Hledání podle názvu a autora** pro knihy, které ISBN vytištěné nemají:
-  z nabídky vyberete tu svou a přidá se do tabulky.
+- **Hledání podle názvu, autora, nakladatelství a roku** pro knihy, které ISBN
+  vytištěné nemají: vyplníte kterákoliv pole, z nabídky vyberete tu svou a přidá
+  se do tabulky. Jedno tlačítko všechna pole zase vyprázdní.
 - **Návrh opravy**, když číslo neprojde kontrolou — poslední číslice ISBN je
   kontrolní, takže aplikace umí spočítat, jak mělo číslo nejspíš vypadat.
 - **Úpravy přímo v tabulce** — klepnutím na název, autora, poznámku i **ISBN**.
@@ -113,10 +116,11 @@ nepatří. Proto se **nic neukládá samo**. Po každém načtení se otevře na
 - Nahoře **shrnutí** — obálka, název, autor a číslo. U drtivé většiny knih je
   to jediné, co je potřeba přečíst.
 - **Polička** a **počet kusů** — to jediné, co se u každé knihy rozhoduje.
-- **Upravit údaje** rozbalí zbytek: ISBN, název, autora, rok, vydavatele
-  a poznámku. Zavřené je schválně — rolovat kvůli nim k tlačítku by se muselo
-  u každé knihy, a upravují se u zlomku z nich. Když se kniha nikde nenajde,
-  rozbalí se sama.
+- **Upravit údaje** rozbalí zbytek: ISBN, název, autora, rok, vydavatele,
+  místo vydání a poznámku. Zavřené je schválně — rolovat kvůli nim k tlačítku
+  by se muselo u každé knihy, a upravují se u zlomku z nich. Hodí se hlavně
+  u knih, které databáze neznají, a u míst vydání, která zdroje často neuvádějí
+  vůbec. Když se kniha nikde nenajde, rozbalí se sama.
 - **ISBN** — když je číslo špatně, přepište ho a klepněte na *🔎 Vyhledat*.
   Údaje se dohledají znovu podle opraveného čísla.
 - **Přidat do knihovny** knihu uloží, **Zahodit** (nebo klávesa Esc) ji zahodí
@@ -201,13 +205,26 @@ blíž, přisviťte 🔦, nebo číslo zadejte ručně.
 > pár vteřin). Pak už se používá z paměti telefonu a funguje i offline.
 > Kdo skenuje jen čárové kódy, nestáhne z toho nic.
 
-### Kniha bez ISBN — hledání podle názvu a autora
+### Kniha bez ISBN — hledání podle údajů o knize
 
 Tituly vydané před rokem 1989 často ISBN vůbec nemají. Rozbalte **Zadat ISBN
-ručně nebo hledat podle názvu**, vyplňte název knihy, autora, nebo obojí,
-a klepněte na **🔎 Hledat podle názvu a autora**. Aplikace se zeptá stejných
-databází jako u čárového kódu a nabídne, co našla — u každé knihy je autor,
-rok, vydavatel a ISBN, aby šlo poznat, které vydání je to vaše.
+ručně nebo hledat podle údajů o knize**, vyplňte cokoliv z toho, co o knize
+víte — **název**, **autora**, **nakladatelství**, **rok** — a klepněte na
+**🔎 Hledat v databázích**. Stačí jediné pole; vyplněná se sčítají. Aplikace se
+zeptá stejných databází jako u čárového kódu a nabídne, co našla — u každé knihy
+je autor, rok, vydavatel, místo vydání a ISBN, aby šlo poznat, které vydání
+je to vaše.
+
+Nakladatelství a rok jsou tu právě pro chvíli, kdy stejný titul vyšel
+několikrát: *Babička* má vydání od Vitalisu, Odeonu i Albatrosu a bez nich by
+se z nabídky nedalo poznat, které z nich stojí v poličce.
+
+> **Rok** pište čtyřmi číslicemi (`1998`). Jiný zápis aplikace odmítne, místo
+> aby ho tiše ignorovala a tvářila se, že podle něj hledala.
+
+Tlačítkem **✕ Vymazat pole** se všechna čtyři pole vyprázdní najednou a nabídka
+z minulého hledání zmizí. Bez něj je snadné zapomenout v poli nakladatelství
+z předchozího dotazu — a to pak další hledání tiše zúží.
 
 Klepnutím na knihu z nabídky se otevře stejné okno k potvrzení jako po skenu —
 předvyplněné údaji z nálezu. Ty se přitom ještě jednou dohledají podle ISBN,
@@ -248,7 +265,7 @@ jen o jednu nesedící číslici.
 
 > Občas má i vytištěné ISBN chybu od nakladatele. Takové číslo neznají ani
 > databáze knih, takže se stejně nic nedohledá. Knihu v tom případě přidejte
-> **hledáním podle názvu a autora** a číslo z obálky si opište do poznámky.
+> **hledáním podle údajů o knize** a číslo z obálky si opište do poznámky.
 
 ### Knihy vydané před rokem 1989
 
@@ -260,7 +277,7 @@ Národní knihovna ale takovým knihám přiděluje **číslo České národní
 bibliografie** (`cnb000123456`). Je jedinečné, stálé a katalogy pod ním starší
 tituly vedou. Aplikace ho proto bere jako náhradní číslo, když ISBN chybí:
 
-- najdete knihu **hledáním podle názvu a autora**, ČNB se vezme z katalogu
+- najdete knihu **hledáním podle údajů o knize**, ČNB se vezme z katalogu
   a kniha jde přidat úplně stejně jako každá jiná;
 - číslo jde i **zadat ručně** do stejného pole jako ISBN;
 - řádek se pod ním počítá — druhý sken téže knihy přidá kus, ne nový řádek —
@@ -337,7 +354,8 @@ při importu**, takže se při párování sloupců nemusí nic dohledávat:
 | Název | dohledáno podle ISBN |
 | Rok vydání (titul) | dohledáno podle ISBN |
 | Vydavatelství (titul) | dohledáno podle ISBN |
-| Počet | kolikrát se kniha naskenovala |
+| Místo vydání (titul) | dohledáno podle ISBN, pokud ho zdroj uvádí |
+| Počet | kolikrát se kniha naskenovala, nebo kolik kusů jste zadali |
 | Polička | kam jste ji při skenování zařadili |
 | Poznámka | co si k řádku napíšete v tabulce |
 
@@ -362,9 +380,11 @@ import do knihovního systému by knihovnu zdvojil. Aplikace si proto pamatuje,
 
 Značka o odeslání je jen v aplikaci, do CSV nejde — v importu by neměla co dělat.
 
-Sloupec **Polička** je jediný, který se nejmenuje po poli systému — jak přesně
-se umístění v importu jmenuje, se liší, takže si ho při párování buď vyberete
-ručně, nebo sloupec přeskočíte.
+Sloupec **Polička** se nejmenuje po poli systému — jak přesně se umístění
+v importu jmenuje, se liší, takže si ho při párování buď vyberete ručně, nebo
+sloupec přeskočíte. Totéž platí pro **Místo vydání (titul)**: pojmenované je
+ve stejném duchu jako rok a vydavatelství, ale jestli takové pole váš import
+nabízí, se u každého systému liší.
 
 Další pole, která systém při importu nabízí — cena, signatura, kategorie,
 přírůstkové číslo, způsob pořízení a podobně — v exportu **nejsou**. Z ISBN se
@@ -405,12 +425,30 @@ záznamy se přitom upraví pro běžné čtení: z názvu se odstraní katalogi
 interpunkce (`Název : podtitul /`) a autor se z tvaru `Novák, Jan, 1970-`
 převede na `Jan Novák`.
 
-Tytéž zdroje obsluhují i hledání podle názvu a autora. Každý má na to vlastní
-způsob dotazu: Knihovny.cz hledají v rejstříku názvů (`type=Title`), autorů
-(`type=Author`), nebo napříč poli, když je vyplněné obojí; Google Books dostane
-`intitle:` a `inauthor:`; Crossref `query.bibliographic` a `query.author`;
-Open Library vlastní parametry `title` a `author`. Nálezy o téže knize se pak
-podle čísla slučují, aby se jeden titul v nabídce neopakoval čtyřikrát.
+Tytéž zdroje obsluhují i hledání podle údajů o knize. Každý má na to vlastní
+způsob dotazu:
+
+| Pole | Knihovny.cz | Google Books | Crossref | Open Library |
+|---|---|---|---|---|
+| Název | `type=Title` | `intitle:` | `query.bibliographic` | `title` |
+| Autor | `type=Author` | `inauthor:` | `query.author` | `author` |
+| Nakladatelství | napříč poli | `inpublisher:` | `query.publisher-name` | `publisher` |
+| Rok | napříč poli | — | `filter=from-pub-date…until-pub-date` | — |
+
+Rejstřík jen pro název, respektive jen pro autora, se použije tehdy, když je
+vyplněné právě to jedno pole. Jakmile jsou vyplněná dvě a víc, hledá katalog
+napříč všemi poli (`AllFields`) — samostatný rejstřík na kombinaci není.
+
+Nálezy o téže knize se pak podle čísla slučují, aby se jeden titul v nabídce
+neopakoval čtyřikrát.
+
+**Rok** umí přesně omezit jen Crossref. Google Books na něj nemá operátor
+a Open Library zná `first_publish_year` — rok, kdy dílo vyšlo *poprvé*, ne rok
+konkrétního vydání, takže by filtrování podle něj u dotisků zahodilo právě ty
+správné nálezy. Rok se proto uplatní ještě jednou na hotové nabídce: nález
+z jiného roku se do ní nedostane, nález, který rok vůbec neuvádí, ano —
+chybějící údaj není nesouhlas. Kolik nálezů kvůli roku vypadlo, se napíše pod
+nabídku, aby podivně krátký seznam nebyl záhadou.
 
 Z Crossrefu se přitom berou jen záznamy typu kniha (`monograph`, `book`
 a podobné). Je to hlavně rejstřík článků a bez toho filtru by se do nabídky
@@ -420,6 +458,14 @@ pletly jednotlivé studie z časopisů.
 > a nakladatel u jejího nálezu tedy nemusí patřit k uvedenému ISBN. Právě
 > proto se po výběru knihy z nabídky údaje dohledávají ještě jednou podle
 > samotného čísla.
+
+**Místo vydání** hlásí každý zdroj jinak a Google Books vůbec: Knihovny.cz ho
+mají v katalogizačním poli `placesOfPublication` (MARC 260$a), Crossref jako
+`publisher-location`, Open Library jako `publish_places`. Skládá se stejně jako
+ostatní údaje — vyhrává první zdroj, který ho vyplnil, takže u českých knih
+většinou katalog. Z knihovnického zápisu se ještě odstraní oddělovací
+interpunkce (`Praha :` → `Praha`). Když ho neuvádí nikdo, zůstane sloupec
+prázdný a doplnit se dá ručně v nabídce před přidáním knihy.
 
 Všechny jsou veřejné a bez klíče. U Google Books se navíc, když strukturované
 hledání podle ISBN nic nevrátí, zkusí totéž číslo ještě jako obyčejné klíčové
@@ -593,7 +639,7 @@ css/style.css            vzhled (mobil na prvním místě, světlý i tmavý re�
 js/app.js                propojení všech částí a obsluha tabulky
 js/scanner.js            kamera a čtení čárových kódů
 js/ocr.js                čtení ISBN z vytištěného čísla
-js/lookup.js             dohledání knihy v online databázích (podle ISBN i podle názvu)
+js/lookup.js             dohledání knihy v online databázích (podle ISBN i podle údajů)
 js/isbn.js               ověření a převody ISBN a ISSN
 js/storage.js            ukládání, poličky, export do CSV a JSON
 js/zaloha.js             sdílení, e-mail a automatická záloha do složky
@@ -627,7 +673,8 @@ Testy jsou tři sady. `tests/jednotky.mjs` běží v Node během vteřiny a kont
 dělení ISBN, čísla končící X, ISSN i čárové kódy časopisů, ČNB i knihy úplně
 bez čísla, návrh opravy kontrolní číslice, vytahování čísla z rozpoznaného
 textu, slučování duplicit,
-práci s poličkami, hledání podle názvu a autora, sestavení e-mailové zálohy
+práci s poličkami, hledání podle údajů o knize včetně nakladatelství a roku,
+čtení místa vydání ze všech zdrojů, sestavení e-mailové zálohy
 a chování při výpadku zdrojů. Dál hlídá věci, na kterých stojí rychlost
 a bezpečnost pořizování: že se údaje hlásí **průběžně** a že přitom český
 katalog přebije rychlejší cizí zdroj, počítání a ruční opravu kusů, evidenci
@@ -685,7 +732,7 @@ dotazů`. Crossref zaskočí u odborných titulů, u beletrie ale ne vždy. Trva
 řeší vlastní klíč, viz *Google Books a limit dotazů*.
 
 **Stará česká kniha se nedá přidat.** Knihy vydané před rokem 1989 ISBN nemají.
-Najděte je hledáním podle názvu a autora — vezme se jim číslo ČNB, a když ho
+Najděte je hledáním podle údajů o knize — vezme se jim číslo ČNB, a když ho
 katalog neuvádí, přidají se i bez čísla. Viz *Knihy vydané před rokem 1989*
 a *Kniha úplně bez čísla* výše.
 

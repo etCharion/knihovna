@@ -69,7 +69,7 @@
     </details>
 
     <details class="rucne rozbalovaci">
-      <summary>Zadat ISBN ručně nebo hledat podle názvu</summary>
+      <summary>Zadat ISBN ručně nebo hledat podle údajů o knize</summary>
 
       <!-- Klávesnice je číselná, protože ISBN je skoro celé z číslic.
            Starší desetimístná čísla ale končí písmenem X, které na ní není —
@@ -116,12 +116,31 @@
           autocomplete="off"
           placeholder="Autor"
           aria-label="Autor knihy">
-        <button type="submit" class="tlacitko">🔎 Hledat podle názvu a autora</button>
+        <input
+          id="vstup-vydavatel"
+          type="text"
+          autocomplete="off"
+          placeholder="Nakladatelství"
+          aria-label="Nakladatelství">
+        <input
+          id="vstup-rok"
+          class="uzke"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="Rok"
+          aria-label="Rok vydání">
+        <button type="submit" class="tlacitko">🔎 Hledat v databázích</button>
+        <button type="button" class="tlacitko" id="btn-vymazat-hledani">✕ Vymazat pole</button>
       </form>
       <p class="napoveda">
-        Pro knihy, které ISBN vůbec nemají vytištěné. Stačí vyplnit jedno
-        z polí; z nabídnutých knih pak vyberete tu svou. Nabízejí se i knihy
-        úplně bez čísla — uložit se dají taky, jen se u nich nepočítají kusy.
+        Pro knihy, které ISBN vůbec nemají vytištěné. Stačí vyplnit kterékoliv
+        jedno pole, vyplněná se sčítají — <b>nakladatelství</b> a <b>rok</b>
+        pomůžou vybrat správné vydání, když titulů stejného jména vyšlo víc.
+        Rok pište čtyřmi číslicemi (1998). Z nabídnutých knih pak vyberete tu
+        svou; nabízejí se i knihy úplně bez čísla — uložit se dají taky, jen se
+        u nich nepočítají kusy. <b>Vymazat pole</b> vyprázdní všechna čtyři
+        najednou a schová nabídku, ať se dá začít nové hledání načisto.
       </p>
 
       <div id="vysledky-hledani" class="vysledky" hidden></div>
@@ -138,7 +157,10 @@
         <option value="nove">Jen nové (neodeslané)</option>
         <option value="odeslane">Jen odeslané</option>
       </select>
-      <input id="hledat" type="search" placeholder="Hledat v tabulce…" aria-label="Hledat v tabulce">
+      <input id="hledat" type="search"
+             placeholder="Hledat v tabulce…"
+             title="Hledá napříč názvem, autorem, rokem, vydavatelem, místem vydání, číslem, poličkou i poznámkou"
+             aria-label="Hledat v tabulce">
     </div>
 
     <div class="tlacitka">
@@ -169,6 +191,7 @@
             <th data-radit="autor">Autor</th>
             <th data-radit="rok">Rok</th>
             <th data-radit="vydavatel">Vydavatel</th>
+            <th data-radit="misto">Místo</th>
             <th data-radit="isbn">ISBN / ISSN</th>
             <th data-radit="kusu" class="sloupec-kusu">Kusů</th>
             <th data-radit="policka">Polička</th>
@@ -245,8 +268,8 @@
 </main>
 
 <footer class="paticka">
-  <p>Údaje se dohledávají v katalogu Knihovny.cz a dále přes Google Books,
-     Crossref a Open Library.
+  <p>Údaje — název, autor, nakladatel, místo a rok vydání — se dohledávají
+     v katalogu Knihovny.cz a dále přes Google Books, Crossref a Open Library.
      Tabulka je uložená jen v tomto zařízení — zálohu pošlete na Disk, e-mailem
      nebo do složky v počítači.</p>
 </footer>
@@ -277,7 +300,7 @@
       <p class="stav" id="nabidka-stav" role="status" aria-live="polite"></p>
       <p class="poznamka-nabidky" id="nabidka-upozorneni" hidden></p>
 
-      <div class="dvojice">
+      <div class="vedle-sebe">
         <div class="pole">
           <label for="nabidka-policka">Polička</label>
           <select id="nabidka-policka"></select>
@@ -325,7 +348,7 @@
           <input id="nabidka-autor" type="text" autocomplete="off">
         </div>
 
-        <div class="dvojice">
+        <div class="vedle-sebe">
           <div class="pole">
             <label for="nabidka-rok">Rok</label>
             <input id="nabidka-rok" type="text" inputmode="numeric" autocomplete="off">
@@ -333,6 +356,10 @@
           <div class="pole">
             <label for="nabidka-vydavatel">Vydavatel</label>
             <input id="nabidka-vydavatel" type="text" autocomplete="off">
+          </div>
+          <div class="pole">
+            <label for="nabidka-misto">Místo vydání</label>
+            <input id="nabidka-misto" type="text" autocomplete="off">
           </div>
         </div>
 

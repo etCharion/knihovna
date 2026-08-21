@@ -47,6 +47,11 @@ export async function zajistiTrvaleUloziste() {
  * umístění v importu jmenuje, se liší, a při párování se to dá vybrat ručně
  * (nebo sloupec přeskočit).
  *
+ * Místo vydání katalogy uvádějí, takže sloupec v exportu je; pojmenovaný je
+ * ve stejném duchu jako rok a vydavatelství. Jestli takové pole import nabízí,
+ * se ale u každého systému liší — když ne, sloupec se při párování přeskočí
+ * stejně jako polička.
+ *
  * ISBN se do CSV zapisuje s pomlčkami. Holé třináctimístné číslo si Excel
  * vyloží jako číslo a zobrazí ho jako 9,78807E+12; s pomlčkami je to text
  * a zůstane čitelné. V záloze do JSON se naopak drží holé číslice, aby se
@@ -58,6 +63,7 @@ export const SLOUPCE = [
   { klic: 'nazev', popis: 'Název' },
   { klic: 'rok', popis: 'Rok vydání (titul)' },
   { klic: 'vydavatel', popis: 'Vydavatelství (titul)' },
+  { klic: 'misto', popis: 'Místo vydání (titul)' },
   { klic: 'kusu', popis: 'Počet', doCsv: (kusu) => Number(kusu) || 1 },
   { klic: 'policka', popis: 'Polička' },
   { klic: 'poznamka', popis: 'Poznámka' },
@@ -744,8 +750,11 @@ const NAZVY_SLOUPCU = [
   ['autor', ['autor']],
   ['rok', ['rok']],
   ['vydavatel', ['vydavatel', 'nakladatel']],
+  // Místo vydání musí přijít před poličkou: „Místo“ je slovo, které by se
+  // jinak chytlo na umístění knihy v regálu, a to je něco úplně jiného.
+  ['misto', ['místo', 'misto']],
   ['kusu', ['počet', 'pocet', 'kusů', 'kusu', 'ks', 'exemplář']],
-  ['policka', ['polička', 'policka', 'umístění', 'umisteni', 'signatura', 'místo']],
+  ['policka', ['polička', 'policka', 'umístění', 'umisteni', 'signatura', 'regál']],
   ['poznamka', ['poznámka', 'poznamka']],
 ];
 
@@ -756,8 +765,13 @@ function poleSloupce(zahlavi) {
   for (const sloupec of SLOUPCE) {
     if (sloupec.popis.toLowerCase() === nazev) return sloupec.klic;
   }
+
+  // U volnější shody se zahodí upřesnění v závorce: knihovní systém rozlišuje
+  // „Rok vydání (titul)“ od údajů exempláře, ale slovo „titul“ v závorce by se
+  // chytlo na sloupec s názvem knihy.
+  const bezZavorky = nazev.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
   for (const [klic, slova] of NAZVY_SLOUPCU) {
-    if (slova.some((slovo) => nazev.includes(slovo))) return klic;
+    if (slova.some((slovo) => bezZavorky.includes(slovo))) return klic;
   }
   return null;
 }

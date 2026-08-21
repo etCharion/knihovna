@@ -83,7 +83,7 @@ const dotazyNaGoogle = [];
 
 /**
  * Napodobuje chování služby: na `isbn:<číslo>` vrátí jednu knihu, na
- * `intitle:`/`inauthor:` všechny, na které dotaz sedí.
+ * `intitle:`/`inauthor:`/`inpublisher:` všechny, na které dotaz sedí.
  */
 function najdiVKnihovne(dotaz) {
   const jakoPolozka = (isbn) => ({
@@ -96,16 +96,22 @@ function najdiVKnihovne(dotaz) {
   const cislo = dotaz.replace('isbn:', '');
   if (KNIHOVNA[cislo]) return [jakoPolozka(cislo)];
 
-  const hledane = [...dotaz.matchAll(/(?:intitle|inauthor):"([^"]*)"/g)]
-    .map((nalez) => nalez[1].toLowerCase());
+  const hledane = [...dotaz.matchAll(/(intitle|inauthor|inpublisher):"([^"]*)"/g)]
+    .map((nalez) => [nalez[1], nalez[2].toLowerCase()]);
   if (!hledane.length) return [];
 
+  // Každý operátor se dívá do svého pole — jinak by `inpublisher` sedělo
+  // i na knihu, která to slovo má jen v názvu, a test by nic neověřil.
+  const poleProOperator = (kniha, operator) => (
+    operator === 'inauthor' ? (kniha.authors || []).join(' ')
+    : operator === 'inpublisher' ? (kniha.publisher || '')
+    : [kniha.title, kniha.subtitle].filter(Boolean).join(' ')
+  ).toLowerCase();
+
   return Object.keys(KNIHOVNA)
-    .filter((isbn) => {
-      const kniha = KNIHOVNA[isbn];
-      const text = [kniha.title, kniha.subtitle, ...(kniha.authors || [])].join(' ').toLowerCase();
-      return hledane.every((cast) => text.includes(cast));
-    })
+    .filter((isbn) => hledane.every(
+      ([operator, cast]) => poleProOperator(KNIHOVNA[isbn], operator).includes(cast)
+    ))
     .map(jakoPolozka);
 }
 
@@ -636,6 +642,60 @@ t((await stranka.locator('tbody tr').first().locator('td').nth(5).innerText()) =
 t((await nalezy.first().innerText()).includes('už v knihovně'),
   'v nabídce se hned označí jako přidaná', await nalezy.first().innerText());
 
+/* ------------------------------ hledání podle nakladatelství a roku */
+
+// Stejný titul vyšel u víc nakladatelů — bez těchhle polí by z nabídky
+// nešlo poznat, které vydání je to v poličce.
+await stranka.fill('#vstup-nazev', 'Kniha');
+await stranka.fill('#vstup-autor', '');
+await stranka.fill('#vstup-vydavatel', 'Karolinum');
+await stranka.click('#form-podle-nazvu button[type=submit]');
+await stranka.waitForSelector('#vysledky-hledani:not([hidden]) .vysledek', { timeout: 10000 });
+t((await nalezy.count()) === 1, 'nakladatelství zúží nabídku', String(await nalezy.count()));
+t((await nalezy.first().innerText()).includes('Karolinum'),
+  'a zůstane kniha od něj', await nalezy.first().innerText());
+t(dotazyNaGoogle.some((d) => d.includes('inpublisher:"Karolinum"')),
+  'nakladatelství jde do dotazu vlastním operátorem',
+  dotazyNaGoogle[dotazyNaGoogle.length - 1]);
+
+// Rok se do Google Books poslat nedá, filtruje se až na hotové nabídce.
+await stranka.fill('#vstup-vydavatel', '');
+await stranka.fill('#vstup-rok', '2015');
+await stranka.click('#form-podle-nazvu button[type=submit]');
+await stranka.waitForSelector('#vysledky-hledani:not([hidden]) .vysledek', { timeout: 10000 });
+t((await nalezy.count()) === 1, 'rok nechá v nabídce jen vydání z toho roku',
+  String(await nalezy.count()));
+t((await nalezy.first().innerText()).includes('2015'), 'a je to to správné',
+  await nalezy.first().innerText());
+t((await stranka.locator('#vysledky-hledani .napoveda').innerText()).includes('jiném roce'),
+  'pod nabídkou se řekne, že kvůli roku nálezy vypadly',
+  await stranka.locator('#vysledky-hledani .napoveda').innerText());
+
+// Nesmyslný rok se nesmí tiše ignorovat — uživatel by čekal, že se podle
+// něj hledalo.
+await stranka.fill('#vstup-rok', '90. léta');
+await stranka.click('#form-podle-nazvu button[type=submit]');
+await stranka.waitForTimeout(300);
+t((await stranka.locator('#hlaska').innerText()).includes('čtyři číslice'),
+  'nesmyslný rok se odmítne', await stranka.locator('#hlaska').innerText());
+
+/* ------------------------------------- vymazání všech polí hledání */
+
+// Zapomenuté nakladatelství z minulého dotazu by ten další tiše zúžilo.
+await stranka.fill('#vstup-nazev', 'Kniha');
+await stranka.fill('#vstup-autor', 'Novák');
+await stranka.fill('#vstup-vydavatel', 'Karolinum');
+await stranka.fill('#vstup-rok', '2015');
+await stranka.click('#btn-vymazat-hledani');
+await stranka.waitForTimeout(200);
+
+for (const pole of ['#vstup-nazev', '#vstup-autor', '#vstup-vydavatel', '#vstup-rok']) {
+  t((await stranka.inputValue(pole)) === '', `${pole} se jedním tlačítkem vyprázdní`,
+    await stranka.inputValue(pole));
+}
+t(await stranka.locator('#vysledky-hledani').isHidden(),
+  'a nabídka z minulého hledání zmizí');
+
 /* ------------------------------------------------------------- poličky */
 
 await stranka.evaluate(() => localStorage.clear());
@@ -827,7 +887,7 @@ t(csv.startsWith('﻿'), 'CSV má BOM, aby Excel poznal diakritiku');
 // ve školním systému — jinak by se sloupce musely párovat ručně.
 const hlavickaCsv = csv.replace(/^﻿/, '').split('\r\n')[0];
 t(hlavickaCsv === 'Unikátní identifikátor definice knihy (ISBN);Autor;Název;' +
-  'Rok vydání (titul);Vydavatelství (titul);Počet;Polička;Poznámka',
+  'Rok vydání (titul);Vydavatelství (titul);Místo vydání (titul);Počet;Polička;Poznámka',
   'CSV má hlavičku s názvy polí importu, oddělenou středníky', hlavickaCsv);
 t(csv.includes('"text s ; středníkem a ""uvozovkami"""'), 'CSV zaobalilo středník i uvozovky');
 
@@ -836,8 +896,10 @@ const radekCsv = csv.replace(/^﻿/, '').split('\r\n')[1];
 t(radekCsv.startsWith('978-80-242-6870-5;'), 'CSV má ISBN s pomlčkami, aby ho Excel nebral jako číslo',
   radekCsv.slice(0, 30));
 t(!/^9788024268705/.test(radekCsv), 'a ne jako holé číslo');
-t(radekCsv.includes(';Česká kniha s háčky;2015;Karolinum;3;'),
+t(radekCsv.includes(';Česká kniha s háčky;2015;Karolinum;'),
   'a údaje stojí ve sloupcích, které je slibují', radekCsv);
+t(radekCsv.includes(';2015;Karolinum;;3;'),
+  'prázdné místo vydání má vlastní sloupec před počtem kusů', radekCsv);
 
 /* ------------------------------------------- odeslání zálohy ze systému */
 

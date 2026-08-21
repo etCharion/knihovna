@@ -375,8 +375,9 @@ nadpis('Export do CSV');
 {
   const csv = doCsv([
     { isbn: '9788024268705', nazev: 'Kniha z Karolina', autor: 'Jan Novák', rok: '2015',
-      vydavatel: 'Karolinum', poznamka: 'půjčeno Petrovi', kusu: 3, pridano: '2026-08-12',
-      zdroj: 'Knihovny.cz', stran: '253', jazyk: 'cs', policka: 'Obývák dole' },
+      vydavatel: 'Karolinum', misto: 'Praha', poznamka: 'půjčeno Petrovi', kusu: 3,
+      pridano: '2026-08-12', zdroj: 'Knihovny.cz', stran: '253', jazyk: 'cs',
+      policka: 'Obývák dole' },
     { isbn: '9780306406157', nazev: 'Bez kusů', autor: '' },
   ]);
   const radky = csv.replace(/^﻿/, '').split('\r\n');
@@ -391,7 +392,7 @@ nadpis('Export do CSV');
     hlavicka.slice(1, 3).join(', '));
   t(hlavicka.join(';') ===
       'Unikátní identifikátor definice knihy (ISBN);Autor;Název;Rok vydání (titul);' +
-      'Vydavatelství (titul);Počet;Polička;Poznámka',
+      'Vydavatelství (titul);Místo vydání (titul);Počet;Polička;Poznámka',
     'názvy sloupců odpovídají polím importu', hlavicka.join(';'));
 
   // Kvůli tomuhle celá změna vznikla: pod hlavičkou musí stát ten údaj,
@@ -401,6 +402,8 @@ nadpis('Export do CSV');
   t(hodnota('Počet') === '3', 'pod „Počet“ je počet kusů', hodnota('Počet'));
   t(hodnota('Rok vydání (titul)') === '2015', 'rok vydání');
   t(hodnota('Vydavatelství (titul)') === 'Karolinum', 'vydavatelství');
+  t(hodnota('Místo vydání (titul)') === 'Praha', 'místo vydání',
+    hodnota('Místo vydání (titul)'));
   t(hodnota('Polička') === 'Obývák dole', 'polička, aby se kniha dala najít na místě',
     hodnota('Polička'));
   t(hodnota('Poznámka') === 'půjčeno Petrovi', 'poznámka');
@@ -417,7 +420,7 @@ nadpis('Export do CSV');
   t(!hlavicka.includes('Zdroj údajů') && !hlavicka.includes('Přidáno'),
     'vnitřní údaje aplikace v exportu nejsou', hlavicka.join(';'));
   t(SLOUPCE.every((s) =>
-      ['isbn', 'autor', 'nazev', 'rok', 'vydavatel', 'kusu', 'policka', 'poznamka']
+      ['isbn', 'autor', 'nazev', 'rok', 'vydavatel', 'misto', 'kusu', 'policka', 'poznamka']
         .includes(s.klic)),
     'exportuje se jen to, co aplikace umí vyplnit',
     SLOUPCE.map((s) => s.klic).join(', '));
@@ -489,6 +492,7 @@ nadpis('Český katalog (Knihovny.cz)');
           secondary: { 'Novák, Jan': { role: ['ill'] } },
         },
         publishers: ['Fragment,'],
+        placesOfPublication: ['Havlíčkův Brod :'],
         publicationDates: ['2006'],
         languages: ['cze'],
         physicalDescriptions: ['253 s. : il. ; 21 cm'],
@@ -503,6 +507,7 @@ nadpis('Český katalog (Knihovny.cz)');
   t(kniha.autor === 'Petra Svobodová, Jan Novák', 'jména se otočí a letopočty zmizí',
     kniha.autor);
   t(kniha.vydavatel === 'Fragment', 'z nakladatele zmizí koncová čárka', kniha.vydavatel);
+  t(kniha.misto === 'Havlíčkův Brod', 'z místa vydání zmizí oddělovací dvojtečka', kniha.misto);
   t(kniha.rok === '2006', 'rok vydání');
   t(kniha.stran === '253', 'počet stran se vytáhne z popisu rozsahu', kniha.stran);
   t(kniha.jazyk === 'cs', 'kód jazyka se převede z cze na cs', kniha.jazyk);
@@ -512,6 +517,8 @@ nadpis('Český katalog (Knihovny.cz)');
   t(adresa.includes('lookfor=9788073355067'), 'hledá se podle holého čísla');
   t(adresa.includes('field%5B%5D=title') && adresa.includes('field%5B%5D=authors'),
     'vyžádaná pole jsou v dotazu — jinak by se vrátil jen identifikátor');
+  t(adresa.includes('field%5B%5D=placesOfPublication'),
+    'a mezi nimi i místo vydání');
 }
 
 {
@@ -707,6 +714,148 @@ nadpis('Hledání podle názvu a autora');
   await hledejPodleTextu({ autor: 'Němcová' });
   t(adresy.some((u) => u.includes('knihovny.cz') && u.includes('type=Author')),
     'samotný autor v autorech');
+}
+
+nadpis('Hledání podle nakladatelství a roku');
+{
+  // Nakladatelství umí každý zdroj po svém — kontroluje se, že se to k němu
+  // opravdu dostane, a ne že se tiše zahodí.
+  const adresy = [];
+  globalThis.fetch = (url) => (adresy.push(url), odpoved({}));
+
+  await hledejPodleTextu({ nazev: 'Babička', vydavatel: 'Vitalis' });
+
+  const google = adresy.find((u) => u.includes('googleapis'));
+  t(decodeURIComponent(google).includes('inpublisher:"Vitalis"'),
+    'Google Books dostane nakladatelství operátorem inpublisher', google);
+  t(adresy.some((u) => u.includes('crossref') && u.includes('query.publisher-name=Vitalis')),
+    'Crossref jako query.publisher-name',
+    adresy.find((u) => u.includes('crossref')));
+  t(adresy.some((u) => u.includes('openlibrary.org/search.json') && u.includes('publisher=Vitalis')),
+    'Open Library jako vlastní parametr publisher',
+    adresy.find((u) => u.includes('openlibrary.org/search.json')));
+
+  // Rejstřík jen pro název už nestačí — hledá se napříč poli i s nakladatelem.
+  const katalog = adresy.find((u) => u.includes('knihovny.cz'));
+  t(katalog.includes('type=AllFields') && decodeURIComponent(katalog).includes('Vitalis'),
+    'katalog hledá napříč poli a nakladatele má v dotazu', decodeURIComponent(katalog));
+}
+
+{
+  const adresy = [];
+  globalThis.fetch = (url) => (adresy.push(url), odpoved({}));
+
+  await hledejPodleTextu({ nazev: 'Babička', rok: '2019' });
+
+  t(adresy.some((u) => decodeURIComponent(u)
+      .includes('filter=from-pub-date:2019-01-01,until-pub-date:2019-12-31')),
+    'Crossref umí rok omezit datem vydání',
+    decodeURIComponent(adresy.find((u) => u.includes('crossref')) || ''));
+  t(decodeURIComponent(adresy.find((u) => u.includes('knihovny.cz'))).includes('2019'),
+    'katalog dostane rok jako další slovo dotazu');
+
+  // Google Books ani Open Library se na rok zeptat nedá — nesmí se jim ale
+  // podstrčit jako název nebo autor.
+  t(!decodeURIComponent(adresy.find((u) => u.includes('googleapis'))).includes('2019'),
+    'do Google Books se rok neplete');
+}
+
+{
+  // Nesmyslný rok se zdrojů ptát nedá — bere se, jako by pole bylo prázdné.
+  const adresy = [];
+  globalThis.fetch = (url) => (adresy.push(url), odpoved({}));
+  await hledejPodleTextu({ nazev: 'Babička', rok: '90. léta' });
+  t(!adresy.some((u) => u.includes('crossref') && u.includes('filter=')),
+    'jen čtyřmístný letopočet se posílá dál');
+}
+
+{
+  // Samotný rok: Google Books ani Open Library nemají podle čeho hledat,
+  // a prázdný dotaz jim poslat nesmíme.
+  const adresy = [];
+  globalThis.fetch = (url) => (adresy.push(url), odpoved({}));
+  await hledejPodleTextu({ rok: '2019' });
+  t(!adresy.some((u) => u.includes('googleapis')),
+    'na samotný rok se Google Books neptáme', adresy.join(' | '));
+  t(!adresy.some((u) => u.includes('openlibrary.org/search.json')),
+    'ani Open Library');
+  t(adresy.some((u) => u.includes('crossref')) && adresy.some((u) => u.includes('knihovny.cz')),
+    'zdroje, které rok umí, se ale zeptají', adresy.join(' | '));
+}
+
+{
+  // Zdroje na rok nedají vždycky, proto se hotová nabídka projde ještě jednou.
+  globalThis.fetch = (url) => {
+    if (url.includes('knihovny.cz')) {
+      return odpoved({ records: [
+        { title: 'Babička', publicationDates: ['2019'], cleanIsbn: '9788072030682' },
+        { title: 'Babička', publicationDates: ['1972'], cleanIsbn: '9788024268705' },
+        // Nález bez roku — chybějící údaj není nesouhlas, musí projít.
+        { title: 'Babička bez roku', cleanIsbn: '9788073355067' },
+      ] });
+    }
+    return odpoved({});
+  };
+
+  const { vysledky, mimoRok } = await hledejPodleTextu({ nazev: 'Babička', rok: '2019' });
+  t(vysledky.length === 2, 'nález z jiného roku do nabídky nejde', String(vysledky.length));
+  t(vysledky.some((k) => k.nazev === 'Babička bez roku'),
+    'nález, který rok neuvádí, se nezahazuje');
+  t(mimoRok === 1, 'a řekne se, kolik nálezů kvůli roku vypadlo', String(mimoRok));
+
+  const { vysledky: bezRoku, mimoRok: nula } = await hledejPodleTextu({ nazev: 'Babička' });
+  t(bezRoku.length === 3 && nula === 0, 'bez vyplněného roku se nefiltruje nic',
+    String(bezRoku.length));
+}
+
+{
+  // Prázdný dotaz nikam neodejde ani teď, když polí přibylo.
+  let dotazu = 0;
+  globalThis.fetch = () => (dotazu++, odpoved({}));
+  const { vysledky } = await hledejPodleTextu({ nazev: ' ', autor: '', vydavatel: '  ', rok: '' });
+  t(vysledky.length === 0 && dotazu === 0, 'čtyři prázdná pole se nikoho neptají',
+    String(dotazu));
+}
+
+nadpis('Místo vydání');
+{
+  // Místo vydání umí každý zdroj jinak — a Google Books vůbec.
+  globalThis.fetch = (url) => {
+    if (url.includes('knihovny.cz')) return odpoved({ records: [] });
+    if (url.includes('googleapis')) return odpoved({ totalItems: 0 });
+    if (url.includes('crossref')) {
+      return odpoved({ message: { items: [
+        { type: 'monograph', title: ['Kniha'], publisher: 'Springer',
+          'publisher-location': 'Berlin', ISBN: ['9788072030682'] },
+      ] } });
+    }
+    return odpoved({});
+  };
+  const kniha = await najdiKnihu('9788072030682');
+  t(kniha.misto === 'Berlin', 'Crossref hlásí místo jako publisher-location', kniha.misto);
+
+  globalThis.fetch = (url) => url.includes('openlibrary.org/api/books')
+    ? odpoved({ 'ISBN:9788072030682': {
+        title: 'Kniha', publish_places: [{ name: 'Praha' }] } })
+    : Promise.reject(new Error('jiný zdroj'));
+  const zOl = await najdiKnihu('9788072030682');
+  t(zOl.misto === 'Praha', 'Open Library jako publish_places', zOl.misto);
+}
+
+{
+  // Při hledání podle názvu se místo nabídne stejně jako ostatní údaje.
+  globalThis.fetch = (url) => url.includes('knihovny.cz')
+    ? odpoved({ records: [{
+        title: 'Babička',
+        publishers: ['Vitalis'],
+        placesOfPublication: ['Praha :'],
+        publicationDates: ['2019'],
+        cleanIsbn: '9788072030682',
+      }] })
+    : odpoved({});
+
+  const { vysledky } = await hledejPodleTextu({ nazev: 'Babička' });
+  t(vysledky[0]?.misto === 'Praha', 'nález nese i místo vydání', vysledky[0]?.misto);
 }
 
 {

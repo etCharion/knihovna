@@ -1,5 +1,6 @@
 /**
- * Dohledání údajů o titulu — podle ISBN nebo ISSN, nebo podle názvu a autora.
+ * Dohledání údajů o titulu — podle ISBN nebo ISSN, nebo podle názvu, autora,
+ * nakladatelství a roku.
  *
  * Zdroje se ptají všechny najednou a výsledky se slučují: jeden zná název
  * a autora, jiný má jen obálku — dohromady dají úplnější záznam, než kdyby
@@ -43,7 +44,7 @@ function popisChyby(chyba) {
 }
 
 /** Pole, která se z jednotlivých zdrojů skládají dohromady. */
-const POLE = ['nazev', 'autor', 'vydavatel', 'rok', 'stran', 'jazyk', 'obalka'];
+const POLE = ['nazev', 'autor', 'vydavatel', 'misto', 'rok', 'stran', 'jazyk', 'obalka'];
 
 /**
  * Kolik nálezů se bere z každého zdroje a kolik se jich nakonec nabídne.
@@ -170,6 +171,8 @@ function zGoogleBooks(polozka) {
     nazev: [polozka.title, polozka.subtitle].filter(Boolean).join(': '),
     autor: (polozka.authors || []).join(', '),
     vydavatel: polozka.publisher || '',
+    // Místo vydání Google Books v metadatech nevede — zůstane na ostatních.
+    misto: '',
     rok: rok(polozka.publishedDate),
     stran: polozka.pageCount ? String(polozka.pageCount) : '',
     jazyk: polozka.language || '',
@@ -208,16 +211,22 @@ async function googleBooks(isbn) {
 }
 
 /**
- * Hledání podle názvu a autora v Google Books.
+ * Hledání podle názvu, autora a nakladatelství v Google Books.
  *
  * Uvozovky drží víceslovný název pohromadě — bez nich by `intitle:Babička
  * Němcová` znamenalo „v názvu Babička a kdekoliv Němcová“.
+ *
+ * Rok tady chybí schválně: dotazovací jazyk Google Books na něj operátor nemá.
+ * Uplatní se až na složené nabídce (viz `hledejPodleTextu`). A když je vyplněný
+ * jen rok, nemá se Google na co ptát — prázdný dotaz by jen vrátil chybu.
  */
-async function googleBooksPodleTextu({ nazev, autor }) {
+async function googleBooksPodleTextu({ nazev, autor, vydavatel }) {
   const vUvozovkach = (text) => `"${text.replace(/"/g, ' ').trim()}"`;
   const casti = [];
   if (nazev) casti.push(`intitle:${vUvozovkach(nazev)}`);
   if (autor) casti.push(`inauthor:${vUvozovkach(autor)}`);
+  if (vydavatel) casti.push(`inpublisher:${vUvozovkach(vydavatel)}`);
+  if (!casti.length) return [];
 
   const polozky = await googleBooksDotaz(casti.join(' '), NALEZU_ZE_ZDROJE);
   return polozky.map((polozka) => {
@@ -242,10 +251,15 @@ async function googleBooksPodleTextu({ nazev, autor }) {
  * které mají i knihy vydané před rokem 1989. Pod jakým jménem ho tenhle
  * katalog vydává, se nedalo ověřit, proto se říká o víc variant najednou:
  * neplatná jména polí VuFind mlčky přeskočí, takže dotaz navíc nic nestojí.
+ *
+ * Poslední dvě jsou místo vydání ze stejného soudku: VuFind ho z katalogizačního
+ * záznamu (MARC 260$a / 264$a) vydává jako `placesOfPublication`, ale jistota
+ * to není, a tak se i tady říká o obě jména najednou.
  */
 const POLE_KNIHOVNY = ['title', 'authors', 'publishers', 'publicationDates', 'languages',
                        'physicalDescriptions', 'cleanIsbn', 'isbns', 'cleanIssn', 'issns',
-                       'nbn', 'cleanNbn', 'nbns'];
+                       'nbn', 'cleanNbn', 'nbns',
+                       'placesOfPublication', 'publicationPlaces'];
 
 async function knihovnyCzDotaz(lookfor, type, limit) {
   const parametry = new URLSearchParams({ lookfor, type, limit: String(limit) });
@@ -270,6 +284,8 @@ function zKnihovnyCz(zaznam) {
     nazev: uklidNazev(zaznam.title),
     autor: autori.map(uklidAutora).filter(Boolean).join(', '),
     vydavatel: uklidNazev(zaznam.publishers?.[0] || ''),
+    // „Praha :“ — dvojtečka odděluje místo od nakladatele, ke jménu města nepatří.
+    misto: uklidNazev(zaznam.placesOfPublication?.[0] || zaznam.publicationPlaces?.[0] || ''),
     rok: rok(zaznam.publicationDates?.[0]),
     stran: stran ? stran[1] : '',
     jazyk: (zaznam.languages?.[0] || '').replace(/^cze$/, 'cs'),
@@ -287,17 +303,24 @@ async function knihovnyCz(kod) {
 }
 
 /**
- * Hledání podle názvu a autora v Knihovnách.cz.
+ * Hledání podle vyplněných polí v Knihovnách.cz.
  *
- * Katalog má pro každé pole vlastní rejstřík, takže když je vyplněné jen
- * jedno, ptáme se přesně do něj (`Title`, `Author`). Na obojí najednou
- * rejstřík není — tam se hledá napříč všemi poli.
+ * Katalog má vlastní rejstřík pro název (`Title`) a pro autora (`Author`),
+ * takže když je vyplněné jen jedno z nich, ptáme se přesně do něj. Pro
+ * nakladatelství ani rok se na spolehlivý rejstřík spolehnout nedá, a na víc
+ * polí najednou rejstřík není — v obou případech se proto hledá napříč všemi
+ * poli (`AllFields`), kde jsou nakladatel i rok vydání také zahrnuté.
  */
-async function knihovnyCzPodleTextu({ nazev, autor }) {
-  const { lookfor, type } =
-    nazev && autor ? { lookfor: `${nazev} ${autor}`, type: 'AllFields' }
-    : nazev ? { lookfor: nazev, type: 'Title' }
-    : { lookfor: autor, type: 'Author' };
+function dotazDoKnihoven({ nazev, autor, vydavatel, rok }) {
+  const vyplnena = [nazev, autor, vydavatel, rok].filter(Boolean);
+
+  if (vyplnena.length === 1 && nazev) return { lookfor: nazev, type: 'Title' };
+  if (vyplnena.length === 1 && autor) return { lookfor: autor, type: 'Author' };
+  return { lookfor: vyplnena.join(' '), type: 'AllFields' };
+}
+
+async function knihovnyCzPodleTextu(dotaz) {
+  const { lookfor, type } = dotazDoKnihoven(dotaz);
 
   const zaznamy = await knihovnyCzDotaz(lookfor, type, NALEZU_ZE_ZDROJE);
   return zaznamy.map((zaznam) => {
@@ -327,7 +350,7 @@ async function knihovnyCzPodleTextu({ nazev, autor }) {
 const CROSSREF = 'https://api.crossref.org';
 
 /** Jen tahle pole, jinak odpověď táhne i celé seznamy citací. */
-const CROSSREF_POLE = 'title,author,publisher,issued,ISBN,type';
+const CROSSREF_POLE = 'title,author,publisher,publisher-location,issued,ISBN,type';
 
 const CROSSREF_TYPY_KNIH = ['book', 'monograph', 'edited-book', 'reference-book', 'book-set'];
 
@@ -342,6 +365,7 @@ function zCrossref(polozka) {
     nazev: polozka.title[0],
     autor: jmena.join(', '),
     vydavatel: polozka.publisher || '',
+    misto: polozka['publisher-location'] || '',
     rok: rok(polozka.issued?.['date-parts']?.[0]?.[0]),
     stran: '',
     jazyk: '',
@@ -365,6 +389,7 @@ async function crossref(kod) {
       nazev: casopis.title,
       autor: '',
       vydavatel: casopis.publisher || '',
+      misto: '',
       rok: '',
       stran: '',
       jazyk: '',
@@ -378,10 +403,16 @@ async function crossref(kod) {
   return zCrossref(knihy[0]);
 }
 
-async function crossrefPodleTextu({ nazev, autor }) {
+/**
+ * Rok umí Crossref omezit přesně — datem vydání od–do. Je to jediný ze zdrojů,
+ * který se na konkrétní rok zeptat dá, takže se toho využije.
+ */
+async function crossrefPodleTextu({ nazev, autor, vydavatel, rok }) {
   const parametry = new URLSearchParams({ rows: String(NALEZU_ZE_ZDROJE) });
   if (nazev) parametry.set('query.bibliographic', nazev);
   if (autor) parametry.set('query.author', autor);
+  if (vydavatel) parametry.set('query.publisher-name', vydavatel);
+  if (rok) parametry.set('filter', `from-pub-date:${rok}-01-01,until-pub-date:${rok}-12-31`);
 
   const knihy = await crossrefKnihy(parametry);
   return knihy.map((polozka) => {
@@ -404,6 +435,7 @@ async function openLibraryPodleIsbn(isbn) {
     nazev: [polozka.title, polozka.subtitle].filter(Boolean).join(': '),
     autor: (polozka.authors || []).map((a) => a.name).join(', '),
     vydavatel: (polozka.publishers || []).map((v) => v.name).join(', '),
+    misto: (polozka.publish_places || []).map((m) => m.name).filter(Boolean)[0] || '',
     rok: rok(polozka.publish_date),
     stran: polozka.number_of_pages ? String(polozka.number_of_pages) : '',
     jazyk: (polozka.languages || []).map((j) => j.key.split('/').pop()).join(', '),
@@ -425,7 +457,7 @@ async function openLibrary(isbn) {
 }
 
 /**
- * Hledání podle názvu a autora v Open Library.
+ * Hledání podle údajů o knize v Open Library.
  *
  * Odpověď je tu na úrovni díla, ne konkrétního vydání: rok je rok prvního
  * vydání a pole `isbn` obsahuje čísla všech vydání dohromady. Vybrané ISBN
@@ -433,7 +465,10 @@ async function openLibrary(isbn) {
  * výběru se proto údaje ještě jednou dohledají podle samotného čísla.
  */
 async function openLibraryRejstrik(parametry) {
-  parametry.set('fields', 'title,subtitle,author_name,first_publish_year,publisher,isbn,language,cover_i');
+  parametry.set(
+    'fields',
+    'title,subtitle,author_name,first_publish_year,publisher,publish_place,isbn,language,cover_i'
+  );
 
   const data = await ziskej(`https://openlibrary.org/search.json?${parametry}`);
   return (data?.docs || [])
@@ -442,6 +477,7 @@ async function openLibraryRejstrik(parametry) {
       nazev: [dokument.title, dokument.subtitle].filter(Boolean).join(': '),
       autor: (dokument.author_name || []).join(', '),
       vydavatel: (dokument.publisher || [])[0] || '',
+      misto: (dokument.publish_place || [])[0] || '',
       rok: rok(dokument.first_publish_year),
       stran: '',
       jazyk: (dokument.language || [])[0] || '',
@@ -452,10 +488,20 @@ async function openLibraryRejstrik(parametry) {
     }));
 }
 
-async function openLibraryPodleTextu({ nazev, autor }) {
+/**
+ * Rok se sem neposílá. Open Library totiž zná `first_publish_year` — rok, kdy
+ * dílo vyšlo poprvé, ne rok konkrétního vydání, na které se uživatel ptá.
+ * Filtrovat podle něj by u dotisků zahodilo právě ty správné nálezy; rok se
+ * proto uplatní až na složené nabídce.
+ *
+ * Na samotný rok se tedy tenhle zdroj ptát nemá na co.
+ */
+async function openLibraryPodleTextu({ nazev, autor, vydavatel }) {
   const parametry = new URLSearchParams({ limit: String(NALEZU_ZE_ZDROJE) });
   if (nazev) parametry.set('title', nazev);
   if (autor) parametry.set('author', autor);
+  if (vydavatel) parametry.set('publisher', vydavatel);
+  if (![nazev, autor, vydavatel].some(Boolean)) return [];
   return openLibraryRejstrik(parametry);
 }
 
@@ -621,7 +667,8 @@ export async function najdiKnihu(kodVstup, { prubezne } = {}) {
 }
 
 /**
- * Najde tituly podle názvu, autora, nebo obojího.
+ * Najde tituly podle názvu, autora, nakladatelství a roku — stačí kterékoliv
+ * z nich, vyplněná pole se sčítají.
  *
  * Na rozdíl od hledání podle čísla tu není jedna správná odpověď — vrací se
  * proto nabídka, ze které si uživatel vybere. Záznamy o témže titulu se z více
@@ -634,10 +681,16 @@ export async function najdiKnihu(kodVstup, { prubezne } = {}) {
  * o témž titulu z více zdrojů; kde není, stojí každý nález sám za sebe —
  * není totiž podle čeho poznat, že jde o tutéž knihu.
  */
-export async function hledejPodleTextu({ nazev = '', autor = '' } = {}) {
-  const dotaz = { nazev: nazev.trim(), autor: autor.trim() };
-  const prazdno = { vysledky: [], selhalyZdroje: [], nedostupne: false };
-  if (!dotaz.nazev && !dotaz.autor) return prazdno;
+export async function hledejPodleTextu({ nazev = '', autor = '', vydavatel = '', rok = '' } = {}) {
+  const dotaz = {
+    nazev: nazev.trim(),
+    autor: autor.trim(),
+    vydavatel: vydavatel.trim(),
+    // Jen čtyřmístný letopočet; „90. léta“ ani „asi 1998“ se zdrojů zeptat nedá.
+    rok: String(rok).trim().match(/^\d{4}$/) ? String(rok).trim() : '',
+  };
+  const prazdno = { vysledky: [], selhalyZdroje: [], nedostupne: false, mimoRok: 0 };
+  if (!Object.values(dotaz).some(Boolean)) return prazdno;
 
   const odpovedi = await Promise.allSettled(ZDROJE.map((zdroj) => zdroj.hledejText(dotaz)));
 
@@ -682,9 +735,22 @@ export async function hledejPodleTextu({ nazev = '', autor = '' } = {}) {
     }
   });
 
-  const vysledky = nabidka
+  // Na rok se každý zdroj dívá jinak a Google Books se na něj zeptat vůbec
+  // nedá — projde se proto ještě jednou hotová nabídka. Nález, který rok
+  // neuvádí, se nezahazuje: chybějící údaj není nesouhlas.
+  const vRoce = (nalez) => !dotaz.rok || !nalez.rok || nalez.rok === dotaz.rok;
+  const odpovidajici = nabidka.filter(vRoce);
+
+  const vysledky = odpovidajici
     .slice(0, NALEZU_CELKEM)
     .map(({ zdroje, ...kniha }) => ({ ...kniha, zdroj: zdroje.join(', ') }));
 
-  return { vysledky, selhalyZdroje: selhaly, nedostupne: !nekdoOdpovedel };
+  return {
+    vysledky,
+    selhalyZdroje: selhaly,
+    nedostupne: !nekdoOdpovedel,
+    // Kolik nálezů vypadlo kvůli roku — bez tohohle čísla by uživatel viděl
+    // jen podivně krátkou nabídku a nevěděl proč.
+    mimoRok: nabidka.length - odpovidajici.length,
+  };
 }
