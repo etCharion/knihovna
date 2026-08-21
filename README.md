@@ -119,8 +119,8 @@ sloupci a knihovna se prohlíží vpravo**, obojí naráz.
 2. Prohlížeč se poprvé zeptá na **přístup ke kameře** — je potřeba povolit.
 3. Namiřte čárový kód knihy do rámečku. Po přečtení telefon pípne a zavibruje.
 4. Objeví se **nabídka s dohledanými údaji**. Zkontrolujte je, u víc výtisků
-   přepište *Kusů* a klepněte na *Přidat do knihovny* (nebo zmáčkněte Enter) —
-   teprve tím se kniha uloží.
+   přepište *Kusů* a klepněte na *Přidat* (nebo zmáčkněte Enter) — teprve tím
+   se kniha uloží.
 5. Skenujte dál — knihovnu tak projdete kus po kuse. Co právě přibylo, je
    vidět pod skenovacím okénkem.
 6. Na kartě **Záloha** klepněte na **Export jen nových** a máte tabulku
@@ -142,9 +142,18 @@ nepatří. Proto se **nic neukládá samo**. Po každém načtení se otevře na
   neznají, a u míst vydání, která zdroje často neuvádějí vůbec.
 - **ISBN** — když je číslo špatně, přepište ho a klepněte na *Vyhledat*.
   Údaje se dohledají znovu podle opraveného čísla.
-- **Přidat do knihovny** knihu uloží, **Zahodit** (nebo klávesa Esc) ji zahodí
-  a nic se neuloží. Tlačítka drží dole na obrazovce, ať se k nim nemusí
-  rolovat, a **Enter** knihu rovnou přidá. Pak můžete skenovat dál.
+- Dole jsou **čtyři tlačítka** — drží na obrazovce, ať se k nim nemusí rolovat:
+
+  | Tlačítko | Co udělá |
+  |---|---|
+  | **Zavřít** | nabídku zavře a nic neuloží (totéž udělá klávesa Esc) |
+  | **↩ Hledat dál** | nic neuloží a vrátí se na hledání, ze kterého kniha přišla |
+  | **✓ Přidat** | knihu uloží a nabídku zavře (totéž udělá klávesa Enter) |
+  | **✓ Přidat a hledat dál** | knihu uloží a rovnou se vrátí na hledání |
+
+  Po *Přidat* se dá skenovat dál, obě tlačítka *hledat dál* jsou pro chvíli,
+  kdy knihy nepřibývají skenováním, ale z nabídky nálezů — viz
+  [hledání podle údajů o knize](#kniha-bez-isbn--hledání-podle-údajů-o-knize).
 
 Údaje se do nabídky vyplňují **průběžně**, jak jednotlivé databáze odpovídají:
 nečeká se na tu nejpomalejší. Co si mezitím opíšete z knihy sami, vám pozdější
@@ -259,6 +268,13 @@ předvyplněné údaji z nálezu. Ty se přitom ještě jednou dohledají podle 
 takže záznam vyjde stejně úplný, jako kdyby se kniha naskenovala; doplníte
 poličku a knihu potvrdíte. Kniha, kterou knihovna už má, je v nabídce
 označená i s tím, na kterých poličkách stojí.
+
+**Z potvrzení vedou dvě cesty zpátky k nálezům:** *↩ Hledat dál* se vrátí
+bez uložení, *✓ Přidat a hledat dál* knihu nejdřív uloží. Nabídka nálezů
+zůstane, jak byla — jen u právě přidané knihy hned přiskočí značka *už
+v knihovně*, takže z jednoho dotazu jde pobrat všechna vydání za sebou, aniž
+by se hledání pokaždé otevíralo znovu. Po ručně zadaném ISBN vrátí tatáž
+tlačítka rovnou pole na další číslo.
 
 > **Nabízí se všechno, co se najde** — i knihy úplně bez čísla. Ty se dají
 > uložit stejně jako ostatní, jen se u nich nepočítají kusy; viz *Kniha úplně

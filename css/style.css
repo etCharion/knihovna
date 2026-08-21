@@ -857,15 +857,35 @@ input[type="text"], input[type="search"], input[type="number"] {
 
 .list-lista {
   flex: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 9px;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   background: var(--karta);
   border-top: 1px solid var(--ram-jemny);
 }
 
-.list-lista .tlacitko-nebezpecne { flex: 0 0 auto; }
-.list-lista .tlacitko-hlavni { flex: 1 1 auto; }
+/*
+ * Čtyři tlačítka ve dvou řádcích: nahoře odchod z nabídky, dole přidání.
+ * Popisy se na úzkém telefonu klidně zalomí — je lepší dvouřádkový text
+ * než uříznuté slovo.
+ */
+.list-lista .tlacitko-nebezpecne,
+.list-lista .tlacitko-vedlejsi,
+.list-lista .tlacitko-hlavni {
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: .92rem;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+/* Přidat a hledat dál je rovnocenný úkon, hlavní tlačítko ale zůstane hlavní. */
+.list-lista .tlacitko-hlavni.jemny {
+  color: var(--hlavni);
+  background: var(--hlavni-jemne);
+  border-color: transparent;
+}
 
 .pocet-kusu-radek {
   display: flex;

@@ -110,7 +110,9 @@ const akceVyberu = [prvek('btn-vyber-odeslano'), prvek('btn-vyber-neodeslano'), 
 
 const prekryv = prvek('prekryv');
 const btnPridat = prvek('btn-pridat');
+const btnPridatHledat = prvek('btn-pridat-hledat');
 const btnZahodit = prvek('btn-zahodit');
+const btnZpetHledat = prvek('btn-zpet-hledat');
 const btnZnovu = prvek('btn-znovu');
 const nabidkaStav = prvek('nabidka-stav');
 const nabidkaUpozorneni = prvek('nabidka-upozorneni');
@@ -914,6 +916,8 @@ function vykresli() {
 
 let nabizenaKniha = null;
 let poradiNabidky = 0;
+/** Odkud se nabídka otevřela: 'sken' | 'isbn' | 'nazev'. Podle toho se vrací hledání. */
+let puvodNabidky = 'sken';
 
 function jeNabidkaOtevrena() {
   return !prekryv.hidden;
@@ -935,6 +939,16 @@ function udajeSeLisi(ulozena) {
   );
 }
 
+/**
+ * Popisy obou tlačítek, která knihu ukládají. Podrobnost — přibývá kus?
+ * přepíšou se údaje? — nese hlavní tlačítko; to druhé k tomu jen dodává
+ * „a zpátky na hledání“, takže mu stačí stejná značka.
+ */
+function nastavPopisyPridani(popis, znacka = '✓') {
+  btnPridat.textContent = popis;
+  btnPridatHledat.textContent = `${znacka} Přidat a hledat dál`;
+}
+
 function zkontrolujDuplicitu() {
   const isbn = rozpoznej(poleNabidky.isbn.value)?.kod || '';
   const policka = ulozne.upravNazevPolicky(poleNabidky.policka.value);
@@ -949,7 +963,7 @@ function zkontrolujDuplicitu() {
       'Kniha nemá ISBN ani jiné číslo. Uložit se dá, ale nejde poznat, jestli ji ' +
       'v knihovně už nemáte — každé přidání proto založí nový řádek.';
     nabidkaUpozorneni.hidden = false;
-    btnPridat.textContent = '✓ Přidat do knihovny';
+    nastavPopisyPridani('✓ Přidat');
     return;
   }
 
@@ -961,7 +975,7 @@ function zkontrolujDuplicitu() {
         'a údaje se přepíšou těmi z nabídky.'
       : `Tenhle titul už ${kde} máte (${naPolicce.kusu || 1}×). Přibude ${kusuNavic}.`;
     nabidkaUpozorneni.hidden = false;
-    btnPridat.textContent = prepsat ? '➕ Přidat kus a opravit údaje' : `➕ Přidat ${kusuNavic}`;
+    nastavPopisyPridani(prepsat ? '➕ Přidat kus a opravit údaje' : `➕ Přidat ${kusuNavic}`, '➕');
     return;
   }
 
@@ -972,7 +986,7 @@ function zkontrolujDuplicitu() {
   } else {
     nabidkaUpozorneni.hidden = true;
   }
-  btnPridat.textContent = '✓ Přidat do knihovny';
+  nastavPopisyPridani('✓ Přidat');
 }
 
 function vykresliShrnuti() {
@@ -1015,8 +1029,9 @@ function vyplnNabidku(kniha, { jenChybejici = false } = {}) {
   vykresliShrnuti();
 }
 
-function otevriNabidku(isbn, zHledani = null) {
+function otevriNabidku(isbn, zHledani = null, puvod = 'sken') {
   poradiNabidky++;
+  puvodNabidky = puvod;
   rucneUpravena.clear();
   nabizenaKniha = Object.fromEntries(POLE_O_KNIZE.map((pole) => [pole, zHledani?.[pole] || '']));
   poleNabidky.isbn.value = naFormat(isbn);
@@ -1028,6 +1043,18 @@ function otevriNabidku(isbn, zHledani = null) {
   document.body.classList.add('bez-posunu');
   zkontrolujDuplicitu();
   btnPridat.focus();
+}
+
+/**
+ * Zpátky na hledání. Vrací se tam, odkud kniha přišla: po ručně zadaném čísle
+ * se otevře pole na další ISBN, jinak hledání podle názvu — i s nálezy
+ * z minulého dotazu, aby šlo rovnou klepnout na další knihu ze stejné nabídky.
+ * Do vyplněného seznamu nálezů se schválně nezaostřuje: na telefonu by přes
+ * něj vyskočila klávesnice.
+ */
+function zpetNaHledani() {
+  const rezim = puvodNabidky === 'isbn' ? 'isbn' : 'nazev';
+  otevriRucne(rezim, { zaostri: rezim === 'isbn' || panelNalezu.hidden });
 }
 
 function zavriNabidku() {
@@ -1097,7 +1124,7 @@ async function vyhledejDoNabidky(isbn, zHledani = null) {
   }
 }
 
-function pridejZNabidky() {
+function pridejZNabidky({ potomHledat = false } = {}) {
   const zadane = poleNabidky.isbn.value.trim();
   const rozpoznane = rozpoznej(zadane);
 
@@ -1143,18 +1170,24 @@ function pridejZNabidky() {
   ulozne.nastavAktivniPolicku(policka);
   pridatDoNedavnych(zaznam.id);
   zavriNabidku();
+  // Nálezy z hledání překreslí až vykresli() níž — u právě přidané knihy se tím
+  // rovnou objeví značka „už v knihovně“.
+  if (potomHledat) zpetNaHledani();
   obnovPolicky();
   vykresli();
 
   const kde = policka ? ` na poličku „${policka}“` : '';
+  const dal = potomHledat
+    ? ' Vyberte z nabídky další knihu, nebo hledejte znovu.'
+    : ' Můžete skenovat dál.';
   const nazevKnihy = zaznam.nazev || naFormat(isbn) || 'kniha bez čísla';
   if (duplicita) {
     oznam(`„${nazevKnihy}“ už tam byla — teď je ${pocetSlovem(zaznam.kusu, 'kus', 'kusy', 'kusů')}.`, 'varovani', snimek);
     const sloveso = pribylo === 1 ? 'Přibyl' : pribylo < 5 ? 'Přibyly' : 'Přibylo';
-    nastavStav(`${sloveso} ${pocetSlovem(pribylo, 'kus', 'kusy', 'kusů')}${kde}. Můžete skenovat dál.`);
+    nastavStav(`${sloveso} ${pocetSlovem(pribylo, 'kus', 'kusy', 'kusů')}${kde}.${dal}`);
   } else {
     oznam(`✓ ${nazevKnihy}${zaznam.autor ? ' — ' + zaznam.autor : ''}`, 'uspech', snimek);
-    nastavStav(`Přidáno${kde}. Můžete skenovat dál.`);
+    nastavStav(`Přidáno${kde}.${dal}`);
   }
 }
 
@@ -1168,7 +1201,7 @@ function doplnChybejici(kniha, zHledani) {
   return { ...doplnena, nalezeno: !!doplnena.nazev };
 }
 
-async function zpracujKod(vstupniKod, zHledani = null) {
+async function zpracujKod(vstupniKod, zHledani = null, puvod = null) {
   const rozpoznane = rozpoznej(vstupniKod);
 
   if (!rozpoznane && !zHledani) {
@@ -1179,28 +1212,38 @@ async function zpracujKod(vstupniKod, zHledani = null) {
     return;
   }
   if (jeNabidkaOtevrena()) {
-    nastavStav('Nejdřív dořešte načtenou knihu — přidejte ji, nebo zahoďte.');
+    nastavStav('Nejdřív dořešte načtenou knihu — přidejte ji, nebo zavřete nabídku.');
     return;
   }
 
   zavriRucne();
   const kod = rozpoznane?.kod || '';
   skener.potvrzeniSkenu();
-  otevriNabidku(kod, zHledani);
+  otevriNabidku(kod, zHledani, puvod || (zHledani ? 'nazev' : 'sken'));
   nastavStav(kod
     ? `Načteno ${naFormat(kod)} — potvrďte přidání.`
     : 'Kniha bez čísla — zkontrolujte údaje a potvrďte přidání.');
   await vyhledejDoNabidky(kod, zHledani);
 }
 
-btnPridat.addEventListener('click', pridejZNabidky);
+btnPridat.addEventListener('click', () => pridejZNabidky());
+btnPridatHledat.addEventListener('click', () => pridejZNabidky({ potomHledat: true }));
 
 btnZahodit.addEventListener('click', () => {
   const isbn = rozpoznej(poleNabidky.isbn.value)?.kod;
   zavriNabidku();
   nastavStav(isbn
-    ? `Titul ${naFormat(isbn)} zahozen — nic se neuložilo. Můžete skenovat dál.`
-    : 'Zahozeno — nic se neuložilo.');
+    ? `Titul ${naFormat(isbn)} jsme nepřidali — nic se neuložilo. Můžete skenovat dál.`
+    : 'Zavřeno — nic se neuložilo.');
+});
+
+btnZpetHledat.addEventListener('click', () => {
+  const isbn = rozpoznej(poleNabidky.isbn.value)?.kod;
+  zavriNabidku();
+  zpetNaHledani();
+  nastavStav(isbn
+    ? `Titul ${naFormat(isbn)} jsme nepřidali. Vyberte z nabídky jiný, nebo hledejte znovu.`
+    : 'Kniha se nepřidala. Vyberte z nabídky jinou, nebo hledejte znovu.');
 });
 
 btnZnovu.addEventListener('click', async () => {
@@ -1689,13 +1732,13 @@ btnCislo.addEventListener('click', async () => {
 
 /* ------------------------------------------------------------ ruční zadání a hledání */
 
-function otevriRucne(rezim) {
+function otevriRucne(rezim, { zaostri = true } = {}) {
   rezimIsbn.hidden = rezim !== 'isbn';
   rezimNazev.hidden = rezim !== 'nazev';
   rucneNadpis.textContent = rezim === 'nazev' ? 'Hledat podle názvu' : 'Zadat ISBN ručně';
   sheetRucne.hidden = false;
   document.body.classList.add('bez-posunu');
-  (rezim === 'nazev' ? prvek('vstup-nazev') : prvek('vstup-isbn')).focus();
+  if (zaostri) (rezim === 'nazev' ? prvek('vstup-nazev') : prvek('vstup-isbn')).focus();
 }
 
 function zavriRucne() {
@@ -1735,7 +1778,7 @@ prvek('form-rucne').addEventListener('submit', async (u) => {
     return;
   }
   vstup.value = '';
-  await zpracujKod(hodnota);
+  await zpracujKod(hodnota, null, 'isbn');
 });
 
 /**
