@@ -166,14 +166,6 @@
         <p class="stav" id="stav-zalohy">Tabulka je uložená jen v tomto zařízení.</p>
       </div>
 
-      <button id="btn-sdilet" class="tlacitko-hlavni" hidden>📤 Odeslat zálohu (Disk, e-mail…)</button>
-
-      <div class="tlacitka-radek">
-        <button id="btn-email" class="tlacitko-vedlejsi">✉️ E-mailem</button>
-        <button id="btn-slozka" class="tlacitko-vedlejsi" hidden>📁 Zálohovat do složky…</button>
-        <button id="btn-slozka-vypnout" class="tlacitko-nebezpecne" hidden>Vypnout složku</button>
-      </div>
-
       <div class="tlacitka-radek">
         <button id="btn-csv-nove" class="tlacitko-vedlejsi zvyrazneny" hidden>⬇️ Export jen nových</button>
         <button id="btn-csv" class="tlacitko-vedlejsi">⬇️ Export CSV</button>
@@ -185,30 +177,27 @@
       <p class="napoveda" id="napoveda-export"></p>
 
       <details class="rozbalovaci">
-        <summary>Jak seznam dostat na Disk Google nebo do e-mailu</summary>
-        <p class="napoveda">
-          <strong>Odeslat zálohu</strong> otevře v telefonu systémovou nabídku sdílení —
-          Disk, Gmail, WhatsApp nebo uložení do souborů. Tabulka jde jako skutečná
-          příloha (CSV i JSON). Na počítači tlačítko nebývá.
-        </p>
-        <p class="napoveda">
-          <strong>E-mailem</strong> otevře rozepsanou zprávu se seznamem knih v textu
-          a soubory zálohy stáhne, abyste je mohli přiložit.
-        </p>
-        <p class="napoveda">
-          <strong>Zálohovat do složky</strong> (Chrome nebo Edge na počítači) jednou
-          vybere složku — ideálně tu, kterou synchronizuje Disk Google nebo OneDrive —
-          a aplikace do ní po každé změně sama zapíše zálohu i denní kopii
-          do podsložky <code>zalohy/</code>.
-        </p>
+        <summary>K čemu je které tlačítko</summary>
         <p class="napoveda">
           <strong>Export jen nových</strong> pošle do knihovního systému jen knihy,
           které tam ještě nešly, a označí je za odeslané. Kniha, u které se něco
           změní, se mezi nové vrátí sama.
         </p>
         <p class="napoveda">
+          <strong>Export CSV</strong> stáhne celou tabulku — soubor se otevře rovnou
+          v Excelu a sloupce se jmenují stejně jako pole importu v knihovním systému.
+        </p>
+        <p class="napoveda">
+          <strong>Záloha JSON</strong> je soubor pro aplikaci samotnou: vrátí se z něj
+          všechno včetně poliček, poznámek a počtu kusů.
+        </p>
+        <p class="napoveda">
           <strong>Načíst</strong> bere zálohu JSON i tabulku CSV — hodí se k obnovení
           i k načtení toho, co knihovna už má.
+        </p>
+        <p class="napoveda">
+          Stažený soubor si uložte i někam mimo tohle zařízení — na Disk, do e-mailu
+          nebo na flashku. Tabulka jinak žije jen v tomhle prohlížeči.
         </p>
       </details>
     </div>
