@@ -766,6 +766,43 @@ await otevriHledaniPodleNazvu(stranka);
 t((await nalezy.first().innerText()).includes('už v knihovně'),
   'v nabídce se hned označí jako přidaná', await nalezy.first().innerText());
 
+/* ------------------------------ z nabídky knihy zpátky na hledání */
+
+// Nálezů čeká v nabídce obvykle víc. Po jedné knize se proto hledání nemá
+// zavřít nadobro — z nabídky vedou zpátky dvě cesty: bez uložení i s ním.
+await stranka.fill('#vstup-autor', '');
+await stranka.click('#form-podle-nazvu button[type=submit]');
+await stranka.waitForFunction(
+  () => document.querySelectorAll('#vysledky-hledani .vysledek').length === 2,
+  null, { timeout: 10000 });
+
+const druhyNalez = nalezy.nth(1);
+const stavDruheho = () => druhyNalez.locator('.vysledek-stav').innerText();
+t((await druhyNalez.innerText()).includes('Kniha se starým ISBN'), 'druhý nález je jiná kniha',
+  await druhyNalez.innerText());
+t((await stavDruheho()).includes('(1×)'), 'a knihovna ji zatím má jednou', await stavDruheho());
+
+// Hledat dál se vrátí k nabídce nálezů, aniž by cokoliv uložil.
+await druhyNalez.click();
+await pockejNaNabidku(stranka);
+await stranka.click('#btn-zpet-hledat');
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+t(await stranka.locator('#rucne-rezim-nazev').isVisible(),
+  'Hledat dál vrátí z nabídky rovnou do hledání');
+t((await nalezy.count()) === 2, 'a nálezy z minulého dotazu v něm zůstanou',
+  String(await nalezy.count()));
+t((await stavDruheho()).includes('(1×)'), 'kniha se přitom neuložila', await stavDruheho());
+
+// Přidat a hledat dál knihu uloží a hledání nechá otevřené.
+await druhyNalez.click();
+await pockejNaNabidku(stranka);
+await stranka.click('#btn-pridat-hledat');
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+t(await stranka.locator('#rucne-rezim-nazev').isVisible(),
+  'Přidat a hledat dál nechá hledání otevřené');
+t((await stavDruheho()).includes('(2×)'), 'a uložený kus je v nabídce hned vidět',
+  await stavDruheho());
+
 /* ------------------------------ hledání podle nakladatelství a roku */
 
 // Stejný titul vyšel u víc nakladatelů — bez těchhle polí by z nabídky
