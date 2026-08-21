@@ -9,7 +9,7 @@
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#EDE7D9",
-  "theme_color": "#22453A",
+  "theme_color": "#1F3A5F",
   "categories": ["books", "productivity", "utilities"],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },

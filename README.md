@@ -662,7 +662,8 @@ v daném zařízení opravdu funguje.
 
 ```
 index.html               rozhraní aplikace
-css/style.css            vzhled (mobil na prvním místě, světlý i tmavý režim)
+css/style.css            vzhled (mobil na prvním místě, světlý i tmavý režim);
+                         akcentní barva je nahoře v jedné proměnné
 js/app.js                propojení všech částí a vykreslení obrazovek
 js/scanner.js            kamera a čtení čárových kódů
 js/ocr.js                čtení ISBN z vytištěného čísla
