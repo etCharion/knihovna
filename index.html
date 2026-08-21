@@ -26,12 +26,24 @@
   <section class="karta" id="sekce-skener">
     <div class="kamera" id="kamera" hidden>
       <video id="video" playsinline muted></video>
-      <div class="hledacek" aria-hidden="true"></div>
+      <div class="hledacek" id="hledacek" aria-hidden="true"></div>
+
+      <!-- Čtecí proužek pro tištěné číslo. Je úzký schválně: když se četlo
+           z velkého rámečku, pletla se do ISBN čísla těsně nad ním a pod ním
+           (rok vydání, cena). Proužkem jde posouvat a měnit mu výšku, takže
+           uživatel přesně určí, který řádek se čte. -->
+      <div class="ctecka" id="ctecka" hidden>
+        <div class="ctecka-pruh" id="ctecka-pruh" role="group" aria-label="Čtecí proužek — tahem se posune, spodní úchyt mění výšku">
+          <span class="ctecka-uchyt" id="ctecka-uchyt" aria-hidden="true"></span>
+        </div>
+        <p class="ctecka-napoveda">Zaměřte řádek s číslem ISBN — proužek jde posunout tahem.</p>
+      </div>
     </div>
 
     <div class="tlacitka">
       <button id="btn-skenovat" class="tlacitko hlavni">📷 Spustit skenování</button>
-      <button id="btn-cislo" class="tlacitko" hidden>🔢 Přečíst číslo ISBN</button>
+      <button id="btn-cislo" class="tlacitko" hidden>🔢 Číst tištěné číslo</button>
+      <button id="btn-kod" class="tlacitko" hidden>⊞ Zpět na čárový kód</button>
       <button id="btn-svetlo" class="tlacitko" hidden>🔦 Světlo</button>
     </div>
 
@@ -140,6 +152,11 @@
     <div class="zahlavi-tabulky">
       <h2>Moje knihy <span class="pocet" id="pocet">0</span></h2>
       <select id="filtr-policka" aria-label="Zobrazit jen jednu poličku"></select>
+      <select id="filtr-stav" aria-label="Zobrazit podle odeslání do knihovního systému">
+        <option value="vse">Odeslané i nové</option>
+        <option value="nove">Jen nové (neodeslané)</option>
+        <option value="odeslane">Jen odeslané</option>
+      </select>
       <input id="hledat" type="search"
              placeholder="Hledat v tabulce…"
              title="Hledá napříč názvem, autorem, rokem, vydavatelem, místem vydání, číslem, poličkou i poznámkou"
@@ -150,12 +167,25 @@
       <button id="btn-smazat-vse" class="tlacitko nebezpecne">🗑️ Vymazat vše</button>
     </div>
 
+    <!-- Lišta hromadných akcí. Ukáže se, až je něco zaškrtnuté. -->
+    <div class="lista-vyberu" id="lista-vyberu" hidden>
+      <span class="pocet-vyberu" id="pocet-vyberu"></span>
+      <select id="hromadna-policka" aria-label="Přesunout vybrané na poličku"></select>
+      <button type="button" class="tlacitko" id="btn-vyber-odeslano">✓ Označit za odeslané</button>
+      <button type="button" class="tlacitko" id="btn-vyber-neodeslano">↩ Vrátit mezi nové</button>
+      <button type="button" class="tlacitko nebezpecne" id="btn-vyber-smazat">🗑️ Smazat vybrané</button>
+      <button type="button" class="tlacitko" id="btn-vyber-zrusit">Zrušit výběr</button>
+    </div>
+
     <p class="prazdno" id="prazdno">Zatím tu nic není. Naskenujte první knihu.</p>
 
     <div class="obal-tabulky">
       <table id="tabulka" hidden>
         <thead>
           <tr>
+            <th class="sloupec-vyber">
+              <input type="checkbox" id="vybrat-vse" aria-label="Vybrat všechny zobrazené knihy">
+            </th>
             <th class="sloupec-obalka"></th>
             <th data-radit="nazev">Název</th>
             <th data-radit="autor">Autor</th>
@@ -163,6 +193,7 @@
             <th data-radit="vydavatel">Vydavatel</th>
             <th data-radit="misto">Místo</th>
             <th data-radit="isbn">ISBN / ISSN</th>
+            <th data-radit="kusu" class="sloupec-kusu">Kusů</th>
             <th data-radit="policka">Polička</th>
             <th>Poznámka</th>
             <th class="sloupec-akce"></th>
@@ -175,7 +206,7 @@
 
   <!-- ------------------------------------------------ záloha -->
   <section class="karta" id="sekce-zaloha">
-    <h2>Záloha</h2>
+    <h2>Záloha a export</h2>
     <p class="stav" id="stav-zalohy" role="status" aria-live="polite">
       Tabulka je uložená jen v tomhle zařízení.
     </p>
@@ -190,11 +221,14 @@
     </div>
 
     <div class="tlacitka">
-      <button id="btn-csv" class="tlacitko">⬇️ Export CSV</button>
+      <button id="btn-csv-nove" class="tlacitko hlavni" hidden>⬇️ Export jen nových</button>
+      <button id="btn-csv" class="tlacitko">⬇️ Export CSV (vše)</button>
       <button id="btn-json" class="tlacitko">⬇️ Záloha JSON</button>
-      <button id="btn-import" class="tlacitko">⬆️ Načíst zálohu</button>
-      <input id="soubor-import" type="file" accept=".json,application/json" hidden>
+      <button id="btn-import" class="tlacitko">⬆️ Načíst zálohu nebo CSV</button>
+      <input id="soubor-import" type="file" accept=".json,.csv,application/json,text/csv" hidden>
     </div>
+
+    <p class="napoveda" id="napoveda-export"></p>
 
     <details class="rozbalovaci">
       <summary>Jak seznam dostat na Disk Google nebo do e-mailu</summary>
@@ -217,8 +251,16 @@
         v podsložce <code>zalohy/</code> i jednu kopii na každý den.
       </p>
       <p class="napoveda">
-        <strong>Záloha JSON</strong> je ta, kterou jde tlačítkem <strong>Načíst
-        zálohu</strong> nahrát zpátky do aplikace. CSV je na čtení v Excelu.
+        <strong>Export jen nových</strong> pošle do knihovního systému jen ty knihy,
+        které tam ještě nešly, a označí je za odeslané. Katalogizovat se tak dá na
+        několikrát, aniž by druhý import knihovnu zdvojil. Kniha, u které se něco
+        změní, se mezi nové vrátí sama.
+      </p>
+      <p class="napoveda">
+        <strong>Načíst zálohu nebo CSV</strong> bere zálohu <strong>JSON</strong>
+        i tabulku <strong>CSV</strong> — vlastní export i soubor odjinud. Hodí se
+        k obnovení tabulky a hlavně k načtení toho, co knihovna už má: u naskenované
+        knihy pak aplikace rovnou napíše, že ji v seznamu máte.
       </p>
     </details>
   </section>
@@ -234,80 +276,112 @@
 
 <!-- ----------------------------------- potvrzení každé načtené knihy -->
 <!-- Nic se neuloží samo. Načtený kód se nejdřív ukáže tady, aby šlo
-     opravit špatně přečtené ISBN a upravit údaje ještě před přidáním. -->
+     opravit špatně přečtené ISBN a upravit údaje ještě před přidáním.
+
+     Rozvržení míří na rychlost: nahoře je vidět, co se načetlo, uprostřed
+     jen to, co se u každé knihy opravdu rozhoduje (polička a počet kusů),
+     a tlačítka drží dole na očích. Pole k úpravě jsou schovaná — potřebuje
+     je zlomek knih, ale rolovat kvůli nim by se muselo u každé. -->
 <div class="prekryv" id="prekryv" hidden>
   <section class="karta nabidka" role="dialog" aria-modal="true" aria-labelledby="nabidka-nadpis">
-    <h2 id="nabidka-nadpis">Přidat knihu?</h2>
 
-    <p class="stav" id="nabidka-stav" role="status" aria-live="polite"></p>
-    <p class="poznamka-nabidky" id="nabidka-upozorneni" hidden></p>
+    <div class="nabidka-obsah">
+      <h2 id="nabidka-nadpis">Přidat knihu?</h2>
 
-    <div class="pole">
-      <label for="nabidka-isbn">ISBN / ISSN / ČNB</label>
-      <div class="radek-formulare">
-        <input id="nabidka-isbn" type="text" inputmode="numeric" autocomplete="off"
-               autocapitalize="characters" autocorrect="off" spellcheck="false"
-               placeholder="978-80-…, 1234-5678, cnb…">
-        <button
-          type="button"
-          id="btn-klavesnice-nabidka"
-          class="tlacitko prepinac"
-          aria-pressed="false"
-          aria-label="Přepnout klávesnici na písmena"
-          title="Přepnout na klávesnici s písmeny — pro čísla končící X">X</button>
-        <button type="button" class="tlacitko" id="btn-znovu">🔎 Vyhledat</button>
+      <div class="shrnuti">
+        <img id="nabidka-obalka" class="shrnuti-obalka" alt="" hidden>
+        <div class="shrnuti-text">
+          <strong class="shrnuti-nazev" id="shrnuti-nazev">Hledám…</strong>
+          <span class="shrnuti-autor" id="shrnuti-autor"></span>
+          <span class="shrnuti-cislo" id="shrnuti-cislo"></span>
+        </div>
       </div>
-      <p class="napoveda">
-        Přečetl skener číslo špatně? Opravte ho a vyhledejte znovu. Písmeno
-        <b>X</b> na konci starších čísel napíšete po přepnutí klávesnice
-        tlačítkem <b>X</b>. Kniha žádné číslo nemá? Nechte pole prázdné —
-        uloží se i tak.
-      </p>
-    </div>
 
-    <div class="pole">
-      <label for="nabidka-nazev">Název</label>
-      <input id="nabidka-nazev" type="text" autocomplete="off">
-    </div>
+      <p class="stav" id="nabidka-stav" role="status" aria-live="polite"></p>
+      <p class="poznamka-nabidky" id="nabidka-upozorneni" hidden></p>
 
-    <div class="pole">
-      <label for="nabidka-autor">Autor</label>
-      <input id="nabidka-autor" type="text" autocomplete="off">
-    </div>
-
-    <div class="vedle-sebe">
-      <div class="pole">
-        <label for="nabidka-rok">Rok</label>
-        <input id="nabidka-rok" type="text" inputmode="numeric" autocomplete="off">
+      <div class="vedle-sebe">
+        <div class="pole">
+          <label for="nabidka-policka">Polička</label>
+          <select id="nabidka-policka"></select>
+        </div>
+        <div class="pole">
+          <label for="nabidka-kusu">Kusů</label>
+          <input id="nabidka-kusu" type="number" inputmode="numeric"
+                 min="1" max="9999" step="1" value="1">
+        </div>
       </div>
-      <div class="pole">
-        <label for="nabidka-vydavatel">Vydavatel</label>
-        <input id="nabidka-vydavatel" type="text" autocomplete="off">
-      </div>
-      <div class="pole">
-        <label for="nabidka-misto">Místo vydání</label>
-        <input id="nabidka-misto" type="text" autocomplete="off">
-      </div>
+
+      <details class="rozbalovaci" id="nabidka-upravy">
+        <summary>Upravit údaje</summary>
+
+        <div class="pole">
+          <label for="nabidka-isbn">ISBN / ISSN / ČNB</label>
+          <div class="radek-formulare">
+            <input id="nabidka-isbn" type="text" inputmode="numeric" autocomplete="off"
+                   autocapitalize="characters" autocorrect="off" spellcheck="false"
+                   placeholder="978-80-…, 1234-5678, cnb…">
+            <button
+              type="button"
+              id="btn-klavesnice-nabidka"
+              class="tlacitko prepinac"
+              aria-pressed="false"
+              aria-label="Přepnout klávesnici na písmena"
+              title="Přepnout na klávesnici s písmeny — pro čísla končící X">X</button>
+            <button type="button" class="tlacitko" id="btn-znovu">🔎 Vyhledat</button>
+          </div>
+          <p class="napoveda">
+            Přečetl skener číslo špatně? Opravte ho a vyhledejte znovu. Písmeno
+            <b>X</b> na konci starších čísel napíšete po přepnutí klávesnice
+            tlačítkem <b>X</b>. Kniha žádné číslo nemá? Nechte pole prázdné —
+            uloží se i tak.
+          </p>
+        </div>
+
+        <div class="pole">
+          <label for="nabidka-nazev">Název</label>
+          <input id="nabidka-nazev" type="text" autocomplete="off">
+        </div>
+
+        <div class="pole">
+          <label for="nabidka-autor">Autor</label>
+          <input id="nabidka-autor" type="text" autocomplete="off">
+        </div>
+
+        <div class="vedle-sebe">
+          <div class="pole">
+            <label for="nabidka-rok">Rok</label>
+            <input id="nabidka-rok" type="text" inputmode="numeric" autocomplete="off">
+          </div>
+          <div class="pole">
+            <label for="nabidka-vydavatel">Vydavatel</label>
+            <input id="nabidka-vydavatel" type="text" autocomplete="off">
+          </div>
+          <div class="pole">
+            <label for="nabidka-misto">Místo vydání</label>
+            <input id="nabidka-misto" type="text" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="pole">
+          <label for="nabidka-poznamka">Poznámka</label>
+          <input id="nabidka-poznamka" type="text" autocomplete="off">
+        </div>
+      </details>
     </div>
 
-    <div class="pole">
-      <label for="nabidka-policka">Polička</label>
-      <select id="nabidka-policka"></select>
-    </div>
-
-    <div class="pole">
-      <label for="nabidka-poznamka">Poznámka</label>
-      <input id="nabidka-poznamka" type="text" autocomplete="off">
-    </div>
-
-    <div class="tlacitka">
+    <div class="nabidka-lista">
       <button type="button" class="tlacitko hlavni" id="btn-pridat">✓ Přidat do knihovny</button>
       <button type="button" class="tlacitko nebezpecne" id="btn-zahodit">Zahodit</button>
     </div>
+
   </section>
 </div>
 
-<div id="hlaska" class="hlaska" role="status" aria-live="polite" hidden></div>
+<div id="hlaska" class="hlaska" role="status" aria-live="polite" hidden>
+  <span id="hlaska-text"></span>
+  <button type="button" class="hlaska-zpet" id="btn-zpet" hidden>Zpět</button>
+</div>
 
 <script type="module" src="js/app.js"></script>
 </body>

@@ -19,17 +19,39 @@ let stream = null;
 let stopka = null;      // funkce, která zastaví běžící dekódování
 let bezi = false;
 
-/** Jeden a ten samý kód umí kamera přečíst 30× za sekundu — tohle to utlumí. */
+/**
+ * Jeden a ten samý kód umí kamera přečíst 30× za sekundu — tohle to utlumí.
+ *
+ * Vrací i `zapomen()`: po potvrzení knihy je totiž další stejný kód záměr
+ * (dva výtisky téhož titulu), ne zákmit kamery, a čekat s druhou knihou
+ * v ruce na doběhnutí prodlevy nedává smysl.
+ */
 function omezOpakovani(zpetneVolani, prodlevaMs = 2500) {
   let posledniKod = null;
   let posledniCas = 0;
-  return (kod) => {
+  const hlas = (kod) => {
     const ted = Date.now();
     if (kod === posledniKod && ted - posledniCas < prodlevaMs) return;
     posledniKod = kod;
     posledniCas = ted;
     zpetneVolani(kod);
   };
+  hlas.zapomen = () => {
+    posledniKod = null;
+  };
+  return hlas;
+}
+
+/** Nastavené tlumení běžícího skenování — kvůli `zapomenPosledniKod()`. */
+let tlumeni = null;
+
+/**
+ * Zahodí paměť posledního načteného kódu, takže tentýž kód projde hned znovu.
+ * Volá se po zavření nabídky: uživatel má v ruce další knihu a jestli je to
+ * druhý výtisk téhož titulu, nemá na co čekat.
+ */
+export function zapomenPosledniKod() {
+  tlumeni?.zapomen();
 }
 
 function nactiSkript(url) {
@@ -149,6 +171,7 @@ export async function spust(video, onKod) {
   video.muted = true;
 
   const hlaseni = omezOpakovani(onKod);
+  tlumeni = hlaseni;
 
   try {
     if (await nativniPodpora()) {
@@ -177,6 +200,7 @@ export async function spust(video, onKod) {
 export function zastav(video) {
   stopka?.();
   stopka = null;
+  tlumeni = null;
   stream?.getTracks().forEach((stopa) => stopa.stop());
   stream = null;
   if (video) video.srcObject = null;

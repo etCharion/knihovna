@@ -17,8 +17,16 @@
 import { jeIssn, jeKnizniKod, normalizuj, normalizujCnb, normalizujIssn, ocisti,
          rozpoznej } from './isbn.js';
 
-// Na mobilních datech bývají odpovědi pomalé, proto raději delší strpení.
-const TIMEOUT_MS = 12000;
+/**
+ * Kdy se čekání na zdroj vzdá.
+ *
+ * Na čekání už nestojí celá nabídka — údaje se vyplňují průběžně, jak
+ * odpovědi chodí (viz `najdiKnihu`), takže limit rozhoduje jen o tom, kdy se
+ * mlčící zdroj ohlásí jako nedostupný. Proto stačí kratší doba než dřívějších
+ * dvanáct vteřin, ale ne tak krátká, aby se za nedostupný označil zdroj, který
+ * na pomalých mobilních datech jen potřebuje chvíli.
+ */
+const TIMEOUT_MS = 8000;
 
 /**
  * Převede technickou chybu na něco, co jde ukázat uživateli.
@@ -555,63 +563,107 @@ export function nahradniObalka(isbn) {
 }
 
 /**
- * Zeptá se zdrojů a poskládá z odpovědí jeden záznam. Ptají se jen ty, které
- * o daný druh čísla vůbec zavadí — u ISSN je to jiná sestava než u ISBN.
+ * Poskládá záznam z odpovědí, které zatím dorazily.
  *
- * Když se titul nenajde, vrátí prázdná pole i s informací, jestli zdroje
- * mlčely (výpadek sítě, vyčerpaný limit dotazů), nebo odpověděly, že ho
- * neznají. To jsou dvě různé situace a uživatel k nim potřebuje jinou radu.
+ * Skládá se vždycky **v pořadí zdrojů**, ne v pořadí, ve kterém odpovědi
+ * přišly. Na tom záleží: kdyby rozhodovalo pořadí příchodu, u české knihy by
+ * vyhrál anglický název z Google Books jen proto, že jeho server je rychlejší
+ * než Knihovny.cz. Takhle český katalog přebije dřívější odpověď ve chvíli,
+ * kdy dorazí — v nabídce se pole přepíše na správnou hodnotu.
  */
-export async function najdiKnihu(kodVstup) {
-  const rozpoznane = rozpoznej(kodVstup);
-  const isbn = rozpoznane?.kod || ocisti(kodVstup);
-  const jeCnbCislo = rozpoznane?.cislo === 'ČNB';
-  const zdroje = ZDROJE.filter((zdroj) => zdroj.cisla.includes(rozpoznane?.cislo || 'ISBN'));
-
-  const odpovedi = await Promise.allSettled(zdroje.map((zdroj) => zdroj.hledej(isbn)));
-
+function slozZOdpovedi(zdroje, stav) {
   const kniha = Object.fromEntries(POLE.map((pole) => [pole, '']));
   const prispeli = [];
   const selhaly = [];
   let nekdoOdpovedel = false;
 
-  odpovedi.forEach((odpoved, poradi) => {
-    const zdroj = zdroje[poradi];
+  zdroje.forEach((zdroj, poradi) => {
+    const odpoved = stav[poradi];
+    if (!odpoved) return;                 // tenhle zdroj ještě neodpověděl
 
-    if (odpoved.status === 'rejected') {
-      selhaly.push(`${zdroj.nazev} (${popisChyby(odpoved.reason)})`);
-      console.warn(`Zdroj ${zdroj.nazev} selhal:`, odpoved.reason);
+    if (odpoved.chyba) {
+      selhaly.push(`${zdroj.nazev} (${popisChyby(odpoved.chyba)})`);
       return;
     }
     nekdoOdpovedel = true;
-    if (!odpoved.value) return;
+    if (!odpoved.data) return;
 
     let pomohl = false;
     for (const pole of POLE) {
-      if (!kniha[pole] && odpoved.value[pole]) {
-        kniha[pole] = odpoved.value[pole];
+      if (!kniha[pole] && odpoved.data[pole]) {
+        kniha[pole] = odpoved.data[pole];
         pomohl = true;
       }
     }
     if (pomohl) prispeli.push(zdroj.nazev);
   });
 
-  const nalezeno = !!kniha.nazev;
-  if (!nalezeno) {
-    console.warn('Titul nenalezen', isbn, { selhaly, odpovedeloZdroju: prispeli.length });
-  }
+  return { kniha, prispeli, selhaly, nekdoOdpovedel };
+}
 
-  return {
-    ...kniha,
-    // ČNB do sloupce ISBN nepatří — má vlastní pole a sloupec ISBN u takové
-    // knihy zůstává prázdný, aby ho import knihovního systému nepotkal.
-    isbn: jeCnbCislo ? '' : isbn,
-    cnb: jeCnbCislo ? isbn : '',
-    nalezeno,
-    nedostupne: !nekdoOdpovedel,
-    zdroj: prispeli.join(', '),
-    selhalyZdroje: selhaly,
+/**
+ * Zeptá se zdrojů a poskládá z odpovědí jeden záznam. Ptají se jen ty, které
+ * o daný druh čísla vůbec zavadí — u ISSN je to jiná sestava než u ISBN.
+ *
+ * Odpovědi se zpracovávají **průběžně**: jakmile dorazí první použitelná,
+ * ohlásí se přes `prubezne` a nabídka se jí rovnou vyplní. Dřív se čekalo na
+ * poslední odpověď, takže jedna mlčící databáze držela uživatele u zamčeného
+ * tlačítka celý časový limit — a to u každé knihy zvlášť. Nejhůř to dopadalo
+ * zrovna u českých knih, kde Knihovny.cz odpoví hned a zbytek jen dobíhá.
+ *
+ * Když se titul nenajde, vrátí prázdná pole i s informací, jestli zdroje
+ * mlčely (výpadek sítě, vyčerpaný limit dotazů), nebo odpověděly, že ho
+ * neznají. To jsou dvě různé situace a uživatel k nim potřebuje jinou radu.
+ */
+export async function najdiKnihu(kodVstup, { prubezne } = {}) {
+  const rozpoznane = rozpoznej(kodVstup);
+  const isbn = rozpoznane?.kod || ocisti(kodVstup);
+  const jeCnbCislo = rozpoznane?.cislo === 'ČNB';
+  const zdroje = ZDROJE.filter((zdroj) => zdroj.cisla.includes(rozpoznane?.cislo || 'ISBN'));
+
+  // Číslo patří k záznamu vždycky, i když nic nedorazí — ČNB má vlastní pole
+  // a sloupec ISBN u takové knihy zůstává prázdný, aby ho import knihovního
+  // systému nepotkal.
+  const cisla = { isbn: jeCnbCislo ? '' : isbn, cnb: jeCnbCislo ? isbn : '' };
+  const stav = new Array(zdroje.length).fill(null);
+
+  const shrn = (hotovo) => {
+    const { kniha, prispeli, selhaly, nekdoOdpovedel } = slozZOdpovedi(zdroje, stav);
+    return {
+      ...kniha,
+      ...cisla,
+      nalezeno: !!kniha.nazev,
+      nedostupne: hotovo && !nekdoOdpovedel,
+      zdroj: prispeli.join(', '),
+      selhalyZdroje: selhaly,
+      hotovo,
+    };
   };
+
+  await Promise.all(zdroje.map(async (zdroj, poradi) => {
+    try {
+      stav[poradi] = { data: await zdroj.hledej(isbn) };
+    } catch (chyba) {
+      stav[poradi] = { chyba };
+      console.warn(`Zdroj ${zdroj.nazev} selhal:`, chyba);
+    }
+    // Hlásit se má jen to, co uživateli něco přinese — hlášku o výpadku
+    // jednoho zdroje nemá cenu ukazovat, dokud ostatní ještě mají naději.
+    if (prubezne && stav[poradi].data) {
+      try {
+        prubezne(shrn(false));
+      } catch (chyba) {
+        console.error(chyba);       // porucha vykreslení nesmí shodit hledání
+      }
+    }
+  }));
+
+  const vysledek = shrn(true);
+  if (!vysledek.nalezeno) {
+    console.warn('Titul nenalezen', isbn,
+      { selhaly: vysledek.selhalyZdroje, odpovedeloZdroju: vysledek.zdroj });
+  }
+  return vysledek;
 }
 
 /**

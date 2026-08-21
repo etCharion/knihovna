@@ -1053,5 +1053,263 @@ nadpis('Crossref u knih');
     'a ptá se přímo na ISBN');
 }
 
+
+/* ---------------------------------------- průběžné dohledávání (rychlost) */
+
+nadpis('Průběžné dohledávání');
+{
+  // Nabídka nesmí čekat na poslední zdroj. Knihovny.cz odpoví hned, Open
+  // Library se protáhne — a mezitím už musí být co ukázat.
+  let pustOpenLibrary;
+  globalThis.fetch = (url) => {
+    if (url.includes('knihovny.cz')) {
+      return odpoved({ records: [{ title: 'Rychlý český nález /' }] });
+    }
+    if (url.includes('openlibrary')) {
+      return new Promise((splneno) => {
+        pustOpenLibrary = () => splneno({
+          ok: true,
+          json: async () => ({
+            'ISBN:9788073355067': {
+              title: 'English title',
+              cover: { medium: 'https://ol/x.jpg' },
+            },
+          }),
+        });
+      });
+    }
+    return vypadek();
+  };
+
+  const prubezne = [];
+  const hotova = najdiKnihu('9788073355067', { prubezne: (c) => prubezne.push(c) });
+
+  // Chvíli počkáme, ať rychlý zdroj stihne odpovědět, a teprve pak pustíme pomalý.
+  await new Promise((splneno) => setTimeout(splneno, 20));
+  t(prubezne.some((c) => c.nazev === 'Rychlý český nález'),
+    'název je k dispozici dřív, než doběhne poslední zdroj',
+    String(prubezne.map((c) => c.nazev)));
+  t(prubezne.every((c) => c.hotovo === false), 'průběžné odpovědi se hlásí jako nehotové');
+
+  pustOpenLibrary();
+  const kniha = await hotova;
+  t(kniha.hotovo === true, 'poslední odpověď je označená jako hotová');
+  t(kniha.obalka === 'https://ol/x.jpg', 'pomalý zdroj dorovná, co chybí', kniha.obalka);
+}
+
+{
+  // Skládá se v pořadí zdrojů, ne v pořadí příchodu: u české knihy nesmí
+  // vyhrát anglický název jen proto, že cizí server je rychlejší.
+  globalThis.fetch = (url) => {
+    if (url.includes('knihovny.cz')) {
+      return new Promise((splneno) => setTimeout(() => splneno({
+        ok: true,
+        json: async () => ({ records: [{ title: 'Český název /' }] }),
+      }), 20));
+    }
+    if (url.includes('googleapis')) {
+      return odpoved({ items: [{ volumeInfo: { title: 'English title' } }] });
+    }
+    return vypadek();
+  };
+  const kniha = await najdiKnihu('9788073355067');
+  t(kniha.nazev === 'Český název', 'český katalog přebije rychlejší cizí zdroj', kniha.nazev);
+}
+
+/* --------------------------------------------------- počet kusů a exempláře */
+
+nadpis('Počet kusů');
+{
+  localStorage.clear();
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Čítanka' }, { kusu: 25 });
+  t(ulozne.podleIsbn('9788073355067').kusu === 25, 'třídní sada se zadá jedním číslem',
+    String(ulozne.podleIsbn('9788073355067').kusu));
+
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Čítanka' }, { kusu: 5 });
+  t(ulozne.podleIsbn('9788073355067').kusu === 30, 'další kusy se přičtou');
+
+  const kniha = ulozne.podleIsbn('9788073355067');
+  ulozne.nastavKusu(kniha.id, 12);
+  t(ulozne.podleIsbn('9788073355067').kusu === 12, 'počet jde přepsat rukou');
+
+  ulozne.nastavKusu(kniha.id, 0);
+  t(ulozne.podleIsbn('9788073355067').kusu === 1, 'nula ani záporné číslo neprojdou',
+    String(ulozne.podleIsbn('9788073355067').kusu));
+
+  const souhrn = ulozne.souhrn();
+  t(souhrn.titulu === 1 && souhrn.kusu === 1, 'souhrn počítá tituly i kusy',
+    `${souhrn.titulu} / ${souhrn.kusu}`);
+}
+
+{
+  // Ručně opravený název se u dalšího kusu nesmí ztratit.
+  localStorage.clear();
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Špatný název' });
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Správný název' }, { prepsatUdaje: true });
+  t(ulozne.podleIsbn('9788073355067').nazev === 'Správný název',
+    'přepsání údajů u dalšího kusu zabere', ulozne.podleIsbn('9788073355067').nazev);
+  t(ulozne.podleIsbn('9788073355067').kusu === 2, 'a kus přesto přibude');
+}
+
+/* ------------------------------------------------ co už šlo do EduPage */
+
+nadpis('Odeslání do knihovního systému');
+{
+  localStorage.clear();
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'První' });
+  ulozne.pridej({ isbn: '9780306406157', nazev: 'Druhá' });
+
+  t(ulozne.neodeslane().length === 2, 'napoprvé jsou nové obě');
+  ulozne.oznacOdeslane();
+  t(ulozne.neodeslane().length === 0, 'po exportu nezůstane nic nového');
+
+  ulozne.pridej({ isbn: '9788024268705', nazev: 'Třetí' });
+  t(ulozne.neodeslane().length === 1, 'další sken přidá jen jednu novou',
+    String(ulozne.neodeslane().length));
+  t(ulozne.neodeslane()[0].nazev === 'Třetí', 'a je to ta správná');
+
+  // Změněná kniha je v knihovním systému zastaralá — patří do dalšího exportu.
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'První' });
+  t(ulozne.neodeslane().length === 2, 'přibylý kus vrátí knihu mezi nové',
+    String(ulozne.neodeslane().length));
+
+  ulozne.oznacOdeslane();
+  const prvni = ulozne.podleIsbn('9780306406157');
+  ulozne.nastavKusu(prvni.id, 4);
+  t(ulozne.neodeslane().length === 1, 'a ruční oprava počtu taky');
+
+  ulozne.oznacOdeslane();
+  const opravovana = ulozne.podleIsbn('9788024268705');
+  ulozne.uprav(opravovana.id, { nazev: 'Třetí, opravená' });
+  t(ulozne.neodeslane().length === 1, 'a oprava údajů v tabulce taky',
+    String(ulozne.neodeslane().length));
+
+  ulozne.zrusOdeslani();
+  t(ulozne.neodeslane().length === 3, 'označení jde hromadně zrušit',
+    String(ulozne.neodeslane().length));
+}
+
+/* ---------------------------------------------------------- krok zpět */
+
+nadpis('Krok zpět');
+{
+  localStorage.clear();
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Zůstane' });
+  const snimek = ulozne.snimek();
+
+  ulozne.pridej({ isbn: '9780306406157', nazev: 'Omyl — sousední kniha' });
+  t(ulozne.vsechny().length === 2, 'omylem naskenovaná kniha se přidala');
+
+  ulozne.obnovSnimek(snimek);
+  t(ulozne.vsechny().length === 1, 'krok zpět ji vezme pryč');
+  t(ulozne.vsechny()[0].nazev === 'Zůstane', 'a ta správná zůstane');
+
+  const pred = ulozne.snimek();
+  ulozne.smazVse();
+  t(ulozne.vsechny().length === 0, 'vymazání tabulky zabere');
+  ulozne.obnovSnimek(pred);
+  t(ulozne.vsechny().length === 1, 'i vymazání celé tabulky jde vzít zpět');
+}
+
+/* ------------------------------------------------------ hromadné akce */
+
+nadpis('Hromadné akce');
+{
+  localStorage.clear();
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'A', policka: 'Kabinet' });
+  ulozne.pridej({ isbn: '9780306406157', nazev: 'B', policka: 'Kabinet' });
+  ulozne.pridej({ isbn: '9788024268705', nazev: 'C', policka: 'Kabinet' });
+
+  const ids = ulozne.vsechny().slice(0, 2).map((k) => k.id);
+  const { dotcenych } = ulozne.presunVice(ids, 'Sborovna');
+  t(dotcenych === 2, 'přesunou se jen vybrané knihy', String(dotcenych));
+  t(ulozne.vsechny().filter((k) => k.policka === 'Sborovna').length === 2, 'a stojí, kde mají');
+
+  ulozne.smazVice(ulozne.vsechny().slice(0, 1).map((k) => k.id));
+  t(ulozne.vsechny().length === 2, 'hromadné mazání ubere jen vybrané');
+}
+
+{
+  // Přesun na poličku, kde tentýž titul stojí, kusy sečte.
+  localStorage.clear();
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Tatáž', policka: 'Kabinet' });
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Tatáž', policka: 'Sborovna' });
+  const zKabinetu = ulozne.vsechny().filter((k) => k.policka === 'Kabinet').map((k) => k.id);
+
+  const vysledek = ulozne.presunVice(zKabinetu, 'Sborovna');
+  t(vysledek.slouceno, 'přesun na poličku s týmž titulem se ohlásí jako sloučení');
+  t(ulozne.vsechny().length === 1, 'a zbude jeden řádek', String(ulozne.vsechny().length));
+  t(ulozne.vsechny()[0].kusu === 2, 'se sečtenými kusy', String(ulozne.vsechny()[0].kusu));
+}
+
+/* ------------------------------------------------------ CSV oběma směry */
+
+nadpis('Načtení CSV');
+{
+  localStorage.clear();
+  ulozne.pridej({ isbn: '9788073355067', nazev: 'Česká kniha', autor: 'Jan Novák',
+                  vydavatel: 'Fragment', rok: '2006', policka: 'Kabinet' }, { kusu: 3 });
+  const csv = doCsv(ulozne.vsechny());
+
+  localStorage.clear();
+  const nactene = ulozne.zCsv(csv);
+  t(nactene.length === 1, 'CSV se načte zpátky', String(nactene.length));
+  t(nactene[0].isbn === '9788073355067', 'ISBN se zbaví pomlček', nactene[0].isbn);
+  t(nactene[0].nazev === 'Česká kniha' && nactene[0].autor === 'Jan Novák',
+    'název i autor sedí', `${nactene[0].nazev} / ${nactene[0].autor}`);
+  t(nactene[0].kusu === 3, 'počet kusů se zachová', String(nactene[0].kusu));
+  t(nactene[0].policka === 'Kabinet', 'polička taky', nactene[0].policka);
+
+  ulozne.importuj(nactene);
+  t(ulozne.vsechny().length === 1, 'a jde je rovnou naimportovat');
+  ulozne.importuj(ulozne.zCsv(csv));
+  t(ulozne.vsechny().length === 1, 'opakované načtení téhož CSV nic nezdvojí',
+    String(ulozne.vsechny().length));
+}
+
+{
+  // Soubor odjinud: jiné názvy sloupců, čárka místo středníku, ISBN s pomlčkami.
+  const cizi = 'Název,Autor,ISBN,Počet\r\n' +
+    '"Kniha odjinud","Eva Dvořáková",978-80-242-6870-5,2\r\n';
+  const nactene = ulozne.zCsv(cizi);
+  t(nactene.length === 1, 'projde i CSV s čárkou a jinými názvy sloupců',
+    String(nactene.length));
+  t(nactene[0].isbn === '9788024268705', 'ISBN se pozná', nactene[0].isbn);
+  t(nactene[0].kusu === 2, 'i počet kusů', String(nactene[0].kusu));
+}
+
+{
+  // ČNB do sloupce ISBN nepatří ani při načítání.
+  const nactene = ulozne.zCsv('ISBN;Název\r\ncnb000123456;Stará kniha\r\n');
+  t(nactene[0].isbn === '' && nactene[0].cnb === 'cnb000123456',
+    'ČNB se při načtení uloží do svého pole',
+    `${nactene[0].isbn} / ${nactene[0].cnb}`);
+}
+
+/* ------------------------------------------- ochrana CSV před vzorci v Excelu */
+
+nadpis('CSV a Excel');
+{
+  localStorage.clear();
+  ulozne.pridej({ isbn: '9788073355067', nazev: '=SOUČET(A1:A9)', poznamka: '+420 kontakt' });
+  const csv = doCsv(ulozne.vsechny());
+  t(csv.includes(' =SOUČET(A1:A9)'), 'buňka začínající rovnítkem dostane mezeru navíc');
+  t(csv.includes(' +420 kontakt'), 'a stejně tak plus');
+  t(!csv.includes("'=SOUČET"), 'apostrof se nepoužívá — do importu by se dostal jako text');
+
+  // Mezera se při načtení zpátky zase odstraní, takže se data nemění.
+  const nactene = ulozne.zCsv(csv);
+  t(nactene[0].nazev === '=SOUČET(A1:A9)', 'a při načtení zpátky se mezera zase ztratí',
+    nactene[0].nazev);
+}
+
+{
+  localStorage.clear();
+  ulozne.pridej({ isbn: '9788073355067', nazev: '-5 stupňů' });
+  const csv = doCsv(ulozne.vsechny());
+  t(csv.includes(';-5 stupňů;'), 'pomlčka na začátku se neřeší — v Excelu nic nezpůsobí');
+}
+
+
 console.log(selhani === 0 ? '\nVŠE PROŠLO' : `\n${selhani} testů selhalo`);
 process.exit(selhani ? 1 : 0);
