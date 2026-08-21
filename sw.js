@@ -6,7 +6,7 @@
  * offline funguje skenování a už uložená tabulka.
  */
 
-const VERZE = 'knihovna-v7';
+const VERZE = 'knihovna-v8';
 
 /**
  * Soubory aplikace — bez nich by se nespustila, proto se stahují dopředu.
@@ -32,6 +32,16 @@ const ZAKLAD = [
   './icons/icon-512.png',
   './vendor/zxing.min.js',
   './vendor/isbn3.min.js',
+  // Písma jsou drobná (dohromady ~190 kB) a jsou vidět hned při prvním
+  // vykreslení — na rozdíl od Tesseractu se proto stahují dopředu.
+  './vendor/fonts/ibm-plex-sans-latin.woff2',
+  './vendor/fonts/ibm-plex-sans-latin-ext.woff2',
+  './vendor/fonts/ibm-plex-sans-italic-latin.woff2',
+  './vendor/fonts/ibm-plex-sans-italic-latin-ext.woff2',
+  './vendor/fonts/ibm-plex-serif-500-latin.woff2',
+  './vendor/fonts/ibm-plex-serif-500-latin-ext.woff2',
+  './vendor/fonts/ibm-plex-serif-600-latin.woff2',
+  './vendor/fonts/ibm-plex-serif-600-latin-ext.woff2',
 ];
 
 self.addEventListener('install', (udalost) => {

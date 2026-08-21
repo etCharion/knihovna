@@ -167,21 +167,82 @@ t((await stranka.title()).includes('Knihovna'), 'stránka se načetla');
  * Čeká se na tlačítko „Vyhledat“, ne na „Přidat“: to je od té doby, co se
  * údaje vyplňují průběžně, živé po celou dobu — knihu jde potvrdit dřív,
  * než doběhne poslední databáze.
- *
- * Pole k úpravě jsou po otevření nabídky schovaná (u drtivé většiny knih se
- * do nich nesahá), takže se pro potřeby testů rozbalí.
  */
 async function pockejNaNabidku(str) {
   await str.waitForSelector('#prekryv:not([hidden])', { timeout: 10000 });
   await str.waitForFunction(() => !document.querySelector('#btn-znovu').disabled,
     null, { timeout: 20000 });
-  await str.evaluate(() => { document.querySelector('#nabidka-upravy').open = true; });
+}
+
+/**
+ * Přepne na jednu ze tří záložek.
+ *
+ * Na telefonu je vidět vždycky jen jedna obrazovka, takže se test musí
+ * přepnout stejně jako uživatel — jinak by klepal na skryté prvky.
+ */
+async function zalozka(str, cil) {
+  // Otevřený spodní list překrývá i spodní lištu — uživatel by ho taky
+  // nejdřív zavřel. Nabídky k potvrzení a detailu si testy řídí samy.
+  for (const [list, zavrit] of [['#sheet-rucne', '#btn-rucne-zavrit'],
+                                ['#sheet-policky', '#btn-policky-zavrit']]) {
+    if (await str.locator(list).isVisible()) {
+      await str.click(zavrit);
+      await str.waitForSelector(list, { state: 'hidden', timeout: 5000 });
+    }
+  }
+  await str.click(`#nav-${cil}`);
+  await str.waitForSelector(`#obrazovka-${cil}:not([hidden])`, { timeout: 5000 });
+}
+
+/** Řádky knih v Knihovně. Poličky jsou ve výchozím stavu rozbalené. */
+function knihy(str) {
+  return str.locator('#skupiny-policek .polozka-radky');
+}
+
+/** Kolik knih je v Knihovně vidět. */
+async function pocetKnih(str) {
+  await zalozka(str, 'knihovna');
+  return knihy(str).count();
+}
+
+/** Otevře detail knihy — v něm se upravuje všechno kromě názvu. */
+async function otevriDetail(str, poradi = 0) {
+  await zalozka(str, 'knihovna');
+  await knihy(str).nth(poradi).locator('.kniha-otevrit-sipka').click();
+  await str.waitForSelector('#sheet-detail:not([hidden])', { timeout: 5000 });
+}
+
+/** Zavře detail knihy tlačítkem Hotovo. */
+async function zavriDetail(str) {
+  await str.click('#btn-detail-hotovo');
+  await str.waitForSelector('#sheet-detail', { state: 'hidden', timeout: 5000 });
+}
+
+/** Smaže knihu z Knihovny — mazání je v jejím detailu. */
+async function smazKnihu(str, poradi = 0) {
+  await otevriDetail(str, poradi);
+  await str.click('#btn-detail-smazat');
+  await str.waitForSelector('#sheet-detail', { state: 'hidden', timeout: 5000 });
+}
+
+/** Otevře spodní list s ručním zadáním ISBN. */
+async function otevriRucne(str) {
+  await zalozka(str, 'skener');
+  await str.click('#btn-rucne-otevrit');
+  await str.waitForSelector('#rucne-rezim-isbn:not([hidden])', { timeout: 5000 });
+}
+
+/** Otevře spodní list s hledáním podle názvu a dalších údajů. */
+async function otevriHledaniPodleNazvu(str) {
+  await zalozka(str, 'skener');
+  await str.click('#btn-nazev-otevrit');
+  await str.waitForSelector('#rucne-rezim-nazev:not([hidden])', { timeout: 5000 });
 }
 
 /** Zadá ISBN ručně — kniha se tím zatím jen nabídne, neuloží. */
 async function zadejIsbn(str, isbn) {
-  // Ruční zadání je schované v rozbalovacím bloku, po každém načtení zavřeném.
-  await str.evaluate(() => { document.querySelector('.rucne').open = true; });
+  // Po každém načtení se spodní list zavře, takže se otevírá znovu.
+  await otevriRucne(str);
   await str.fill('#vstup-isbn', isbn);
   await str.click('#form-rucne button[type=submit]');
 }
@@ -196,7 +257,6 @@ async function pridejRucne(str, isbn) {
 
 /* ------------------------------------------------ ruční zadání a dohledání */
 
-await stranka.locator('.rucne summary').click();
 await zadejIsbn(stranka, '978-0-306-40615-7');
 await pockejNaNabidku(stranka);
 
@@ -206,23 +266,28 @@ t((await stranka.locator('#nabidka-nazev').inputValue()).includes('Structure and
   'nabídka ukáže dohledaný název');
 t((await stranka.locator('#nabidka-autor').inputValue()).includes('Harold Abelson'),
   'i autora');
-t((await stranka.locator('tbody tr').count()) === 0,
-  'dokud se nepotvrdí, do tabulky se nic neuloží');
+t(await stranka.evaluate(() => !localStorage.getItem('knihovna.knihy.v1')),
+  'dokud se nepotvrdí, do knihovny se nic neuloží');
 
 await stranka.click('#btn-pridat');
-await stranka.waitForSelector('#tabulka:not([hidden]) tbody tr', { timeout: 10000 });
+await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+await zalozka(stranka, 'knihovna');
+await stranka.waitForSelector('#skupiny-policek .polozka-radky', { timeout: 10000 });
 
-const prvni = stranka.locator('tbody tr').first();
-t((await prvni.locator('td').nth(2).innerText()).includes('Structure and Interpretation'),
+const prvni = knihy(stranka).first();
+t((await prvni.locator('.kniha-nazev').innerText()).includes('Structure and Interpretation'),
   'název se dohledal a zobrazil');
-t((await prvni.locator('td').nth(3).innerText()).includes('Harold Abelson'), 'autor se dohledal');
-t((await prvni.locator('td').nth(4).innerText()) === '1996', 'rok se vytáhl z data vydání');
-t((await prvni.locator('td').nth(5).innerText()) === 'MIT Press', 'vydavatel');
-t((await prvni.locator('td.isbn').innerText()) === '978-0-306-40615-7', 'ISBN se zobrazuje se správnými pomlčkami');
-t((await prvni.locator('td').nth(2).innerText()).trim() ===
+t((await prvni.locator('.kniha-autor').innerText()).includes('Harold Abelson'), 'autor se dohledal');
+t((await prvni.locator('.kniha-autor').innerText()).includes('1996'), 'rok se vytáhl z data vydání',
+  await prvni.locator('.kniha-autor').innerText());
+t((await prvni.locator('.kniha-autor').innerText()).includes('MIT Press'), 'vydavatel');
+t((await prvni.locator('.kniha-cislo').innerText()) === '978-0-306-40615-7',
+  'ISBN se zobrazuje se správnými pomlčkami', await prvni.locator('.kniha-cislo').innerText());
+t((await prvni.locator('.kniha-nazev').innerText()).trim() ===
   (await stranka.evaluate(() => JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0].nazev)),
-  'v buňce s názvem je přesně to, co je uložené');
-t((await stranka.locator('#pocet').innerText()) === '1', 'počítadlo ukazuje jednu knihu');
+  'v řádku je přesně ten název, který je uložený');
+t((await stranka.locator('#pocet').innerText()) === '1 titul', 'počítadlo ukazuje jednu knihu',
+  await stranka.locator('#pocet').innerText());
 
 /* ------------------------------------------------------------ neplatný kód */
 
@@ -230,7 +295,7 @@ await zadejIsbn(stranka, '1234567890123');
 await stranka.waitForTimeout(300);
 t((await stranka.locator('#hlaska').innerText()).includes('platné ISBN'), 'neplatné ISBN se odmítne');
 t(await stranka.locator('#prekryv').isHidden(), 'a nabídka se ani neotevře');
-t((await stranka.locator('tbody tr').count()) === 1, 'neplatný záznam se nepřidal');
+t((await pocetKnih(stranka)) === 1, 'neplatný záznam se nepřidal');
 
 /* --------------------------------------- návrh opravy kontrolní číslice */
 
@@ -244,7 +309,8 @@ t((await stranka.locator('#stav').innerText()).includes('kontrolní'),
   'a stav vysvětlí proč', await stranka.locator('#stav').innerText());
 t(await stranka.locator('#prekryv').isHidden(),
   'nabídka se neotevře — návrh musí uživatel nejdřív potvrdit');
-t((await stranka.locator('tbody tr').count()) === 1, 'a do tabulky se nic nepřidalo');
+t((await pocetKnih(stranka)) === 1, 'a do knihovny se nic nepřidalo');
+await otevriRucne(stranka);
 await stranka.fill('#vstup-isbn', '');
 
 /* --------------------------------------- oprava čísla přímo v nabídce */
@@ -271,7 +337,7 @@ t((await stranka.locator('#nabidka-vydavatel').inputValue()) === 'Karolinum',
 await stranka.click('#btn-zahodit');
 await stranka.waitForTimeout(200);
 t(await stranka.locator('#prekryv').isHidden(), 'zahození nabídku zavře');
-t((await stranka.locator('tbody tr').count()) === 1, 'a do tabulky se nic nepřidalo');
+t((await pocetKnih(stranka)) === 1, 'a do knihovny se nic nepřidalo');
 
 // Ruční úprava údajů v nabídce se musí uložit tak, jak ji uživatel nechal.
 await zadejIsbn(stranka, '978-80-242-6870-5');
@@ -280,18 +346,16 @@ await stranka.fill('#nabidka-nazev', 'Kniha z Karolina (ručně upraveno)');
 await stranka.fill('#nabidka-poznamka', 'dárek');
 await stranka.click('#btn-pridat');
 await stranka.waitForTimeout(300);
-t((await stranka.locator('tbody tr').count()) === 2, 'potvrzená kniha přibyla');
-t((await stranka.locator('tbody tr').first().locator('td').nth(2).innerText())
-    .includes('ručně upraveno'),
+t((await pocetKnih(stranka)) === 2, 'potvrzená kniha přibyla');
+t((await knihy(stranka).first().locator('.kniha-nazev').innerText()).includes('ručně upraveno'),
   'uložil se název upravený v nabídce');
 t(await stranka.evaluate(() =>
     JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0].poznamka === 'dárek'),
   'i poznámka z nabídky');
 
 // Uklidí se, ať následující testy pracují s jedinou knihou.
-await stranka.locator('tbody tr').first().locator('.ikona-tlacitko').click();
-await stranka.waitForTimeout(200);
-t((await stranka.locator('tbody tr').count()) === 1, 'smazání řádku zabralo');
+await smazKnihu(stranka);
+t((await pocetKnih(stranka)) === 1, 'smazání knihy z detailu zabralo');
 
 /* ------------------------------------------------------------- duplicita */
 
@@ -305,14 +369,14 @@ t((await stranka.locator('#btn-pridat').innerText()).includes('další kus'),
 
 await stranka.click('#btn-pridat');
 await stranka.waitForTimeout(300);
-t((await stranka.locator('tbody tr').count()) === 1, 'stejná kniha nevytvoří druhý řádek');
-t((await stranka.locator('.odznak').innerText()) === '2×', 'místo toho přibude kus');
+t((await pocetKnih(stranka)) === 1, 'stejná kniha nevytvoří druhý záznam');
+t((await stranka.locator('.odznak-kusu-radky').innerText()) === '2×', 'místo toho přibude kus');
 
 /* ------------------------------ odznak s počtem kusů se nesmí dostat do názvu */
 
 // Dřív se odznak kreslil dovnitř upravitelné buňky, takže se při prvním
 // klepnutí uložil jako součást názvu a v exportu pak místo názvu stálo „2×“.
-const nazev = prvni.locator('[data-pole=nazev]');
+const nazev = prvni.locator('.kniha-nazev');
 await nazev.click();
 await stranka.locator('#hledat').click(); // odklik jinam uloží
 await stranka.waitForTimeout(200);
@@ -321,73 +385,124 @@ const nazevPoKliknuti = await stranka.evaluate(() =>
 t(!nazevPoKliknuti.includes('×'), 'klepnutí do názvu tam nezapíše počet kusů', nazevPoKliknuti);
 t(nazevPoKliknuti.includes('Structure and Interpretation'), 'a název zůstane celý',
   nazevPoKliknuti);
-t((await stranka.locator('.odznak').innerText()) === '2×', 'odznak přitom v tabulce zůstane');
+t((await stranka.locator('.odznak-kusu-radky').innerText()) === '2×',
+  'odznak přitom v seznamu zůstane');
 
 /* ------------------------------------------------------- úpravy a hledání */
 
-// Upravitelné texty v řádku jsou název, autor, ISBN a poznámka; každý má
-// v atributu data-pole, o který údaj jde.
-const poznamka = prvni.locator('[data-pole=poznamka]');
-await poznamka.click();
-await poznamka.fill('půjčeno Petrovi');
-await stranka.locator('#hledat').click(); // odklik jinam uloží
+// Název se přepisuje rovnou v řádku, zbytek údajů v detailu knihy.
+await nazev.click();
+await stranka.keyboard.press('Control+a');
+await stranka.keyboard.type('Structure and Interpretation of Computer Programs');
+await stranka.keyboard.press('Enter');
+await stranka.waitForTimeout(200);
+t(await stranka.evaluate(() =>
+    JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0].nazev
+      === 'Structure and Interpretation of Computer Programs'),
+  'název přepsaný v řádku se uložil');
+
+await otevriDetail(stranka);
+await stranka.fill('#detail-poznamka', 'půjčeno Petrovi');
+await zavriDetail(stranka);
 await stranka.waitForTimeout(200);
 t(await stranka.evaluate(() =>
     JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0].poznamka === 'půjčeno Petrovi'),
-  'poznámka napsaná v tabulce se uložila');
+  'poznámka napsaná v detailu se uložila');
 
+await zalozka(stranka, 'knihovna');
 await stranka.fill('#hledat', 'abelson');
 await stranka.waitForTimeout(200);
-t((await stranka.locator('tbody tr').count()) === 1, 'hledání podle autora knihu najde');
+t((await knihy(stranka).count()) === 1, 'hledání podle autora knihu najde');
 await stranka.fill('#hledat', 'nesmysl-xyz');
 await stranka.waitForTimeout(200);
-t((await stranka.locator('tbody tr').count()) === 0, 'hledání bez shody nic nevrátí');
+t((await knihy(stranka).count()) === 0, 'hledání bez shody nic nevrátí');
+t(await stranka.locator('#prazdno').isVisible(),
+  'a řekne se, že hledání nic nenašlo — obrazovka nezůstane prázdná');
 await stranka.fill('#hledat', '');
 
 /* ------------------------------------------------------- oprava ISBN */
 
-const bunkaIsbn = prvni.locator('[data-pole=isbn]');
-
-// Neplatné číslo se musí odmítnout a v buňce zůstane to původní.
-await bunkaIsbn.click();
-await bunkaIsbn.fill('123');
-await stranka.locator('#hledat').click();
-await stranka.waitForTimeout(300);
-t((await stranka.locator('#hlaska').innerText()).includes('platné ISBN'), 'neplatná oprava ISBN se odmítne');
-t((await bunkaIsbn.innerText()) === '978-0-306-40615-7', 'po odmítnutí zůstane původní ISBN',
-  await bunkaIsbn.innerText());
+// Neplatné číslo se musí odmítnout a v poli zůstane to původní.
+await otevriDetail(stranka);
+await stranka.fill('#detail-isbn', '123');
+await stranka.locator('#detail-nazev').click(); // odklik jinam uloží
+await stranka.waitForTimeout(400);
+t((await stranka.locator('#hlaska').innerText()).includes('platné ISBN'),
+  'neplatná oprava ISBN se odmítne');
+t((await stranka.inputValue('#detail-isbn')) === '978-0-306-40615-7',
+  'po odmítnutí zůstane původní ISBN', await stranka.inputValue('#detail-isbn'));
 
 // Oprava na jinou knihu: údaje se musí načíst znovu, ne zůstat po té staré.
-await bunkaIsbn.click();
-await bunkaIsbn.fill('978-80-242-6870-5');
-await stranka.locator('#hledat').click();
+await stranka.fill('#detail-isbn', '978-80-242-6870-5');
+await stranka.locator('#detail-nazev').click();
 await stranka.waitForFunction(
-  () => document.querySelector('tbody tr td:nth-child(3)')?.textContent.includes('Karolina'),
+  () => document.querySelector('#detail-nazev')?.value.includes('Karolina'),
   null, { timeout: 10000 }).catch(() => {});
-t((await prvni.locator('td').nth(2).innerText()).includes('Kniha z Karolina'),
-  'po opravě ISBN se dohledaly nové údaje', await prvni.locator('td').nth(2).innerText());
-t((await prvni.locator('td').nth(5).innerText()) === 'Karolinum', 'vyměnil se i vydavatel');
+t((await stranka.inputValue('#detail-nazev')).includes('Kniha z Karolina'),
+  'po opravě ISBN se dohledaly nové údaje', await stranka.inputValue('#detail-nazev'));
+t((await stranka.inputValue('#detail-vydavatel')) === 'Karolinum', 'vyměnil se i vydavatel');
+await zavriDetail(stranka);
 t(await stranka.evaluate(() => {
     const k = JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0];
     return k.isbn === '9788024268705' && k.poznamka === 'půjčeno Petrovi' && k.kusu === 2;
   }), 'oprava zachovala poznámku i počet kusů');
 
-// Oprava na ISBN, které v tabulce už je, by dvě knihy slila v jednu.
-// Nová kniha se vkládá na začátek tabulky, opravuje se tedy zase první řádek.
+// Oprava na ISBN, které knihovna už má, by dvě knihy slila v jednu.
+// Nová kniha se vkládá nahoru, opravuje se tedy zase první z nich.
 await pridejRucne(stranka, '9780306406157');
 await stranka.waitForTimeout(300);
-t((await stranka.locator('tbody tr').count()) === 2, 'do tabulky přibyla druhá kniha');
+t((await pocetKnih(stranka)) === 2, 'do knihovny přibyla druhá kniha');
 
-const noveIsbn = stranka.locator('tbody tr').first().locator('[data-pole=isbn]');
-t((await noveIsbn.innerText()) === '978-0-306-40615-7', 'nová kniha je nahoře');
-await noveIsbn.click();
-await noveIsbn.fill('978-80-242-6870-5');
-await stranka.locator('#hledat').click();
-await stranka.waitForTimeout(400);
+await otevriDetail(stranka);
+t((await stranka.inputValue('#detail-isbn')) === '978-0-306-40615-7', 'nová kniha je nahoře',
+  await stranka.inputValue('#detail-isbn'));
+await stranka.fill('#detail-isbn', '978-80-242-6870-5');
+await stranka.locator('#detail-nazev').click();
+await stranka.waitForTimeout(500);
 t((await stranka.locator('#hlaska').innerText()).includes('už na téhle poličce je'),
-  'oprava na už existující ISBN se odmítne');
-t((await noveIsbn.innerText()) === '978-0-306-40615-7', 'a číslo zůstane nezměněné');
-t((await stranka.locator('tbody tr').count()) === 2, 'nic se nesloučilo ani neztratilo');
+  'oprava na už existující ISBN se odmítne', await stranka.locator('#hlaska').innerText());
+t((await stranka.inputValue('#detail-isbn')) === '978-0-306-40615-7',
+  'a číslo zůstane nezměněné', await stranka.inputValue('#detail-isbn'));
+await zavriDetail(stranka);
+t((await pocetKnih(stranka)) === 2, 'nic se nesloučilo ani neztratilo');
+
+/* --------------------------------- rozepsané údaje v detailu se neztratí */
+
+// Dvě místa, kde se rozdělaná práce dřív ztrácela: přepínač klávesnice
+// (odchod z pole spouští uložení ISBN) a zavření detailu klávesou Esc
+// (to z pole neodchází, takže se změna neuložila).
+await otevriDetail(stranka);
+await stranka.fill('#detail-isbn', '');
+await stranka.locator('#detail-isbn').pressSequentially('80-7203-068');
+await stranka.click('#btn-klavesnice-detail');
+await stranka.waitForTimeout(300);
+t((await stranka.inputValue('#detail-isbn')) === '80-7203-068',
+  'přepnutí klávesnice nesmaže rozepsané číslo',
+  await stranka.inputValue('#detail-isbn'));
+t((await stranka.getAttribute('#detail-isbn', 'inputmode')) === 'text',
+  'a klávesnice se přepne na písmena');
+
+await stranka.locator('#detail-isbn').pressSequentially('-X');
+await stranka.locator('#detail-nazev').click();
+await stranka.waitForTimeout(600);
+t((await stranka.inputValue('#detail-isbn')) === '978-80-7203-068-2',
+  'staré číslo s X se v detailu převede na ISBN-13',
+  await stranka.inputValue('#detail-isbn'));
+await stranka.click('#btn-klavesnice-detail'); // zpátky na číslice
+
+await stranka.fill('#detail-poznamka', 'rozepsáno a zavřeno Escapem');
+await stranka.keyboard.press('Escape');
+await stranka.waitForSelector('#sheet-detail', { state: 'hidden', timeout: 5000 });
+t(await stranka.evaluate(() => JSON.parse(localStorage.getItem('knihovna.knihy.v1'))
+    .some((k) => k.poznamka === 'rozepsáno a zavřeno Escapem')),
+  'zavření detailu Escapem rozepsanou poznámku uloží');
+
+// Uklidí se, ať další blok počítá od dvou knih.
+await otevriDetail(stranka);
+await stranka.fill('#detail-isbn', '978-0-306-40615-7');
+await stranka.locator('#detail-nazev').click();
+await stranka.waitForTimeout(600);
+await zavriDetail(stranka);
 
 /* ------------------------------------- konkrétní kód z reálného skenu */
 
@@ -396,12 +511,13 @@ dotazyNaGoogle.length = 0;
 await pridejRucne(stranka, '978-80-7335-506-7');
 await stranka.waitForTimeout(300);
 
-const ceska = stranka.locator('tbody tr').first();
-t((await ceska.locator('td').nth(2).innerText()).includes('sedmičkovým'),
-  '978-80-7335-506-7 projde vyhledáním', await ceska.locator('td').nth(2).innerText());
-t((await ceska.locator('td.isbn').innerText()) === '978-80-7335-506-7',
+await zalozka(stranka, 'knihovna');
+const ceska = knihy(stranka).first();
+t((await ceska.locator('.kniha-nazev').innerText()).includes('sedmičkovým'),
+  '978-80-7335-506-7 projde vyhledáním', await ceska.locator('.kniha-nazev').innerText());
+t((await ceska.locator('.kniha-cislo').innerText()) === '978-80-7335-506-7',
   'a zobrazí se přesně tak, jak je vytištěný na knize',
-  await ceska.locator('td.isbn').innerText());
+  await ceska.locator('.kniha-cislo').innerText());
 
 // Databáze knih pomlčky neberou — do dotazu musí jít holé číslice.
 t(dotazyNaGoogle.length > 0, 'dotaz do databáze odešel');
@@ -415,7 +531,7 @@ t(dotazyNaGoogle.includes('isbn:9788073355067'), 'dotaz má tvar isbn:<13 čísl
 // Od téhle chvíle se začíná s prázdnou tabulkou, ať se dá počítat s řádky.
 await stranka.evaluate(() => localStorage.clear());
 await stranka.reload({ waitUntil: 'networkidle' });
-await stranka.locator('.rucne summary').click();
+await otevriRucne(stranka);
 
 // Klávesnice je číselná, protože ISBN je skoro celé z číslic. Písmeno X na ní
 // ale není, takže starší desetimístné ISBN nešlo zadat vůbec — od toho je
@@ -445,11 +561,13 @@ t((await stranka.locator('#nabidka-nazev').inputValue()).includes('Kniha se star
 
 await stranka.click('#btn-pridat');
 await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
-t((await stranka.locator('tbody tr').first().locator('td.isbn').innerText()) === '978-80-7203-068-2',
-  'a v tabulce stojí převedená',
-  await stranka.locator('tbody tr').first().locator('td.isbn').innerText());
+await zalozka(stranka, 'knihovna');
+t((await knihy(stranka).first().locator('.kniha-cislo').innerText()) === '978-80-7203-068-2',
+  'a v knihovně stojí převedená',
+  await knihy(stranka).first().locator('.kniha-cislo').innerText());
 
 // Zpátky na číslice, ať se dál zadává jako obvykle.
+await otevriRucne(stranka);
 await stranka.click('#btn-klavesnice');
 t((await stranka.locator('#vstup-isbn').getAttribute('inputmode')) === 'numeric',
   'přepínač jde vrátit zpátky na číslice');
@@ -477,10 +595,10 @@ await stranka.click('#btn-klavesnice-nabidka');
 
 await stranka.click('#btn-pridat');
 await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
-t((await stranka.locator('tbody tr').count()) === 2, 'časopis se do tabulky přidá',
-  String(await stranka.locator('tbody tr').count()));
-t((await stranka.locator('tbody tr').first().locator('td.isbn').innerText()) === '0378-5955',
-  'i v tabulce', await stranka.locator('tbody tr').first().locator('td.isbn').innerText());
+t((await pocetKnih(stranka)) === 2, 'časopis se do knihovny přidá',
+  String(await knihy(stranka).count()));
+t((await knihy(stranka).first().locator('.kniha-cislo').innerText()) === '0378-5955',
+  'i v seznamu', await knihy(stranka).first().locator('.kniha-cislo').innerText());
 
 // Čárový kód časopisu (prefix 977) je totéž ISSN — nesmí vzniknout druhý řádek.
 await zadejIsbn(stranka, '9770378595002');
@@ -492,13 +610,12 @@ t(await stranka.locator('#nabidka-upozorneni').isVisible(),
 
 await stranka.click('#btn-pridat');
 await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
-t((await stranka.locator('tbody tr').count()) === 2, 'takže jen přibude kus',
-  String(await stranka.locator('tbody tr').count()));
+t((await pocetKnih(stranka)) === 2, 'takže jen přibude kus',
+  String(await knihy(stranka).count()));
 
 // Časopis dál nepotřebujeme; ať se počítají jen knihy.
-await stranka.locator('tbody tr').first().locator('.ikona-tlacitko').click();
-await stranka.waitForTimeout(200);
-t((await stranka.locator('tbody tr').count()) === 1, 'časopis se dá smazat');
+await smazKnihu(stranka);
+t((await pocetKnih(stranka)) === 1, 'časopis se dá smazat');
 
 /* ------------------------------- kniha z doby před ISBN (číslo ČNB) */
 
@@ -515,27 +632,29 @@ await stranka.fill('#nabidka-rok', '1974');
 await stranka.click('#btn-pridat');
 await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
 
-const staraKniha = stranka.locator('tbody tr').first();
-t((await staraKniha.locator('td').nth(2).innerText()).includes('Traktor'),
-  'kniha bez ISBN se do tabulky uloží', await staraKniha.locator('td').nth(2).innerText());
-t((await staraKniha.locator('td.isbn [data-pole=isbn]').innerText()).trim() === '',
-  'pole pro ISBN u ní zůstane prázdné',
-  `„${await staraKniha.locator('td.isbn [data-pole=isbn]').innerText()}“`);
-t((await staraKniha.locator('td.isbn .odznak-cnb').innerText()) === 'cnb000123456',
-  'a ČNB stojí vedle něj', await staraKniha.locator('td.isbn .odznak-cnb').innerText());
+await zalozka(stranka, 'knihovna');
+const staraKniha = knihy(stranka).first();
+t((await staraKniha.locator('.kniha-nazev').innerText()).includes('Traktor'),
+  'kniha bez ISBN se do knihovny uloží', await staraKniha.locator('.kniha-nazev').innerText());
+t((await staraKniha.locator('.kniha-cislo').innerText()) === 'cnb000123456',
+  'a vede se pod číslem ČNB', await staraKniha.locator('.kniha-cislo').innerText());
+t(await stranka.evaluate(() =>
+    JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0].isbn === ''),
+  'pole pro ISBN u ní zůstane prázdné');
 
-// Druhý sken téže knihy nesmí založit další řádek — klíčem je ČNB.
-const radkuPred = await stranka.locator('tbody tr').count();
+// Druhý sken téže knihy nesmí založit další záznam — klíčem je ČNB.
+const radkuPred = await pocetKnih(stranka);
 await zadejIsbn(stranka, 'cnb000123456');
 await pockejNaNabidku(stranka);
 t(await stranka.locator('#nabidka-upozorneni').isVisible(),
   'nabídka pozná, že tuhle knihu už knihovna má');
 await stranka.click('#btn-zahodit');
 await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
-t((await stranka.locator('tbody tr').count()) === radkuPred,
-  'takže druhý řádek nevznikne', String(await stranka.locator('tbody tr').count()));
+t((await pocetKnih(stranka)) === radkuPred,
+  'takže druhý záznam nevznikne', String(await knihy(stranka).count()));
 
 // A do sloupce, který import čeká jako ISBN, se ČNB nesmí dostat.
+await zalozka(stranka, 'zaloha');
 const [exportCnb] = await Promise.all([
   stranka.waitForEvent('download'),
   stranka.click('#btn-csv'),
@@ -545,19 +664,19 @@ await exportCnb.saveAs(cestaCnb);
 t(!readFileSync(cestaCnb, 'utf8').includes('cnb000123456'),
   'ČNB se do exportu pro knihovní systém neplete');
 
-await staraKniha.locator('.ikona-tlacitko').click();
-await stranka.waitForTimeout(200);
+await smazKnihu(stranka);
 
 /* --------------------------------- kniha úplně bez čísla (ani ČNB) */
 
 // Nejstarší tituly nemají ani ISBN, ani ČNB — katalog jim ho nepřidělil.
 // Uložit se musí dát i tak, jen bez počítání kusů.
-await stranka.evaluate(() => { document.querySelector('.rucne').open = true; });
+await otevriHledaniPodleNazvu(stranka);
 await stranka.fill('#vstup-nazev', 'Kniha');
 await stranka.click('#form-podle-nazvu button[type=submit]');
 await stranka.waitForSelector('#vysledky-hledani:not([hidden]) .vysledek', { timeout: 10000 });
 
-const radkuPredBezCisla = await stranka.locator('tbody tr').count();
+const radkuPredBezCisla = await pocetKnih(stranka);
+await otevriHledaniPodleNazvu(stranka);
 await stranka.locator('#vysledky-hledani .vysledek').first().click();
 await pockejNaNabidku(stranka);
 await stranka.fill('#nabidka-isbn', '');
@@ -567,35 +686,35 @@ t(await stranka.locator('#nabidka-upozorneni').isVisible(),
 
 await stranka.click('#btn-pridat');
 await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
-t((await stranka.locator('tbody tr').count()) === radkuPredBezCisla + 1,
-  'kniha bez čísla se přidá', String(await stranka.locator('tbody tr').count()));
+t((await pocetKnih(stranka)) === radkuPredBezCisla + 1,
+  'kniha bez čísla se přidá', String(await knihy(stranka).count()));
 
-const bezCisla = stranka.locator('tbody tr').first();
-t((await bezCisla.locator('td').nth(2).innerText()).includes('bez jakéhokoliv čísla'),
-  's vyplněnými údaji', await bezCisla.locator('td').nth(2).innerText());
-t((await bezCisla.locator('td.isbn').innerText()).trim() === '',
-  'a s prázdným sloupcem ISBN', `„${await bezCisla.locator('td.isbn').innerText()}“`);
+const bezCisla = knihy(stranka).first();
+t((await bezCisla.locator('.kniha-nazev').innerText()).includes('bez jakéhokoliv čísla'),
+  's vyplněnými údaji', await bezCisla.locator('.kniha-nazev').innerText());
+t((await bezCisla.locator('.kniha-cislo').innerText()) === 'bez čísla',
+  'a v seznamu je poznat, že číslo nemá', await bezCisla.locator('.kniha-cislo').innerText());
 
-// Bez čísla není podle čeho poznat duplicitu — druhé přidání je nový řádek.
+// Bez čísla není podle čeho poznat duplicitu — druhé přidání je nový záznam.
+await otevriHledaniPodleNazvu(stranka);
 await stranka.locator('#vysledky-hledani .vysledek').first().click();
 await pockejNaNabidku(stranka);
 await stranka.fill('#nabidka-isbn', '');
 await stranka.fill('#nabidka-nazev', 'Kniha bez jakéhokoliv čísla');
 await stranka.click('#btn-pridat');
 await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
-t((await stranka.locator('tbody tr').count()) === radkuPredBezCisla + 2,
-  'a druhé přidání zakládá další řádek, ne kus',
-  String(await stranka.locator('tbody tr').count()));
+t((await pocetKnih(stranka)) === radkuPredBezCisla + 2,
+  'a druhé přidání zakládá další záznam, ne kus',
+  String(await knihy(stranka).count()));
 
-for (let i = 0; i < 2; i++) {
-  await stranka.locator('tbody tr').first().locator('.ikona-tlacitko').click();
-  await stranka.waitForTimeout(200);
-}
+await smazKnihu(stranka);
+await smazKnihu(stranka);
+await otevriHledaniPodleNazvu(stranka);
 await stranka.fill('#vstup-nazev', '');
 
 /* --------------------------------------- hledání podle názvu a autora */
 
-await stranka.evaluate(() => { document.querySelector('.rucne').open = true; });
+await otevriHledaniPodleNazvu(stranka);
 await stranka.fill('#vstup-nazev', 'Kniha');
 await stranka.click('#form-podle-nazvu button[type=submit]');
 await stranka.waitForSelector('#vysledky-hledani:not([hidden]) .vysledek', { timeout: 10000 });
@@ -635,10 +754,15 @@ t((await stranka.locator('#nabidka-isbn').inputValue()) === '978-80-242-6870-5',
 
 await stranka.click('#btn-pridat');
 await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
-t((await stranka.locator('#pocet').innerText()) === '2', 'po potvrzení přibude do tabulky',
+await zalozka(stranka, 'knihovna');
+t((await stranka.locator('#pocet').innerText()) === '2 tituly', 'po potvrzení přibude do knihovny',
   await stranka.locator('#pocet').innerText());
-t((await stranka.locator('tbody tr').first().locator('td').nth(5).innerText()) === 'Karolinum',
-  'a s údaji dohledanými podle čísla');
+t((await knihy(stranka).first().locator('.kniha-autor').innerText()).includes('Karolinum'),
+  'a s údaji dohledanými podle čísla',
+  await knihy(stranka).first().locator('.kniha-autor').innerText());
+
+// Spodní list se po přidání zavře; nabídka nálezů v něm ale zůstává.
+await otevriHledaniPodleNazvu(stranka);
 t((await nalezy.first().innerText()).includes('už v knihovně'),
   'v nabídce se hned označí jako přidaná', await nalezy.first().innerText());
 
@@ -701,13 +825,16 @@ t(await stranka.locator('#vysledky-hledani').isHidden(),
 await stranka.evaluate(() => localStorage.clear());
 await stranka.reload({ waitUntil: 'networkidle' });
 
-// Poličku jde založit rovnou z rozbalovátka u skenování.
+// Poličku jde založit rovnou ze spodního listu u skenování.
+await zalozka(stranka, 'skener');
+await stranka.click('#btn-policka-otevrit');
+await stranka.waitForSelector('#sheet-policky:not([hidden])', { timeout: 5000 });
 stranka.once('dialog', (d) => d.accept('Obývák dole'));
-await stranka.selectOption('#vyber-policka', { label: '➕ Nová polička…' });
+await stranka.click('#btn-nova-policka-sken');
 await stranka.waitForTimeout(300);
-t((await stranka.locator('#vyber-policka').inputValue()) === 'Obývák dole',
+t((await stranka.locator('#popisek-policky').innerText()) === 'Obývák dole',
   'nová polička se rovnou nastaví pro skenování',
-  await stranka.locator('#vyber-policka').inputValue());
+  await stranka.locator('#popisek-policky').innerText());
 
 await zadejIsbn(stranka, '9780306406157');
 await pockejNaNabidku(stranka);
@@ -715,21 +842,33 @@ t((await stranka.locator('#nabidka-policka').inputValue()) === 'Obývák dole',
   'nabídka předvyplní zvolenou poličku');
 await stranka.click('#btn-pridat');
 await stranka.waitForTimeout(300);
-t((await stranka.locator('tbody tr').first().locator('.sloupec-policka select').inputValue())
-    === 'Obývák dole',
-  'polička se u knihy uloží');
+await otevriDetail(stranka);
+t((await stranka.locator('#detail-policka').inputValue()) === 'Obývák dole',
+  'polička se u knihy uloží', await stranka.locator('#detail-policka').inputValue());
+await zavriDetail(stranka);
 
 // Tentýž titul na druhé poličce je druhý výtisk, ne duplicita.
-// Druhá polička se zakládá ze správy poliček, ať se ověří i ta cesta.
-await stranka.locator('.rozbalovaci summary', { hasText: 'Spravovat poličky' }).click();
+// Druhá polička se zakládá ze správy poliček na kartě Záloha.
+await zalozka(stranka, 'zaloha');
 stranka.once('dialog', (d) => d.accept('Ložnice'));
 await stranka.click('#btn-nova-policka');
 await stranka.waitForTimeout(300);
-t((await stranka.locator('#seznam-policek li').count()) === 2,
-  'správa poliček ukazuje obě poličky');
-t((await stranka.locator('#seznam-policek .nazev-policky').first().innerText()) === 'Ložnice',
+t((await stranka.locator('#seznam-policek .policka-radek').count()) === 2,
+  'správa poliček ukazuje obě poličky',
+  String(await stranka.locator('#seznam-policek .policka-radek').count()));
+t((await stranka.locator('#seznam-policek .policka-nazev').first().innerText()) === 'Ložnice',
   'se jménem poličky',
-  await stranka.locator('#seznam-policek .nazev-policky').first().innerText());
+  await stranka.locator('#seznam-policek .policka-nazev').first().innerText());
+
+// Nová polička se ze správy nestaví jako cíl skenování — do té se skenuje dál.
+await zalozka(stranka, 'skener');
+await stranka.click('#btn-policka-otevrit');
+await stranka.waitForSelector('#sheet-policky:not([hidden])', { timeout: 5000 });
+await stranka.locator('.policka-vyber', { hasText: 'Ložnice' }).click();
+await stranka.waitForSelector('#sheet-policky', { state: 'hidden', timeout: 5000 });
+t((await stranka.locator('#popisek-policky').innerText()) === 'Ložnice',
+  'polička jde pro skenování přepnout', await stranka.locator('#popisek-policky').innerText());
+
 await zadejIsbn(stranka, '9780306406157');
 await pockejNaNabidku(stranka);
 t((await stranka.locator('#nabidka-upozorneni').innerText()).includes('Obývák dole'),
@@ -737,34 +876,50 @@ t((await stranka.locator('#nabidka-upozorneni').innerText()).includes('Obývák 
   await stranka.locator('#nabidka-upozorneni').innerText());
 await stranka.click('#btn-pridat');
 await stranka.waitForTimeout(300);
-t((await stranka.locator('tbody tr').count()) === 2,
-  'stejná kniha na jiné poličce dostane vlastní řádek');
+t((await pocetKnih(stranka)) === 2,
+  'stejná kniha na jiné poličce dostane vlastní záznam');
 
-await stranka.selectOption('#filtr-policka', 'Ložnice');
+// Poličky nahradily filtr: každá je vlastní sbalitelná sekce.
+const skupiny = stranka.locator('#skupiny-policek .skupina-policky');
+t((await skupiny.count()) === 2, 'knihovna je rozdělená na dvě poličky',
+  String(await skupiny.count()));
+const nazvySkupin = await stranka.locator('#skupiny-policek .skupina-nazev').allInnerTexts();
+t(nazvySkupin.includes('Obývák dole') && nazvySkupin.includes('Ložnice'),
+  'sekce se jmenují po poličkách', nazvySkupin.join(', '));
+
+const lozniceSekce = stranka.locator('.skupina-policky', { has: stranka.locator('.skupina-nazev', { hasText: 'Ložnice' }) });
+t((await lozniceSekce.locator('.polozka-radky').count()) === 1,
+  'v sekci poličky stojí jen její knihy');
+
+// Sbalení sekce knihy schová, rozbalení je vrátí.
+await lozniceSekce.locator('.skupina-hlavicka').click();
 await stranka.waitForTimeout(200);
-t((await stranka.locator('tbody tr').count()) === 1, 'filtr ukáže jen jednu poličku');
-t((await stranka.locator('tbody tr').first().locator('.sloupec-policka select').inputValue())
-    === 'Ložnice', 'a to tu vybranou');
+t((await lozniceSekce.locator('.polozka-radky').count()) === 0, 'sekce jde sbalit');
+await lozniceSekce.locator('.skupina-hlavicka').click();
+await stranka.waitForTimeout(200);
+t((await lozniceSekce.locator('.polozka-radky').count()) === 1, 'a zase rozbalit');
 
 await stranka.fill('#hledat', 'obývák');
-await stranka.selectOption('#filtr-policka', { label: 'Všechny poličky' });
 await stranka.waitForTimeout(200);
-t((await stranka.locator('tbody tr').count()) === 1, 'polička se dá i vyhledat');
+t((await knihy(stranka).count()) === 1, 'polička se dá i vyhledat');
 await stranka.fill('#hledat', '');
-
-// Přesun knihy jinam: v tabulce, bez potvrzování.
-await stranka.selectOption('#filtr-policka', 'Ložnice');
 await stranka.waitForTimeout(200);
-await stranka.locator('tbody tr').first().locator('.sloupec-policka select')
-  .selectOption('Obývák dole');
-await stranka.waitForTimeout(300);
+
+// Přesun knihy jinam je v jejím detailu.
+const poradiLoznice = nazvySkupin.indexOf('Ložnice') === 0 ? 0 : 1;
+await otevriDetail(stranka, poradiLoznice);
+t((await stranka.locator('#detail-policka').inputValue()) === 'Ložnice',
+  'detail ukáže poličku, na které kniha stojí');
+await stranka.selectOption('#detail-policka', 'Obývák dole');
+await stranka.waitForTimeout(400);
 t((await stranka.locator('#hlaska').innerText()).includes('kusy se sečetly'),
   'přesun na poličku s týmž titulem kusy sečte', await stranka.locator('#hlaska').innerText());
-await stranka.selectOption('#filtr-policka', { label: 'Všechny poličky' });
-await stranka.waitForTimeout(200);
-t((await stranka.locator('tbody tr').count()) === 1, 'a zbyde jediný řádek');
-t((await stranka.locator('.odznak').innerText()) === '2×', 'se dvěma kusy');
+t(await stranka.locator('#sheet-detail').isHidden(),
+  'a detail se zavře — záznam, který se slil, už neexistuje');
+t((await pocetKnih(stranka)) === 1, 'zbyde jediný záznam');
+t((await stranka.locator('.odznak-kusu-radky').innerText()) === '2×', 'se dvěma kusy');
 
+await zalozka(stranka, 'zaloha');
 const [zalohaPolicky] = await Promise.all([
   stranka.waitForEvent('download'),
   stranka.click('#btn-csv'),
@@ -782,15 +937,33 @@ try {
   await pockejNaNabidku(stranka);
   t((await stranka.locator('#nabidka-nazev').inputValue()).includes('Structure and Interpretation'),
     'kamera přečetla čárový kód a kniha se nabídla k přidání');
-  t((await stranka.locator('tbody tr').count()) === 0, 'sama se ale neuložila');
+  t(await stranka.evaluate(() => !localStorage.getItem('knihovna.knihy.v1')),
+    'sama se ale neuložila');
   t(await stranka.locator('#video').isVisible(), 'obraz z kamery je vidět');
 
   await stranka.click('#btn-pridat');
-  await stranka.waitForSelector('#tabulka:not([hidden]) tbody tr', { timeout: 10000 });
-  t((await prvni.locator('td').nth(2).innerText()).includes('Structure and Interpretation'),
-    'po potvrzení je kniha v tabulce');
-} catch {
-  t(false, 'kamera přečetla čárový kód', await stranka.locator('#stav').innerText());
+  await stranka.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+
+  // Právě přidané knihy jsou vidět rovnou pod skenovacím okénkem, ať se
+  // při katalogizaci nemusí přepínat na Knihovnu.
+  t((await stranka.locator('#seznam-nedavnych .kniha-radek').count()) === 1,
+    'po potvrzení je kniha v seznamu právě přidaných',
+    String(await stranka.locator('#seznam-nedavnych .kniha-radek').count()));
+
+  // Kamera běží dál a tentýž kód by nabídla znovu — na Knihovnu se dá přejít
+  // až po zastavení, protože nabídka k potvrzení překrývá i spodní lištu.
+  await stranka.click('#btn-skenovat');
+  await stranka.waitForTimeout(300);
+  if (!(await stranka.locator('#prekryv').isHidden())) await stranka.click('#btn-zahodit');
+
+  await zalozka(stranka, 'knihovna');
+  await stranka.waitForSelector('#skupiny-policek .polozka-radky', { timeout: 10000 });
+  t((await knihy(stranka).first().locator('.kniha-nazev').innerText())
+      .includes('Structure and Interpretation'),
+    'a je i v knihovně');
+} catch (chyba) {
+  t(false, 'kamera přečetla čárový kód',
+    `${await stranka.locator('#stav').innerText()} | ${chyba.message.split('\n')[0]}`);
 }
 
 /* --------------------------------------------------- záloha, obnova, CSV */
@@ -812,7 +985,7 @@ await stranka.evaluate(() => {
 });
 await stranka.reload({ waitUntil: 'networkidle' });
 
-t((await stranka.locator('tbody tr').count()) === 2, 'duplicitní ISBN se při načtení sloučilo');
+t((await pocetKnih(stranka)) === 2, 'duplicitní ISBN se při načtení sloučilo');
 const slouceny = await stranka.evaluate(() =>
   JSON.parse(localStorage.getItem('knihovna.knihy.v1')).find((k) => k.isbn === '9788024268705'));
 t(slouceny.kusu === 3, 'počty kusů se sečetly', String(slouceny.kusu));
@@ -844,6 +1017,7 @@ await stranka.addInitScript(() => {
 });
 
 await stranka.reload({ waitUntil: 'networkidle' });
+await zalozka(stranka, 'zaloha');
 
 const [zalohaJson] = await Promise.all([stranka.waitForEvent('download'), stranka.click('#btn-json')]);
 const cestaJson = join(DOCASNY, 'zaloha.json');
@@ -860,25 +1034,31 @@ t((await stranka.locator('#stav-zalohy').innerText()).includes('Poslední záloh
   'po stažení zálohy se ukáže, kdy naposledy proběhla',
   await stranka.locator('#stav-zalohy').innerText());
 
+await zalozka(stranka, 'zaloha');
 const [zalohaCsv] = await Promise.all([stranka.waitForEvent('download'), stranka.click('#btn-csv')]);
 const cestaCsv = join(DOCASNY, 'export.csv');
 await zalohaCsv.saveAs(cestaCsv);
 
+// Mazání celé tabulky je schované v „Nebezpečných akcích“.
+await stranka.locator('.karta-nebezpecne summary').click();
 await stranka.click('#btn-smazat-vse');
 await stranka.waitForTimeout(200);
-t((await stranka.locator('tbody tr').count()) === 0, 'mazání vyprázdní tabulku');
+t((await pocetKnih(stranka)) === 0, 'mazání vyprázdní knihovnu');
+t(await stranka.locator('#prazdno').isVisible(), 'a řekne se, že tu zatím nic není');
 
+await zalozka(stranka, 'zaloha');
 await stranka.setInputFiles('#soubor-import', cestaJson);
 await stranka.waitForTimeout(400);
-t((await stranka.locator('tbody tr').count()) === 1, 'záloha se nahraje zpět');
-t((await stranka.locator('tbody tr').first().locator('td').nth(2).innerText()).includes('háčky'),
+t((await pocetKnih(stranka)) === 1, 'záloha se nahraje zpět');
+t((await knihy(stranka).first().locator('.kniha-nazev').innerText()).includes('háčky'),
   'diakritika přežila zálohu i obnovu');
 t(await stranka.evaluate(() =>
     JSON.parse(localStorage.getItem('knihovna.knihy.v1'))[0].kusu === 3), 'počet kusů se zachoval');
 
+await zalozka(stranka, 'zaloha');
 await stranka.setInputFiles('#soubor-import', cestaJson);
 await stranka.waitForTimeout(400);
-t((await stranka.locator('tbody tr').count()) === 1, 'opakovaný import knihu nezdvojí');
+t((await pocetKnih(stranka)) === 1, 'opakovaný import knihu nezdvojí');
 
 const csv = readFileSync(cestaCsv, 'utf8');
 t(csv.startsWith('﻿'), 'CSV má BOM, aby Excel poznal diakritiku');
@@ -903,6 +1083,7 @@ t(radekCsv.includes(';2015;Karolinum;;3;'),
 
 /* ------------------------------------------- odeslání zálohy ze systému */
 
+await zalozka(stranka, 'zaloha');
 t(await stranka.locator('#btn-sdilet').isVisible(),
   'tlačítko pro odeslání zálohy se objeví, když prohlížeč umí sdílet soubory');
 t(await stranka.locator('#btn-email').isVisible(), 'poslání e-mailem je k dispozici vždy');
@@ -927,10 +1108,16 @@ await stranka.waitForTimeout(500);
 await kontext.setOffline(true);
 try {
   await stranka.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
-  t((await stranka.locator('h1').innerText()).includes('Knihovna'), 'aplikace se načte i bez signálu');
-  t((await stranka.locator('tbody tr').count()) === 1, 'tabulka je offline k dispozici');
+  t((await stranka.locator('#obrazovka-skener h1').innerText()).includes('Skenování'),
+    'aplikace se načte i bez signálu');
+  t((await pocetKnih(stranka)) === 1, 'knihovna je offline k dispozici');
   t(await stranka.evaluate(async () => !!(await caches.match('./vendor/zxing.min.js'))),
     'čtečka kódů je uložená pro offline');
+  t(await stranka.evaluate(async () =>
+      !!(await caches.match('./vendor/fonts/ibm-plex-serif-600-latin.woff2'))),
+    'a písma taky — aplikace vypadá bez signálu stejně');
+  t(await stranka.evaluate(() => document.fonts.check('600 1rem "IBM Plex Serif"')),
+    'nadpisové písmo se offline opravdu použije');
 } catch (chyba) {
   t(false, 'aplikace se načte i bez signálu', chyba.message.split('\n')[0]);
 }
@@ -1000,7 +1187,6 @@ t(await strankaOcr.locator('#hledacek').isHidden(),
 await strankaOcr.click('#btn-cislo');
 try {
   await strankaOcr.waitForSelector('#prekryv:not([hidden])', { timeout: 60000 });
-  await strankaOcr.evaluate(() => { document.querySelector('#nabidka-upravy').open = true; });
   t((await strankaOcr.locator('#nabidka-isbn').inputValue()) === '978-80-242-6870-5',
     'z vytištěného čísla se přečetlo správné ISBN',
     await strankaOcr.locator('#nabidka-isbn').inputValue());
@@ -1008,10 +1194,13 @@ try {
   await strankaOcr.waitForFunction(() => !document.querySelector('#btn-znovu').disabled,
     null, { timeout: 20000 });
   await strankaOcr.click('#btn-pridat');
-  await strankaOcr.waitForSelector('#tabulka:not([hidden]) tbody tr', { timeout: 10000 });
-  t((await strankaOcr.locator('tbody tr').first().locator('td').nth(2).innerText())
+  await strankaOcr.waitForSelector('#prekryv', { state: 'hidden', timeout: 5000 });
+  await zalozka(strankaOcr, 'knihovna');
+  await strankaOcr.waitForSelector('#skupiny-policek .polozka-radky', { timeout: 10000 });
+  t((await knihy(strankaOcr).first().locator('.kniha-nazev').innerText())
       .includes('Kniha z Karolina'),
     'a kniha se podle něj dohledala');
+  await zalozka(strankaOcr, 'skener');
 } catch {
   t(false, 'z vytištěného čísla se přečetlo správné ISBN', await strankaOcr.locator('#stav').innerText());
 }

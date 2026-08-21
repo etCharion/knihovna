@@ -16,16 +16,20 @@ a po potvrzení uloží do tabulky. Běží jako statická stránka na GitHub Pa
 - **Přečtení ISBN z vytištěného čísla** — pro knihy, které čárový kód nemají:
   zaměříte na řádek s číslem posuvný čtecí proužek a klepnete na
   *Přečíst číslo*.
+- **Rozhraní dělané pro hromadnou katalogizaci** — skenovací okénko se při
+  procházení seznamu neposouvá pryč, tři záložky drží věci po ruce a na iPadu
+  i počítači stojí skenování a knihovna vedle sebe.
 - **Automatické dohledání údajů** — název, autor, vydavatel, **místo vydání**,
   rok, počet stran, jazyk i obálka.
 - **Potvrzení u každé knihy** — nic se neuloží samo. Načtená kniha se ukáže
   v nabídce, kde jde opravit ISBN a vyhledat znovu, upravit údaje, vybrat
   poličku — a teprve pak ji přidat, nebo zahodit.
 - **Poličky** — kniha se ukládá s místem, kde stojí, takže jde zpětně dohledat.
-  Tabulka se dá podle poličky filtrovat a knihu jde kdykoliv přeřadit jinam.
-- **Tabulka knih** s řazením podle sloupců a hledáním, které projde všechna
-  pole najednou — název, autora, rok, vydavatele, místo vydání, číslo,
-  poličku i poznámku.
+  V knihovně jsou knihy podle poliček seskupené do sbalitelných sekcí a knihu
+  jde kdykoliv přeřadit jinam.
+- **Seznam knih** ve dvou zobrazeních — úsporné *řádky*, nebo *karty s obálkou* —
+  s řazením a hledáním, které projde všechna pole najednou: název, autora, rok,
+  vydavatele, místo vydání, číslo, poličku i poznámku.
 - **Ruční zadání ISBN**, když je kód poškozený nebo chybí — včetně starších
   desetimístných čísel končících písmenem **X**.
 - **Časopisy podle ISSN** — zadané ručně, nebo naskenované z čárového kódu
@@ -38,18 +42,17 @@ a po potvrzení uloží do tabulky. Běží jako statická stránka na GitHub Pa
   se do tabulky. Jedno tlačítko všechna pole zase vyprázdní.
 - **Návrh opravy**, když číslo neprojde kontrolou — poslední číslice ISBN je
   kontrolní, takže aplikace umí spočítat, jak mělo číslo nejspíš vypadat.
-- **Úpravy přímo v tabulce** — klepnutím na název, autora, poznámku i **ISBN**.
-  Když skener přečte číslo špatně, přepíšete ho a údaje o knize se dohledají
-  znovu.
+- **Úpravy na dvou úrovních** — název se přepíše rovnou v řádku, zbytek údajů
+  (autor, rok, vydavatel, místo, poznámka, polička i **ISBN**) v detailu knihy.
+  Když skener přečte číslo špatně, přepíšete ho a údaje se dohledají znovu.
 - **Export do CSV připravený pro import** do školního knihovního systému
   (otevře se rovnou v Excelu) a **zálohu do JSON**.
 - **Zálohu mimo telefon** — odeslání na Disk Google či do e-mailu přes systémovou
   nabídku sdílení, rozepsaný e-mail se seznamem, nebo **automatický zápis do
   složky** v počítači (viz [Zálohování](#zálohování--jak-dostat-seznam-mimo-telefon)).
 - **Počítání kusů** — druhý sken téže knihy na téže poličce nevytvoří duplicitu,
-  jen přičte kus. Počet jde i **napsat rukou** — v nabídce u knihy i ve sloupci
-  *Kusů* v tabulce, takže se třídní sada dvaceti pěti čítanek pořídí jedním
-  skenem. Duplicity, které se do tabulky dostaly jinudy (ze zálohy z jiného
+  jen přičte kus. Počet jde i **zadat rovnou** — při potvrzování knihy i v jejím
+  detailu, takže se třídní sada dvaceti pěti čítanek pořídí jedním skenem. Duplicity, které se do tabulky dostaly jinudy (ze zálohy z jiného
   telefonu nebo ze starší verze), se při načtení sloučí a kusy sečtou.
 - **Export jen toho, co je nové** — po exportu si aplikace pamatuje, které
   knihy do knihovního systému už šly. Katalogizovat se tak dá na několikrát,
@@ -57,8 +60,8 @@ a po potvrzení uloží do tabulky. Běží jako statická stránka na GitHub Pa
 - **Načtení CSV** — kromě vlastní zálohy JSON přečte i tabulku CSV, takže jde
   do aplikace dostat, co knihovna už má.
 - **Krok zpět** — omylem přidanou nebo smazanou knihu vrátí jedno klepnutí.
-- **Hromadné akce** — zaškrtnuté řádky jde naráz přesunout na poličku, smazat
-  nebo označit za odeslané.
+- **Hromadné akce** — tlačítko *Vybrat* zapne zaškrtávátka a vybrané knihy jde
+  naráz přesunout na poličku, smazat nebo označit za odeslané.
 - **ISBN se správnými pomlčkami** — `978-80-7335-506-7`, ne `9788073355067`.
 - **Chod bez signálu** — po prvním načtení funguje aplikace i offline
   (dohledávání údajů pochopitelně internet potřebuje) a jde ji přidat na
@@ -93,6 +96,23 @@ Aplikace se pak spouští jako samostatná ikona bez adresního řádku.
 
 ---
 
+## Rozvržení
+
+Na telefonu jsou dole **tři záložky**:
+
+| Záložka | Co je v ní |
+|---|---|
+| **Skenovat** | kamera, výběr poličky, ruční zadání a seznam *Právě přidané* |
+| **Knihovna** | hledání, filtry a knihy seskupené do sbalitelných poliček |
+| **Záloha** | export, zálohy a správa poliček |
+
+Skenovací okénko, výběr poličky i tlačítko *Spustit skenování* drží **horní část
+obrazovky a neposouvají se** — pod nimi roluje jen seznam právě přidaných knih,
+takže při skenování hledáček nikdy nezmizí.
+
+Na iPadu a počítači se záložky neskrývají do lišty: **skenování zůstane v levém
+sloupci a knihovna se prohlíží vpravo**, obojí naráz.
+
 ## Jak se to používá
 
 1. Otevřete stránku v telefonu a klepněte na **Spustit skenování**.
@@ -101,11 +121,12 @@ Aplikace se pak spouští jako samostatná ikona bez adresního řádku.
 4. Objeví se **nabídka s dohledanými údaji**. Zkontrolujte je, u víc výtisků
    přepište *Kusů* a klepněte na *Přidat do knihovny* (nebo zmáčkněte Enter) —
    teprve tím se kniha uloží.
-5. Skenujte dál — knihovnu tak projdete kus po kuse.
-6. Na konci klepněte na **Export jen nových** a máte tabulku v Excelu — se
-   sloupci pojmenovanými tak, jak je čeká import do knihovního systému.
-   Až budete pokračovat, nabídne se zase jen to, co mezitím přibylo.
-7. Aby seznam přežil ztrátu telefonu, pošlete si ho z karty **Záloha** na Disk
+5. Skenujte dál — knihovnu tak projdete kus po kuse. Co právě přibylo, je
+   vidět pod skenovacím okénkem.
+6. Na kartě **Záloha** klepněte na **Export jen nových** a máte tabulku
+   v Excelu — se sloupci pojmenovanými tak, jak je čeká import do knihovního
+   systému. Až budete pokračovat, nabídne se zase jen to, co mezitím přibylo.
+7. Aby seznam přežil ztrátu telefonu, pošlete si ho ze stejné karty na Disk
    Google nebo e-mailem — viz [Zálohování](#zálohování--jak-dostat-seznam-mimo-telefon).
 
 ### Potvrzení u každé knihy
@@ -113,15 +134,12 @@ Aplikace se pak spouští jako samostatná ikona bez adresního řádku.
 Skener se občas splete: přečte kód sousední knihy nebo číslo, které knize vůbec
 nepatří. Proto se **nic neukládá samo**. Po každém načtení se otevře nabídka:
 
-- Nahoře **shrnutí** — obálka, název, autor a číslo. U drtivé většiny knih je
-  to jediné, co je potřeba přečíst.
-- **Polička** a **počet kusů** — to jediné, co se u každé knihy rozhoduje.
-- **Upravit údaje** rozbalí zbytek: ISBN, název, autora, rok, vydavatele,
-  místo vydání a poznámku. Zavřené je schválně — rolovat kvůli nim k tlačítku
-  by se muselo u každé knihy, a upravují se u zlomku z nich. Hodí se hlavně
-  u knih, které databáze neznají, a u míst vydání, která zdroje často neuvádějí
-  vůbec. Když se kniha nikde nenajde, rozbalí se sama.
-- **ISBN** — když je číslo špatně, přepište ho a klepněte na *🔎 Vyhledat*.
+- Nahoře **karta s nálezem** — obálka, název, autor, číslo a odznak se
+  **zdrojem údajů**. U drtivé většiny knih je to jediné, co je potřeba přečíst.
+- Pod ní **pole k úpravě**: ISBN, název, autor, rok, vydavatel, místo vydání,
+  polička, počet kusů a poznámka. Hodí se hlavně u knih, které databáze
+  neznají, a u míst vydání, která zdroje často neuvádějí vůbec.
+- **ISBN** — když je číslo špatně, přepište ho a klepněte na *Vyhledat*.
   Údaje se dohledají znovu podle opraveného čísla.
 - **Přidat do knihovny** knihu uloží, **Zahodit** (nebo klávesa Esc) ji zahodí
   a nic se neuloží. Tlačítka drží dole na obrazovce, ať se k nim nemusí
@@ -142,28 +160,37 @@ přičte kusy. Pokud jste přitom údaje ručně opravili, tlačítko nabídne
 Aby šlo zpětně dohledat, **kde která kniha stojí**, ukládá se ke knize polička —
 prostý název místa, třeba *Obývák — horní řada* nebo *Ložnice*.
 
-- Poličku pro skenování vyberete nahoře v **Skenuji do poličky**; nová se založí
-  volbou *➕ Nová polička…* nebo ve **Spravovat poličky**.
+- Poličku pro skenování vyberete řádkem **Do poličky** pod okénkem kamery;
+  nová se založí přímo v něm nebo na kartě **Záloha**.
 - Volba se pamatuje, takže celou polici projdete jedním skenem za druhým.
   U každé knihy jde v nabídce ještě změnit.
-- V tabulce je sloupec **Polička** — přeřazení knihy jinam je jedno klepnutí.
-- Nad tabulkou se dá **filtrovat podle poličky**; hledání polička taky bere.
-- Tentýž titul na dvou poličkách jsou **dva řádky** — dva výtisky na dvou
+- V **Knihovně** jsou knihy seskupené do poliček — sekce se klepnutím sbalí
+  a rozbalí, *Rozbalit vše* / *Sbalit vše* je přepne najednou.
+- Přeřazení knihy jinam je v **detailu knihy**, hromadně pak přes *Vybrat*.
+- Tentýž titul na dvou poličkách jsou **dva záznamy** — dva výtisky na dvou
   místech. Opakovaný sken na téže poličce přičte kus, jako dřív.
 - Zrušení poličky knihy nemaže, jen je nechá bez zařazení. Přejmenování se
-  promítne i do knih. Poličky přežijí i *Vymazat vše*.
+  promítne i do knih. Poličky přežijí i *Vymazat celou tabulku*.
 - Polička jde i do exportu CSV a do zálohy JSON.
 
-### Práce s tabulkou
+### Práce s knihovnou
 
-- **Kusů** je sloupec, do kterého jde počet přepsat rukou. Třídní sada učebnic
-  se tak pořídí jedním skenem místo pětadvaceti.
-- **Zaškrtávátka** u řádků zapnou lištu hromadných akcí: přesunout vybrané na
+- **Název** se přepíše přímo v řádku, **zbytek údajů** v detailu knihy
+  (klepnutí na šipku vpravo, nebo na kartu).
+- **Počet kusů** je v detailu tlačítky − a +. Třídní sada učebnic se pořídí
+  jedním skenem místo pětadvaceti — počet se dá zadat i rovnou při potvrzování.
+- **Řádky / Karty s obálkou** přepnou zobrazení. Karty ukážou obálku větší
+  a víc údajů, řádky se jich vejde na obrazovku víc.
+- **Vybrat** zapne zaškrtávátka a lištu hromadných akcí: přesunout vybrané na
   poličku, smazat je, označit za odeslané nebo je vrátit mezi nové.
-- **Zpět** se objeví v hlášce po přidání, smazání i hromadné akci a deset
+- **Filtr** *Odeslané i nové / Jen nové / Jen odeslané* a **řazení** jsou nad
+  seznamem. Řadit jde podle názvu, autora, roku, vydavatele, místa vydání,
+  čísla i počtu kusů — a u názvu, autora i roku obojím směrem. Řadí se uvnitř
+  poličky, aby zůstalo vidět, kde která kniha stojí.
+- **Vrátit** se objeví v hlášce po přidání, smazání i hromadné akci a deset
   vteřin počká. Špatně naskenovaná sousední kniha má platné ISBN, takže ji
   kontrolní číslice nechytí — tohle je na ni ta pojistka.
-- **Číslo jde v tabulce i vymazat.** U knihy, která žádné nemá, tam špatně
+- **Číslo jde v detailu i vymazat.** U knihy, která žádné nemá, tam špatně
   přečtené ISBN nemusí zůstat viset.
 - Počítadlo v záhlaví ukazuje **tituly i kusy** (`412 / 530 ks`), protože
   u knihovny se čeká odpověď na „kolik máme knih“.
@@ -171,9 +198,9 @@ prostý název místa, třeba *Obývák — horní řada* nebo *Ložnice*.
 ### Kniha bez čárového kódu
 
 Starší tituly čárový kód často nemají, číslo ISBN ale bývá vytištěné v tiráži
-nebo na zadní straně. Klepněte na **🔢 Číst tištěné číslo** — místo rámečku na
+nebo na zadní straně. Klepněte v okénku kamery na **Číslo z tiráže** — místo rámečku na
 čárový kód se objeví úzký **čtecí proužek**. Zaměřte ho na řádek s číslem
-a klepněte na **📖 Přečíst číslo**.
+a klepněte na **Přečíst číslo**.
 
 **Proužek jde posunout tahem** a spodním úchytem se mu mění výška, takže si
 přesně určíte, který řádek se přečte. Právě o to jde: v tiráži bývají hned nad
@@ -369,9 +396,9 @@ import do knihovního systému by knihovnu zdvojil. Aplikace si proto pamatuje,
 
 - **⬇️ Export jen nových** stáhne jen knihy, které do systému ještě nešly,
   a označí je za odeslané. U tlačítka je vidět, kolik jich je.
-- **⬇️ Export CSV (vše)** pošle celou tabulku, jako dřív.
-- V tabulce jde filtrovat na *Jen nové (neodeslané)* nebo *Jen odeslané*
-  a odeslaný řádek je poznat podle zeleného proužku u kraje.
+- **⬇️ Export CSV** pošle celou tabulku, jako dřív.
+- V **Knihovně** jde filtrovat na *Jen nové* nebo *Jen odeslané* a odeslaná
+  kniha je poznat podle zeleného proužku u kraje.
 - Když se u odeslané knihy něco změní — přibude kus, opraví se počet nebo
   údaje — **vrátí se sama mezi nové**. V knihovním systému je od té chvíle
   zastaralá.
@@ -544,7 +571,7 @@ v daném telefonu. Z toho plyne pár praktických věcí:
 
 ## Zálohování — jak dostat seznam mimo telefon
 
-Karta **Záloha** pod tabulkou nabízí čtyři cesty. Všechny fungují bez serveru,
+Záložka **Záloha** nabízí čtyři cesty. Všechny fungují bez serveru,
 bez registrace a bez API klíče — aplikace je pořád jen statická stránka, data
 tedy putují výhradně tam, kam je pošlete sami. Nahoře na kartě je vždy vidět,
 **kdy záloha proběhla naposledy** a jestli se od té doby tabulka změnila.
@@ -555,7 +582,7 @@ tedy putují výhradně tam, kam je pošlete sami. Nahoře na kartě je vždy vi
 | **✉️ Poslat e-mailem** | otevře rozepsanou zprávu se **seznamem knih přímo v textu** a stáhne oba soubory, abyste je mohli přiložit. | všude |
 | **📁 Zálohovat do složky** | jednou vyberete složku a aplikace do ní **sama po každé změně** zapíše zálohu. | Chrome a Edge na počítači |
 | **⬇️ Export jen nových / Export CSV / Záloha JSON** | stáhne soubor do zařízení. | všude |
-| **⬆️ Načíst zálohu nebo CSV** | vrátí do aplikace zálohu JSON, nebo načte tabulku CSV. | všude |
+| **⬆️ Načíst** | vrátí do aplikace zálohu JSON, nebo načte tabulku CSV. | všude |
 
 ### Na Disk Google
 
@@ -636,7 +663,7 @@ v daném zařízení opravdu funguje.
 ```
 index.html               rozhraní aplikace
 css/style.css            vzhled (mobil na prvním místě, světlý i tmavý režim)
-js/app.js                propojení všech částí a obsluha tabulky
+js/app.js                propojení všech částí a vykreslení obrazovek
 js/scanner.js            kamera a čtení čárových kódů
 js/ocr.js                čtení ISBN z vytištěného čísla
 js/lookup.js             dohledání knihy v online databázích (podle ISBN i podle údajů)
@@ -648,6 +675,7 @@ manifest.webmanifest     nastavení pro přidání na plochu
 vendor/zxing.min.js      čtečka kódů pro prohlížeče bez vlastní podpory
 vendor/isbn3.min.js      oficiální rozsahy pro dělení ISBN pomlčkami
 vendor/tesseract/        rozpoznávání textu (načítá se až při použití)
+vendor/fonts/            písma IBM Plex (nadpisy a text rozhraní)
 tests/jednotky.mjs       rychlé testy bez prohlížeče
 tests/e2e.mjs            automatický test v prohlížeči
 tests/aktualizace.mjs    test, že se nová verze dostane k uživateli
@@ -662,10 +690,11 @@ python3 -m http.server 8000
 # a otevřít http://localhost:8000
 ```
 
-Čtečka kódů (ZXing) i rozpoznávání textu (Tesseract) jsou uložené přímo
-v repozitáři ve `vendor/`, ne načítané z cizího CDN — aplikace tak funguje
-offline a při skenování nic neodchází na servery třetích stran. ZXing (330 kB)
-se načítá rovnou, Tesseract (7 MB) až když si někdo řekne o čtení čísla.
+Čtečka kódů (ZXing), rozpoznávání textu (Tesseract) i písma (IBM Plex) jsou
+uložené přímo v repozitáři ve `vendor/`, ne načítané z cizího CDN — aplikace tak
+funguje offline a při skenování nic neodchází na servery třetích stran. ZXing
+(330 kB) a písma (190 kB) se načítají rovnou, Tesseract (7 MB) až když si někdo
+řekne o čtení čísla.
 
 ### Testy
 

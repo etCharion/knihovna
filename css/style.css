@@ -1,34 +1,126 @@
 /* Knihovna — mobilní skener knih.
-   Vzhled je dělaný nejdřív pro telefon, na širší displeje se jen rozšíří. */
+   Teplá, klidná paleta; IBM Plex Serif pro nadpisy a názvy knih, IBM Plex Sans
+   na zbytek. Dělané nejdřív pro telefon (tři záložky dole), na iPadu a počítači
+   se skenování a knihovna zobrazí vedle sebe. */
+
+/* Písma jsou v repozitáři, ne na cizím CDN — stejně jako čtečka kódů
+   a OCR. Aplikace tak vypadá stejně i bez signálu a neposílá při každém
+   otevření IP adresu telefonu do Googlu. Zdroj: IBM Plex, licence OFL 1.1,
+   podmnožiny latin a latin-ext (čeština potřebuje obě). */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('../vendor/fonts/ibm-plex-sans-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('../vendor/fonts/ibm-plex-sans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: italic;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('../vendor/fonts/ibm-plex-sans-italic-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: italic;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('../vendor/fonts/ibm-plex-sans-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Serif';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../vendor/fonts/ibm-plex-serif-500-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Serif';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../vendor/fonts/ibm-plex-serif-500-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Serif';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../vendor/fonts/ibm-plex-serif-600-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Serif';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../vendor/fonts/ibm-plex-serif-600-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 :root {
-  --pozadi: #f4f1ea;
-  --karta: #ffffff;
-  --text: #24211c;
-  --text-slaby: #6b6459;
-  --ram: #ded7c9;
-  --hlavni: #1f3a5f;
-  --hlavni-text: #ffffff;
-  --uspech: #1d6b3f;
-  --varovani: #8a5a00;
-  --chyba: #9b2226;
-  --stin: 0 1px 3px rgba(0, 0, 0, .08), 0 4px 16px rgba(0, 0, 0, .05);
-  --radius: 12px;
+  --pozadi: #EDE7D9;
+  --karta: #FFFDF8;
+  --karta-jemna: #F5F1E6;
+  --karta-odznak: #F1ECDF;
+  --text: #23201B;
+  --text-slaby: #6E6558;
+  --text-jemny: #8C8272;
+  --ram: #DCD3C0;
+  --ram-jemny: #EAE2D0;
+  --hlavni: #22453A;
+  --hlavni-text: #FFFCF4;
+  --hlavni-jemne: #E9EFE9;
+  --uspech: #22453A;
+  --varovani: #8A4A1E;
+  --varovani-pozadi: #FBEFE4;
+  --varovani-ram: #E7C4A6;
+  --chyba: #A8452A;
+  --akcent-sken: #C0562F;
+  --stin: 0 2px 4px rgba(35, 32, 27, .06), 0 18px 40px rgba(35, 32, 27, .12);
+  --stin-jemny: 0 1px 3px rgba(35, 32, 27, .08);
+  --radius: 16px;
+  --radius-mala: 12px;
+  --font-text: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-nadpis: "IBM Plex Serif", Georgia, serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --pozadi: #16181c;
-    --karta: #1e2126;
-    --text: #e8e6e1;
-    --text-slaby: #9a958c;
-    --ram: #32363d;
-    --hlavni: #4a7fb5;
-    --hlavni-text: #0d1015;
-    --uspech: #6ec48f;
-    --varovani: #e0b060;
-    --chyba: #e88b8e;
-    --stin: 0 1px 3px rgba(0, 0, 0, .4);
+    --pozadi: #17181A;
+    --karta: #201F1B;
+    --karta-jemna: #262521;
+    --karta-odznak: #2B2A25;
+    --text: #EDE8DD;
+    --text-slaby: #B2A996;
+    --text-jemny: #8C8272;
+    --ram: #3A362D;
+    --ram-jemny: #2E2C26;
+    --hlavni: #6FA88F;
+    --hlavni-text: #12211C;
+    --hlavni-jemne: #22322B;
+    --uspech: #6FA88F;
+    --varovani: #E0A46E;
+    --varovani-pozadi: #322822;
+    --varovani-ram: #5A4432;
+    --chyba: #E08868;
+    --akcent-sken: #E08868;
+    --stin: 0 2px 4px rgba(0, 0, 0, .3), 0 18px 40px rgba(0, 0, 0, .35);
+    --stin-jemny: 0 1px 3px rgba(0, 0, 0, .3);
   }
 }
 
@@ -36,111 +128,113 @@
 
 body {
   margin: 0;
-  padding: 0 0 3rem;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding: 0;
+  font-family: var(--font-text);
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.45;
   background: var(--pozadi);
   color: var(--text);
   -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
 }
 
-main { padding: 0 .75rem; }
+h1, h2 { font-family: var(--font-nadpis); font-weight: 600; margin: 0; letter-spacing: -.01em; }
+h1 { font-size: 1.32rem; }
+h2 { font-size: 1.18rem; }
 
-/* ------------------------------------------------------------ hlavička */
+input, select, button, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+::-webkit-scrollbar { width: 0; height: 0; }
 
-.hlavicka {
-  padding: max(1rem, env(safe-area-inset-top)) 1rem 1rem;
-  background: var(--hlavni);
-  color: var(--hlavni-text);
-  margin-bottom: 1rem;
+/* ------------------------------------------------------------ obrazovky */
+
+.obrazovky {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: max(1rem, env(safe-area-inset-top)) 0 calc(5.5rem + env(safe-area-inset-bottom));
 }
 
-.hlavicka h1 { margin: 0; font-size: 1.4rem; }
-.podtitul { margin: .25rem 0 0; font-size: .9rem; opacity: .85; }
+.obrazovka { padding: 0 1rem; }
+.obrazovka[hidden] { display: none; }
 
-/* ------------------------------------------------------------ karty */
+.obrazovka > h1 { padding: .2rem 0 .9rem; }
 
-.karta {
-  background: var(--karta);
-  border: 1px solid var(--ram);
-  border-radius: var(--radius);
-  box-shadow: var(--stin);
-  padding: 1rem;
-  margin: 0 auto 1rem;
-  max-width: 1100px;
+.zahlavi-obrazovky {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .6rem;
 }
 
-.karta h2 { margin: 0; font-size: 1.1rem; }
+.pocet-info, .vysledek-text { font-size: .8rem; color: var(--text-slaby); white-space: nowrap; }
 
-/* ------------------------------------------------------------ kamera */
+.pocet {
+  font-size: .78rem;
+  color: var(--text-slaby);
+}
+
+/* ------------------------------------------------------------ skenování: horní pevná část */
+
+.skener-horni {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-top: .2rem;
+  background: var(--pozadi);
+}
 
 .kamera {
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 3;
-  background: #000;
+  background: #15171A;
   border-radius: var(--radius);
   overflow: hidden;
-  margin-bottom: .75rem;
+  margin-bottom: .65rem;
 }
 
-.kamera video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
+.kamera video { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-/* Rámeček, do kterého se míří — čistě vizuální vodítko. */
 .hledacek {
   position: absolute;
-  inset: 30% 10%;
-  border: 3px solid rgba(255, 255, 255, .9);
-  border-radius: 8px;
-  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .35);
+  inset: 24% 9%;
+  border: 2px solid rgba(255, 252, 244, .92);
+  border-radius: 10px;
+  box-shadow: 0 0 0 100vmax rgba(10, 11, 13, .42);
 }
 
-.hledacek::after {
-  content: "";
+.skener-cara {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
+  left: 9%; right: 9%;
   height: 2px;
-  background: #e63946;
-  opacity: .9;
+  background: var(--akcent-sken);
+  box-shadow: 0 0 12px rgba(192, 86, 47, .9);
+  animation: skenovaci-cara 1.6s ease-in-out infinite alternate;
 }
 
-/* ------------------------------------------------ čtecí proužek na číslo */
+@keyframes skenovaci-cara { 0% { top: 26%; } 100% { top: 72%; } }
 
-/* Úzký pruh na jeden řádek textu. Velký rámeček se pro čtení tištěného ISBN
-   neosvědčil: pletla se do něj čísla těsně nad ním a pod ním (rok vydání,
-   cena, číslo publikace). Proužek jde posunout tahem a spodním úchytem se
-   mu mění výška, takže uživatel přesně určí, který řádek se přečte. */
+/* ------------------------------------------------ čtecí proužek na tištěné číslo */
+
 .ctecka { position: absolute; inset: 0; }
 
 .ctecka-pruh {
   position: absolute;
-  left: 6%;
-  right: 6%;
-  border: 2px solid rgba(255, 255, 255, .95);
-  border-radius: 6px;
-  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .45);
+  left: 9%; right: 9%;
+  border: 2px solid rgba(255, 252, 244, .95);
+  border-radius: 8px;
+  box-shadow: 0 0 0 100vmax rgba(10, 11, 13, .45);
   cursor: grab;
-  touch-action: none;          /* tah patří proužku, ne rolování stránky */
+  touch-action: none;
 }
 
-.ctecka-pruh.tahne-se { cursor: grabbing; border-color: #ffd166; }
+.ctecka-pruh.tahne-se { cursor: grabbing; border-color: var(--akcent-sken); }
 
-/* Úchyt na spodní hraně mění výšku proužku. Přesahuje ven, aby se do něj
-   dalo trefit prstem i u nízkého proužku. */
 .ctecka-uchyt {
   position: absolute;
-  left: 50%;
-  bottom: -14px;
-  width: 72px;
-  height: 28px;
+  left: 50%; bottom: -14px;
+  width: 72px; height: 28px;
   transform: translateX(-50%);
   cursor: ns-resize;
   touch-action: none;
@@ -149,573 +243,763 @@ main { padding: 0 .75rem; }
 .ctecka-uchyt::after {
   content: "";
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 44px;
-  height: 5px;
+  left: 50%; top: 50%;
+  width: 44px; height: 5px;
   transform: translate(-50%, -50%);
-  background: rgba(255, 255, 255, .95);
+  background: rgba(255, 252, 244, .95);
   border-radius: 999px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, .5);
 }
 
 .ctecka-napoveda {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: .5rem;
+  left: 0; right: 0; bottom: .5rem;
   margin: 0;
   padding: 0 .75rem;
-  font-size: .8rem;
-  color: #fff;
+  font-size: .78rem;
+  color: #FFFCF4;
   text-align: center;
   text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
 }
 
+.kamera-ovladani {
+  position: absolute;
+  top: 10px; right: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+.kamera-tlacitko {
+  min-height: 34px;
+  padding: 0 11px;
+  font-size: .75rem;
+  font-weight: 500;
+  color: #FFFCF4;
+  background: rgba(18, 20, 23, .62);
+  border: 1px solid rgba(255, 252, 244, .28);
+  border-radius: 9px;
+}
+
+.kamera-tlacitko.aktivni { background: rgba(240, 201, 168, .92); color: #23201B; }
+
+.kamera-placeholder {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2rem;
+  font-size: .82rem;
+  text-align: center;
+  color: rgba(255, 252, 244, .5);
+}
+
+/* Výběr poličky stojí pod okénkem, ne v něm: kamera se zapíná až tlačítkem,
+   ale poličku je potřeba nastavit ještě předtím, než se začne skenovat. */
+.vyber-policky {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 46px;
+  margin-bottom: 8px;
+  padding: 0 12px;
+  text-align: left;
+  background: var(--karta-jemna);
+  border: 1px solid var(--ram);
+  border-radius: var(--radius-mala);
+}
+
+.vyber-policky .popisek { flex: 0 0 auto; font-size: .65rem; letter-spacing: .09em; text-transform: uppercase; color: var(--text-jemny); }
+.vyber-policky .hodnota { flex: 1 1 auto; min-width: 0; font-size: .87rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vyber-policky .zmenit { flex: 0 0 auto; font-size: .72rem; color: var(--hlavni); }
+
 /* ------------------------------------------------------------ tlačítka */
 
-.tlacitka {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .5rem;
-  margin-bottom: .75rem;
+.tlacitko-hlavni {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--hlavni-text);
+  background: var(--hlavni);
+  border: 1px solid transparent;
+  border-radius: 14px;
 }
 
-.tlacitko {
-  flex: 1 1 auto;
-  min-height: 48px;            /* pohodlný cíl pro palec */
-  padding: .6rem 1rem;
-  font-size: 1rem;
-  font-family: inherit;
-  color: var(--text);
+.tlacitko-hlavni:active { transform: translateY(1px); }
+.tlacitko-hlavni:disabled { opacity: .5; }
+.tlacitko-hlavni.aktivni { background: var(--karta); color: var(--chyba); border-color: var(--varovani-ram); }
+
+.skener-tlacitka-dole { display: flex; gap: 8px; margin-top: 8px; }
+
+.tlacitko-vedlejsi {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: .85rem;
+  font-weight: 500;
+  color: var(--hlavni);
   background: var(--karta);
   border: 1px solid var(--ram);
-  border-radius: 10px;
-  cursor: pointer;
+  border-radius: var(--radius-mala);
 }
 
-.tlacitko:active { transform: translateY(1px); }
-.tlacitko:disabled { opacity: .5; cursor: default; }
+.tlacitko-vedlejsi:disabled { opacity: .5; }
+.tlacitko-vedlejsi.zvyrazneny { color: var(--hlavni); border-color: var(--hlavni); font-weight: 600; }
+.tlacitko-vedlejsi.aktivni { background: var(--hlavni-jemne); border-color: var(--hlavni); }
 
-.tlacitko.hlavni {
-  background: var(--hlavni);
-  color: var(--hlavni-text);
-  border-color: var(--hlavni);
-  font-weight: 600;
-  flex-basis: 100%;
-}
-
-.tlacitko.nebezpecne { color: var(--chyba); }
-.tlacitko.aktivni { background: var(--varovani); color: #fff; border-color: var(--varovani); }
-
-.ikona-tlacitko {
-  min-width: 36px;
-  min-height: 36px;
-  font-size: 1rem;
-  color: var(--text-slaby);
-  background: none;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.ikona-tlacitko:hover { color: var(--chyba); background: rgba(155, 34, 38, .1); }
-
-/* ------------------------------------------------------------ formuláře */
-
-.stav {
-  margin: 0 0 .75rem;
+.tlacitko-zvyrazneny {
+  width: 100%;
+  min-height: 50px;
+  margin-top: 5px;
   font-size: .9rem;
-  color: var(--text-slaby);
-  min-height: 1.5em;
-}
-
-.rucne summary,
-.rozbalovaci summary {
-  cursor: pointer;
-  font-size: .95rem;
+  font-weight: 500;
   color: var(--hlavni);
-  padding: .5rem 0;
+  background: var(--hlavni-jemne);
+  border: 0;
+  border-radius: var(--radius-mala);
 }
 
-/* Na telefonu se tlačítka zalomí pod pole, ať je do ISBN vidět celé.
-   Na širším displeji se všechno vejde na jeden řádek. */
-.radek-formulare { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
-
-input[type="text"],
-input[type="search"],
-select {
-  flex: 1;
-  min-width: 0;
+.tlacitko-nebezpecne {
   min-height: 48px;
-  padding: .5rem .75rem;
-  font-size: 1rem;
-  font-family: inherit;
-  color: var(--text);
-  background: var(--pozadi);
-  border: 1px solid var(--ram);
-  border-radius: 10px;
+  padding: 0 16px;
+  font-size: .92rem;
+  font-weight: 500;
+  color: var(--chyba);
+  background: var(--karta);
+  border: 1px solid var(--varovani-ram);
+  border-radius: var(--radius-mala);
 }
 
-.radek-formulare .tlacitko { flex: 0 0 auto; }
+.tlacitko-nebezpecne.sirokytlacitko { width: 100%; margin-top: 12px; }
 
-/* Na telefonu má pole celý řádek pro sebe a tlačítka jdou pod něj. Kdyby se
-   o řádek dělila, zbylo by na pole tak málo, že by z ISBN byl vidět jen
-   poslední kousek. */
-.radek-formulare input { flex: 1 1 100%; }
+.odkaz-tlacitko {
+  min-height: 30px;
+  padding: 0;
+  font-size: .8rem;
+  color: var(--hlavni);
+  background: none;
+  border: 0;
+}
 
-.napoveda { margin: .5rem 0 0; font-size: .82rem; color: var(--text-slaby); }
-
-/* Přepínač klávesnice — úzký, ať na řádku zbude místo pro samotné pole. */
-.tlacitko.prepinac {
+.tlacitko-prepinac {
+  flex: 0 0 auto;
   min-width: 3rem;
-  padding: .6rem .5rem;
+  min-height: 48px;
+  padding: 0 .6rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  color: var(--hlavni);
+  background: var(--karta-jemna);
+  border: 1px solid var(--ram);
+  border-radius: var(--radius-mala);
 }
 
-/* ------------------------------------------- hledání podle údajů o knize */
+.tlacitko-prepinac.aktivni { background: var(--hlavni); color: var(--hlavni-text); border-color: var(--hlavni); }
 
-/* Na telefonu jsou pole pod sebou a tlačítka přes celou šířku, na širším
-   displeji se pole srovnají vedle sebe. */
-.formular-hledani {
+.tlacitko-hotovo, .tlacitko-zavrit {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--hlavni);
+  background: var(--hlavni-jemne);
+  border: 0;
+  border-radius: var(--radius-mala);
+}
+
+.tlacitko-zavrit { font-weight: 400; color: var(--text-slaby); background: var(--karta-odznak); }
+
+.tlacitko-krok {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 1.1rem;
+  color: var(--hlavni);
+  background: var(--karta);
+  border: 1px solid var(--ram);
+  border-radius: 11px;
+}
+
+/* ------------------------------------------------------------ stav */
+
+.stavovy-radek { display: flex; align-items: center; gap: 7px; margin-top: 9px; min-height: 17px; }
+
+.stavova-tecka {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--akcent-sken);
+  animation: blikani 1.2s ease-in-out infinite;
+  flex: 0 0 auto;
+}
+
+@keyframes blikani { 0%, 100% { opacity: .35; } 50% { opacity: .9; } }
+
+.stav { margin: 0; font-size: .8rem; color: var(--text-slaby); }
+
+/* ------------------------------------------------------------ seznam nedávno přidaných */
+
+.skener-seznam { padding: 14px 0 18px; }
+
+.skener-seznam-zahlavi {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-jemny);
+}
+
+.prazdno-nedavne {
+  padding: 22px 16px;
+  text-align: center;
+  font-size: .85rem;
+  color: var(--text-jemny);
+  background: var(--karta-jemna);
+  border: 1px dashed var(--ram);
+  border-radius: 14px;
+}
+
+.seznam-nedavnych, .policky-vyber-seznam { display: flex; flex-direction: column; gap: 8px; }
+
+.kniha-radek {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px;
+  text-align: left;
+  background: var(--karta);
+  border: 1px solid var(--ram-jemny);
+  border-radius: 14px;
+}
+
+button.kniha-radek { font: inherit; color: inherit; }
+
+.obalka-mala, .obalka-stredni, .obalka-velka {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 5px;
+  font-family: var(--font-nadpis);
+  color: #FFFCF4;
+  border-radius: 4px;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+}
+
+.obalka-mala { width: 34px; height: 48px; font-size: 1.05rem; }
+.obalka-stredni { width: 52px; height: 74px; font-size: 1.25rem; box-shadow: 0 2px 6px rgba(35, 32, 27, .16); }
+.obalka-velka { width: 56px; height: 80px; font-size: 1.35rem; box-shadow: 0 2px 8px rgba(35, 32, 27, .18); }
+.obalka-mala img, .obalka-stredni img, .obalka-velka img { width: 100%; height: 100%; object-fit: cover; }
+
+.kniha-info { flex: 1 1 auto; min-width: 0; }
+.kniha-nazev { display: block; font-size: .9rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kniha-autor { display: block; font-size: .78rem; color: var(--text-slaby); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kniha-policka-popisek { display: block; margin-top: 2px; font-size: .7rem; color: var(--text-jemny); }
+.kniha-stav-odznak { flex: 0 0 auto; font-size: .72rem; color: var(--hlavni); padding: 3px 8px; background: var(--hlavni-jemne); border-radius: 999px; }
+
+/* ------------------------------------------------------------ knihovna */
+
+.knihovna-radek-nastroju {
   display: flex;
   flex-wrap: wrap;
-  gap: .5rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ram);
-}
-
-.formular-hledani input { flex: 1 1 12rem; }
-/* Rok jsou čtyři číslice — celá šířka by tu byla k ničemu a pole pro
-   nakladatelství by se o ni zbytečně připravilo. */
-.formular-hledani input.uzke { flex: 1 1 6rem; }
-.formular-hledani .tlacitko { flex: 1 1 100%; }
-
-.vysledky { margin-top: .75rem; }
-
-.zahlavi-vysledku {
-  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: .5rem;
-  font-size: .95rem;
+  gap: .5rem .6rem;
+  margin-top: 9px;
 }
 
-.seznam-vysledku {
-  display: grid;
-  gap: .5rem;
-  margin: .5rem 0 0;
-  padding: 0;
-  list-style: none;
-}
+.knihovna-radek-nastroju.druhy-radek { margin-top: 8px; }
 
-/* ------------------------------------------------------------ pole formuláře */
-
-.pole { margin-bottom: .75rem; }
-
-.pole label {
-  display: block;
-  margin-bottom: .25rem;
-  font-size: .82rem;
-  font-weight: 600;
-  color: var(--text-slaby);
-}
-
-.pole > input,
-.pole > select { width: 100%; }
-.pole .napoveda { margin-top: .35rem; }
-
-/* Krátká pole (rok, vydavatel, místo vydání) stojí v nabídce vedle sebe;
-   na úzkém displeji se zalomí sama. */
-.vedle-sebe { display: flex; flex-wrap: wrap; gap: .75rem; }
-.vedle-sebe .pole { flex: 1 1 8rem; }
-
-/* ------------------------------------------------------------ poličky */
-
-.pole-policka { margin-bottom: .25rem; }
-
-.seznam-policek {
-  margin: .25rem 0 .75rem;
-  padding: 0;
-  list-style: none;
-}
-
-/* Celý nález je jedno tlačítko — na telefonu se do něj trefí palec. */
-.vysledek {
-  display: block;
-  width: 100%;
-  padding: .6rem .75rem;
-  font: inherit;
-  text-align: left;
-  color: var(--text);
-  background: var(--pozadi);
-  border: 1px solid var(--ram);
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.vysledek:hover { border-color: var(--hlavni); }
-.vysledek:active { transform: translateY(1px); }
-.vysledek:disabled { opacity: .5; cursor: default; }
-
-.vysledek-nazev { display: block; font-weight: 600; }
-.vysledek-popis { display: block; font-size: .85rem; color: var(--text-slaby); }
-
-.vysledek-isbn {
-  display: block;
-  font-size: .8rem;
-  color: var(--text-slaby);
-  font-variant-numeric: tabular-nums;
-}
-
-.vysledek-stav { display: block; font-size: .8rem; color: var(--uspech); }
-.vysledek-stav:empty { display: none; }
-
-.seznam-policek li {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .35rem 0;
-  border-bottom: 1px solid var(--ram);
-}
-
-.seznam-policek li.napoveda { border-bottom: none; }
-.nazev-policky { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.pocty-policky { font-size: .8rem; color: var(--text-slaby); white-space: nowrap; }
-
-.sloupec-policka select {
-  min-width: 8rem;
-  min-height: 36px;
-  padding: .25rem .4rem;
-  font-size: .85rem;
-}
-
-/* ------------------------------------------------------------ tabulka */
-
-.zahlavi-tabulky {
+.knihovna-nastroje-vpravo, .knihovna-akce-vpravo {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: .5rem;
-  margin-bottom: .75rem;
+  gap: .4rem .6rem;
+  min-width: 0;
 }
 
-.zahlavi-tabulky h2 { flex: 1 1 auto; }
-.zahlavi-tabulky input { flex: 1 1 12rem; }
-.zahlavi-tabulky select { flex: 1 1 9rem; }
+.knihovna-nastroje-vpravo select { max-width: 10.5rem; }
 
-.pocet {
-  display: inline-block;
-  min-width: 1.75rem;
-  padding: 0 .45rem;
-  font-size: .85rem;
-  text-align: center;
-  color: var(--hlavni-text);
-  background: var(--hlavni);
-  border-radius: 999px;
-}
-
-.prazdno {
-  padding: 1.5rem 0;
-  text-align: center;
-  color: var(--text-slaby);
-}
-
-/* Na úzkém displeji se tabulka posouvá do strany místo mačkání sloupců. */
-.obal-tabulky {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-table {
+#hledat, .karta-zaloha input[type=search] {
   width: 100%;
-  border-collapse: collapse;
-  font-size: .9rem;
+  min-height: 46px;
+  padding: 0 14px;
+  font-size: .92rem;
+  background: var(--karta-jemna);
+  border: 1px solid var(--ram);
+  border-radius: 13px;
 }
 
-th, td {
-  padding: .55rem .5rem;
-  text-align: left;
-  vertical-align: top;
-  border-bottom: 1px solid var(--ram);
-}
-
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+select {
+  min-height: 34px;
+  padding: 0 8px;
   font-size: .78rem;
-  text-transform: uppercase;
-  letter-spacing: .03em;
   color: var(--text-slaby);
-  background: var(--karta);
-  white-space: nowrap;
-}
-
-th[data-radit] { cursor: pointer; user-select: none; }
-th[data-radit]:hover { color: var(--text); }
-th[data-smer="nahoru"]::after { content: " ▲"; }
-th[data-smer="dolu"]::after { content: " ▼"; }
-
-td { min-width: 5rem; }
-td.isbn { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-slaby); }
-
-.sloupec-obalka { width: 44px; min-width: 44px; padding-right: 0; }
-.sloupec-obalka img { width: 36px; height: 52px; object-fit: cover; border-radius: 3px; background: var(--pozadi); }
-.bez-obalky { display: inline-block; width: 36px; text-align: center; opacity: .5; }
-.sloupec-akce { width: 40px; min-width: 40px; }
-
-tr.nacita-se { opacity: .55; }
-
-/* Upravitelný je jen text v buňce, ne celá buňka — vedle něj bývá odznak
-   s počtem kusů a ten se do zapsané hodnoty plést nesmí. */
-.upravitelne { display: inline-block; cursor: text; border-radius: 4px; }
-/* Prázdné pole potřebuje šířku, aby se do něj dalo trefit prstem. Vyplněné
-   se drží textu, ať se odznak s počtem kusů vejde vedle názvu. */
-.upravitelne:empty { min-width: 8rem; }
-.upravitelne:focus { outline: 2px solid var(--hlavni); outline-offset: -2px; background: var(--pozadi); }
-.upravitelne:empty::before { content: attr(data-prazdny); color: var(--text-slaby); font-style: italic; }
-
-/* Číslo ČNB u knih z doby před ISBN — stojí vedle prázdného pole pro ISBN,
-   ne v něm, takže musí být na první pohled poznat, že to ISBN není. */
-.odznak-cnb {
-  display: inline-block;
-  padding: 0 .35rem;
-  font-size: .75rem;
-  color: var(--text-slaby);
-  background: var(--pozadi);
-  border: 1px solid var(--ram);
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.odznak {
-  display: inline-block;
-  padding: 0 .35rem;
-  font-size: .75rem;
-  color: var(--hlavni-text);
-  background: var(--text-slaby);
+  background: var(--karta-odznak);
+  border: 1px solid var(--ram-jemny);
   border-radius: 999px;
 }
 
-/* ------------------------------------------- výběr řádků a hromadné akce */
+.prepinac-varianty { display: flex; gap: 2px; padding: 3px; background: var(--karta-odznak); border-radius: 11px; }
 
-.sloupec-vyber { width: 34px; min-width: 34px; padding-right: 0; }
-.sloupec-vyber input { width: 20px; height: 20px; }
-
-.sloupec-kusu { width: 4.5rem; min-width: 4.5rem; }
-.sloupec-kusu input {
-  width: 3.5rem;
-  padding: .3rem .35rem;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  border: 1px solid var(--ram);
-  border-radius: 6px;
-  background: var(--karta);
-  color: var(--text);
+.prepinac-tlacitko {
+  padding: 6px 12px;
+  font-size: .78rem;
+  font-weight: 500;
+  color: var(--text-slaby);
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
 }
 
-/* Řádek, který už šel do knihovního systému. Poznat to má jít koutkem oka,
-   ne aby to přebíjelo obsah — proto jen proužek u kraje. */
-tr.odeslana td:first-child { box-shadow: inset 3px 0 0 var(--uspech); }
+.prepinac-tlacitko.aktivni { background: var(--karta); color: var(--text); box-shadow: var(--stin-jemny); }
+
+.prazdno { padding: 1.5rem 0; text-align: center; color: var(--text-slaby); }
+
+.skupiny-policek { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+
+.skupina-policky { background: var(--karta); border: 1px solid var(--ram-jemny); border-radius: var(--radius); overflow: hidden; }
+
+.skupina-hlavicka {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 13px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.skupina-sipka { flex: 0 0 auto; width: 16px; font-size: .7rem; color: var(--text-jemny); }
+.skupina-nazev { flex: 1 1 auto; min-width: 0; font-size: .9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skupina-pocet { flex: 0 0 auto; font-size: .72rem; color: var(--text-slaby); padding: 3px 9px; background: var(--karta-odznak); border-radius: 999px; }
+
+.skupina-obsah { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+
+.polozka-radky {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 6px;
+  border-top: 1px solid var(--karta-odznak);
+}
+
+/* Zelený proužek u kraje = kniha už šla do knihovního systému. */
+.polozka-radky.odeslana, .polozka-karty.odeslana { box-shadow: inset 3px 0 0 var(--uspech); }
+.polozka-radky.nacita-se, .polozka-karty.nacita-se { opacity: .55; }
+
+.polozka-radky .kniha-nazev { font-size: .875rem; overflow-wrap: anywhere; white-space: normal; }
+.polozka-radky .kniha-nazev[contenteditable]:focus { outline: 2px solid var(--hlavni); outline-offset: 2px; border-radius: 3px; }
+.polozka-radky .kniha-cislo { display: block; margin-top: 2px; font-size: .7rem; color: var(--text-jemny); font-variant-numeric: tabular-nums; }
+
+.polozka-karty {
+  display: flex;
+  gap: 13px;
+  width: 100%;
+  padding: 11px 9px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--karta-odznak);
+}
+
+.polozka-karty .kniha-info { display: flex; flex-direction: column; gap: 3px; }
+.polozka-karty .kniha-nazev { font-family: var(--font-nadpis); font-size: 1rem; font-weight: 600; line-height: 1.25; white-space: normal; }
+.polozka-karty .kniha-autor { font-size: .82rem; }
+.polozka-karty .kniha-meta-karta { font-size: .76rem; color: var(--text-jemny); font-variant-numeric: tabular-nums; }
+.polozka-karty .odznaky-karty { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.polozka-karty .odznak-policka { font-size: .7rem; color: var(--text-slaby); padding: 3px 9px; background: var(--karta-odznak); border-radius: 999px; }
+.polozka-karty .odznak-kusu { font-size: .7rem; font-weight: 600; color: var(--hlavni); padding: 3px 9px; background: var(--hlavni-jemne); border-radius: 999px; }
+
+.kniha-otevrit-sipka {
+  flex: 0 0 auto;
+  min-width: 40px;
+  min-height: 40px;
+  font-size: .95rem;
+  color: var(--text-jemny);
+  background: none;
+  border: 0;
+  border-radius: 10px;
+}
+
+.odznak-kusu-radky { flex: 0 0 auto; font-size: .72rem; font-weight: 600; color: var(--hlavni); padding: 3px 8px; background: var(--hlavni-jemne); border-radius: 999px; }
+.odznak-cnb { display: inline-block; font-size: .68rem; color: var(--text-jemny); }
+
+.kniha-vyber-checkbox {
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  accent-color: var(--hlavni);
+}
+
+/* ------------------------------------------------- hromadné akce */
 
 .lista-vyberu {
+  position: fixed;
+  left: .75rem; right: .75rem;
+  bottom: calc(4.6rem + env(safe-area-inset-bottom));
+  z-index: 15;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: .5rem;
-  margin-bottom: .75rem;
-  padding: .6rem .75rem;
-  background: var(--pozadi);
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--karta);
   border: 1px solid var(--ram);
-  border-radius: 10px;
+  border-radius: 15px;
+  box-shadow: var(--stin);
 }
 
 .lista-vyberu[hidden] { display: none; }
-.lista-vyberu .tlacitko { flex: 0 1 auto; min-height: 40px; }
-.lista-vyberu select { flex: 1 1 10rem; }
-.pocet-vyberu { font-weight: 600; }
+.pocet-vyberu { font-size: .82rem; font-weight: 600; margin-right: auto; }
+.lista-vyberu button:disabled, .lista-vyberu select:disabled { opacity: .45; cursor: default; }
 
-/* ------------------------------------------- nabídka před přidáním knihy */
+/* Na úzkém displeji se lišta láme do řádků: nejdřív počet a „Vybrat vše“,
+   pod tím výběr poličky přes celou šířku a nakonec tři akce vedle sebe.
+   Bez tohohle se tlačítka smrskla pod svůj text a překrývala se. */
+.lista-vyberu select { flex: 1 1 100%; min-height: 40px; font-size: .84rem; color: var(--text); }
+.lista-vyberu .tlacitko-vedlejsi, .lista-vyberu .tlacitko-nebezpecne {
+  flex: 1 1 auto;
+  min-width: max-content;
+  min-height: 40px;
+  padding: 0 10px;
+  font-size: .82rem;
+  white-space: nowrap;
+}
+.lista-vyberu #btn-vyber-zrusit { flex: 1 1 100%; }
 
-/* Překryv, ne posuvná karta pod tabulkou: načtená kniha čeká na rozhodnutí
-   a nesmí se dát přehlédnout ani odscrollovat. */
+/* ------------------------------------------------------------ záloha */
+
+.karta-zaloha, .karta-policky {
+  padding: 14px;
+  background: var(--karta);
+  border: 1px solid var(--ram-jemny);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+}
+
+.zaloha-stav-radek { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 3px; }
+.zaloha-tecka { width: 7px; height: 7px; margin-top: .5em; border-radius: 50%; background: var(--hlavni); flex: 0 0 auto; }
+.karta-zaloha .stav { margin-bottom: 12px; }
+
+.tlacitka-radek { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.tlacitka-radek:first-of-type { margin-top: 0; }
+
+.napoveda { margin: .6rem 0 0; font-size: .78rem; color: var(--text-slaby); }
+.napoveda code { padding: 0 .2em; font-size: .95em; background: var(--karta-jemna); border: 1px solid var(--ram); border-radius: 4px; }
+
+.rozbalovaci summary { cursor: pointer; font-size: .85rem; color: var(--hlavni); padding: .5rem 0; }
+.rozbalovaci[open] summary { margin-bottom: .2rem; }
+
+.karta-nebezpecne { padding: 12px 14px; background: var(--karta); border: 1px solid var(--ram-jemny); border-radius: var(--radius); margin-bottom: 12px; }
+.karta-nebezpecne .tlacitko-nebezpecne { width: 100%; margin-top: 10px; }
+
+.policky-seznam { display: flex; flex-direction: column; }
+
+.policka-radek {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--karta-odznak);
+}
+
+.policka-radek:last-child { border-bottom: 0; }
+.policka-nazev { flex: 1 1 auto; min-width: 0; font-size: .88rem; overflow-wrap: anywhere; }
+.policka-pocet { flex: 0 0 auto; font-size: .72rem; color: var(--text-slaby); padding: 3px 9px; background: var(--karta-odznak); border-radius: 999px; }
+.policka-upravit, .policka-smazat { flex: 0 0 auto; min-width: 40px; min-height: 40px; font-size: .78rem; color: var(--text-jemny); background: none; border: 0; }
+
+.paticka-poznamka { font-size: .76rem; color: var(--text-jemny); padding: 0 2px 1rem; }
+
+/* ------------------------------------------------------------ spodní navigace */
+
+.spodni-nav {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px calc(10px + env(safe-area-inset-bottom));
+  max-width: 640px;
+  margin: 0 auto;
+  background: var(--karta);
+  border-top: 1px solid var(--ram-jemny);
+}
+
+.nav-tlacitko {
+  flex: 1 1 0;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: .68rem;
+  font-weight: 500;
+  color: var(--text-jemny);
+  background: none;
+  border: 0;
+  border-radius: 13px;
+}
+
+.nav-tlacitko.aktivni { color: var(--hlavni); background: var(--hlavni-jemne); }
+.nav-ikona { font-size: 1.05rem; line-height: 1; }
+
+/* ------------------------------------------------------------ spodní listy (sheets) */
+
 .prekryv {
   position: fixed;
   inset: 0;
   z-index: 20;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  padding: 1rem .75rem calc(1rem + env(safe-area-inset-bottom));
-  /* Neroluje se překryv, ale obsah nabídky — tlačítka díky tomu zůstávají
-     dole na obrazovce. */
-  overflow: hidden;
-  background: rgba(0, 0, 0, .55);
+  background: rgba(21, 19, 15, .46);
+  animation: proplyv-pozadi .18s ease-out;
 }
+
+@keyframes proplyv-pozadi { from { opacity: 0; } to { opacity: 1; } }
 
 .prekryv[hidden] { display: none; }
-
-/* Pozadí se pod otevřenou nabídkou neposouvá — na telefonu se jinak
-   pod prstem hýbe tabulka místo formuláře. */
 body.bez-posunu { overflow: hidden; }
 
-/* Nabídka se roluje uvnitř, ne celá. Tlačítka tak zůstanou na obrazovce
-   i u knihy s rozbalenými poli — dřív byla u každé knihy pod ohybem a na
-   potvrzení se muselo nejdřív odrolovat. */
-.nabidka {
+.list {
   display: flex;
   flex-direction: column;
-  width: min(100%, 34rem);
-  max-width: none;
-  max-height: 100%;
-  margin: auto;
-  padding: 0;
+  width: 100%;
+  max-width: 34rem;
+  max-height: 92%;
+  margin: 0;
+  background: var(--karta);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -8px 40px rgba(21, 19, 15, .3);
   overflow: hidden;
+  animation: list-nahoru .26s cubic-bezier(.22, .9, .25, 1);
 }
 
-.nabidka-obsah {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 1rem;
-}
+@keyframes list-nahoru { from { transform: translateY(28px); opacity: .4; } to { transform: translateY(0); opacity: 1; } }
 
-.nabidka-lista {
-  flex: none;
-  display: flex;
-  gap: .5rem;
-  padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom));
-  background: var(--karta);
-  border-top: 1px solid var(--ram);
-}
+.list-obsah { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
 
-.nabidka-lista .tlacitko { margin: 0; }
-.nabidka-lista .hlavni { flex: 1 1 auto; }
-.nabidka-lista .nebezpecne { flex: 0 1 auto; }
+.list-zahlavi { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.list-zahlavi h2 { font-size: 1.15rem; }
 
-.nabidka h2 { margin-bottom: .5rem; }
-.nabidka .stav { margin: .5rem 0; }
+.odznak-zdroj { font-size: .68rem; color: var(--text-slaby); padding: 4px 9px; background: var(--karta-odznak); border-radius: 999px; white-space: nowrap; }
 
-/* Shrnutí toho, co se načetlo. Jediná část, kterou uživatel u drtivé
-   většiny knih vůbec čte — proto stojí nahoře a sama o sobě. */
-.shrnuti {
-  display: flex;
-  gap: .75rem;
-  align-items: flex-start;
-  padding: .6rem;
-  background: var(--pozadi);
-  border-radius: 10px;
-}
-
-.shrnuti-obalka {
-  flex: none;
-  width: 48px;
-  height: 68px;
-  object-fit: cover;
+.shrnuti { display: flex; gap: 13px; padding: 12px; background: var(--karta-jemna); border-radius: 14px; margin-bottom: 12px; }
+.shrnuti-obalka { flex: 0 0 auto; width: 48px; height: 68px; object-fit: cover; border-radius: 4px; background: var(--karta); }
+.shrnuti-iniciala {
+  flex: 0 0 auto; width: 48px; height: 68px;
+  display: flex; align-items: flex-end; justify-content: center; padding: 5px;
+  font-family: var(--font-nadpis); font-size: 1.15rem; color: #FFFCF4;
   border-radius: 4px;
-  background: var(--karta);
 }
-
-.shrnuti-text { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
-.shrnuti-nazev { font-size: 1.05rem; line-height: 1.3; }
-.shrnuti-autor { color: var(--text-slaby); }
-.shrnuti-cislo {
-  font-size: .85rem;
-  color: var(--text-slaby);
-  font-variant-numeric: tabular-nums;
-}
-
+.shrnuti-text { flex: 1 1 auto; min-width: 0; }
+.shrnuti-nazev { display: block; font-family: var(--font-nadpis); font-size: 1.05rem; font-weight: 600; line-height: 1.25; }
 .shrnuti.hleda-se .shrnuti-nazev { color: var(--text-slaby); font-style: italic; }
+.shrnuti-autor { display: block; font-size: .82rem; color: var(--text-slaby); margin-top: 2px; }
+.shrnuti-cislo { display: block; font-size: .76rem; color: var(--text-jemny); margin-top: 2px; font-variant-numeric: tabular-nums; }
 
 .poznamka-nabidky {
-  margin: 0 0 .75rem;
-  padding: .5rem .65rem;
-  font-size: .85rem;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: .8rem;
   color: var(--varovani);
-  background: rgba(224, 176, 96, .12);
-  border: 1px solid var(--varovani);
-  border-radius: 8px;
+  background: var(--varovani-pozadi);
+  border: 1px solid var(--varovani-ram);
+  border-radius: 12px;
 }
 
-/* ------------------------------------------------------------ záloha */
+.pole { margin-bottom: 11px; }
+.pole label { display: block; margin-bottom: 5px; font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-jemny); }
 
-#sekce-zaloha h2 { margin-bottom: .5rem; }
-
-/* Vypnutí složky je doplněk k tlačítku před ním — nemá se roztahovat
-   do celé šířky jako ostatní. */
-#btn-slozka-vypnout { flex: 0 0 auto; }
-
-.napoveda code {
-  padding: 0 .2em;
-  font-size: .95em;
-  background: var(--pozadi);
+input[type="text"], input[type="search"], input[type="number"] {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 13px;
+  font-size: .94rem;
+  background: var(--karta-jemna);
   border: 1px solid var(--ram);
-  border-radius: 4px;
+  border-radius: 12px;
 }
+
+.pole input[type="text"], .pole input[type="number"], .pole select { width: 100%; }
+.pole select { min-height: 48px; padding: 0 11px; font-size: .94rem; color: var(--text); background: var(--karta-jemna); border: 1px solid var(--ram); border-radius: 12px; }
+
+/* Na telefonu má pole s číslem celý řádek a tlačítka jdou pod něj. Kdyby se
+   o řádek dělila, zbylo by na pole tak málo, že by z ISBN byl vidět jen
+   poslední kousek. */
+.radek-formulare { display: flex; flex-wrap: wrap; gap: 7px; }
+.radek-formulare input { flex: 1 1 100%; min-width: 0; }
+.radek-formulare .tlacitko-vedlejsi, .radek-formulare .tlacitko-hlavni { flex: 1 1 auto; }
+
+.vedle-sebe { display: flex; gap: 10px; }
+.vedle-sebe .pole { flex: 1 1 8rem; margin-bottom: 11px; }
+.vedle-sebe .pole.uzsi { flex: 0 0 5.5rem; }
+
+.list-lista {
+  flex: none;
+  display: flex;
+  gap: 9px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--karta);
+  border-top: 1px solid var(--ram-jemny);
+}
+
+.list-lista .tlacitko-nebezpecne { flex: 0 0 auto; }
+.list-lista .tlacitko-hlavni { flex: 1 1 auto; }
+
+.pocet-kusu-radek {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 13px;
+  background: var(--karta-jemna);
+  border-radius: 12px;
+  margin-bottom: 11px;
+}
+
+.pocet-kusu-popis { font-size: .88rem; }
+.pocet-kusu-ovladani { display: flex; align-items: center; gap: 4px; }
+.pocet-kusu-hodnota { min-width: 38px; text-align: center; font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------- hledání podle údajů o knize */
+
+.formular-hledani { display: flex; flex-wrap: wrap; gap: .5rem; }
+.formular-hledani input { flex: 1 1 100%; }
+.formular-hledani input.uzke { flex: 1 1 100%; }
+.formular-hledani .tlacitko-hlavni, .formular-hledani .tlacitko-vedlejsi { flex: 1 1 100%; }
+
+.vysledky { margin-top: .9rem; }
+
+.zahlavi-vysledku { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+
+.seznam-vysledku { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+
+.vysledek {
+  display: block;
+  width: 100%;
+  padding: 11px;
+  text-align: left;
+  background: var(--karta-jemna);
+  border: 1px solid var(--ram);
+  border-radius: 13px;
+}
+
+.vysledek:disabled { opacity: .5; }
+.vysledek-nazev { display: block; font-size: .9rem; font-weight: 500; }
+.vysledek-popis { display: block; font-size: .78rem; color: var(--text-slaby); margin-top: 1px; }
+.vysledek-isbn { display: block; font-size: .72rem; color: var(--text-jemny); margin-top: 1px; font-variant-numeric: tabular-nums; }
+.vysledek-stav { display: block; font-size: .74rem; color: var(--hlavni); margin-top: 2px; }
+.vysledek-stav:empty { display: none; }
+
+.policky-vyber-seznam { margin-bottom: 5px; }
+
+.policka-vyber {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 13px;
+  text-align: left;
+  background: var(--karta-jemna);
+  border: 1px solid var(--ram);
+  border-radius: 13px;
+}
+
+.policka-vyber.vybrana { background: var(--hlavni-jemne); border-color: var(--hlavni); }
+.policka-vyber .policka-vyber-nazev { flex: 1 1 auto; min-width: 0; font-size: .9rem; font-weight: 500; }
+.policka-vyber .policka-vyber-label { flex: 0 0 auto; font-size: .72rem; color: var(--text-slaby); }
+.policka-vyber .policka-vyber-znak { flex: 0 0 auto; width: 16px; font-size: .82rem; color: var(--hlavni); text-align: center; }
 
 /* ------------------------------------------------------------ hláška */
 
 .hlaska {
   position: fixed;
   left: 50%;
-  bottom: calc(1rem + env(safe-area-inset-bottom));
+  bottom: calc(4.6rem + env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  /* Nad překryvem s nabídkou — hlášky se týkají i toho, co se děje v ní
-     (třeba odmítnuté ISBN), takže nesmí zůstat schované pod ním. */
-  z-index: 30;
+  z-index: 40;
   width: min(92%, 34rem);
-  padding: .75rem 1rem;
-  font-size: .92rem;
-  color: #fff;
-  background: #333;
-  border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, .3);
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 13px 15px;
+  font-size: .85rem;
+  color: #FFFCF4;
+  background: #23201B;
+  border-radius: 13px;
+  box-shadow: 0 8px 26px rgba(21, 19, 15, .3);
+  animation: hlaska-nahoru .22s ease-out;
 }
 
-.hlaska.uspech { background: var(--uspech); color: #fff; }
-.hlaska.varovani { background: var(--varovani); color: #fff; }
-.hlaska.chyba { background: var(--chyba); color: #fff; }
+@keyframes hlaska-nahoru { from { transform: translate(-50%, 14px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 
-/* Krok zpět visí přímo v hlášce: omyl se pozná hned po něm a jinam by se
-   pro něj chodit nemělo. */
-.hlaska { display: flex; align-items: center; gap: .75rem; }
 .hlaska[hidden] { display: none; }
 .hlaska span { flex: 1 1 auto; }
 
+.hlaska.uspech { background: #1E3A30; }
+.hlaska.varovani { background: #4A2F14; }
+.hlaska.chyba { background: #4A2016; }
+
 .hlaska-zpet {
   flex: none;
-  min-height: 36px;
-  padding: .3rem .8rem;
-  font: inherit;
+  min-height: 32px;
+  padding: .25rem .7rem;
+  font-size: .82rem;
   font-weight: 600;
-  color: inherit;
-  background: rgba(255, 255, 255, .18);
-  border: 1px solid rgba(255, 255, 255, .5);
-  border-radius: 8px;
-  cursor: pointer;
+  color: #F0C9A8;
+  background: none;
+  border: 0;
 }
 
-.hlaska-zpet:hover { background: rgba(255, 255, 255, .3); }
 .hlaska-zpet[hidden] { display: none; }
 
-/* ------------------------------------------------------------ patička */
+/* ------------------------------------------------------------ širší displeje: iPad a počítač */
 
-.paticka {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 1rem;
-  font-size: .8rem;
-  color: var(--text-slaby);
-  text-align: center;
-}
+@media (min-width: 760px) {
+  .obrazovky { max-width: 1120px; padding-left: 1.25rem; padding-right: 1.25rem; }
 
-@media (min-width: 700px) {
-  .kamera { max-width: 520px; aspect-ratio: 16 / 10; }
-  .tlacitko.hlavni { flex-basis: auto; }
+  .spodni-nav { display: none; }
+
+  /* Skenování drží levý sloupec, knihovna se prohlíží vpravo — obojí je
+     vidět naráz, takže se při katalogizaci nikam nepřepíná. */
+  .obrazovky {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: 1.5rem 1.25rem;
+    align-items: start;
+  }
+
+  .obrazovka { padding: 0; min-width: 0; }
+  .obrazovka[hidden] { display: block; }
+
+  #obrazovka-zaloha { grid-column: 1 / -1; max-width: 720px; }
+
+  .skener-horni { position: static; }
+  .skener-seznam { padding-bottom: 0; }
+
+  .kamera { aspect-ratio: 16 / 10; }
+
+  .prekryv { align-items: center; padding: 1rem; }
+  .list { border-radius: 22px; max-height: 88%; }
+
+  .formular-hledani input { flex: 1 1 12rem; }
+  .formular-hledani input.uzke { flex: 1 1 6rem; }
+  .formular-hledani .tlacitko-hlavni, .formular-hledani .tlacitko-vedlejsi { flex: 0 0 auto; }
+
   .radek-formulare input { flex: 1 1 14rem; }
-  .formular-hledani .tlacitko { flex: 0 0 auto; }
-  .prekryv { align-items: center; }
+  .radek-formulare .tlacitko-vedlejsi, .radek-formulare .tlacitko-hlavni { flex: 0 0 auto; }
 }

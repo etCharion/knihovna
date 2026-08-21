@@ -63,19 +63,24 @@ try {
   const cestaKodu = join(slozka, 'js', 'app.js');
   writeFileSync(cestaKodu, readFileSync(cestaKodu, 'utf8') + '\nwindow.NOVA_VERZE = true;\n');
 
+  // Nadpisů je na stránce víc (jeden na každou záložku), sleduje se ten
+  // na úvodní obrazovce skenování.
   const cestaStranky = join(slozka, 'index.html');
-  writeFileSync(
-    cestaStranky,
-    readFileSync(cestaStranky, 'utf8').replace('📚 Knihovna', '📚 Knihovna po aktualizaci')
-  );
+  const puvodniNadpis = '<h1>Skenování</h1>';
+  const zdrojStranky = readFileSync(cestaStranky, 'utf8');
+  if (!zdrojStranky.includes(puvodniNadpis)) {
+    throw new Error(`V index.html chybí ${puvodniNadpis} — test aktualizace je potřeba srovnat.`);
+  }
+  writeFileSync(cestaStranky, zdrojStranky.replace(puvodniNadpis, '<h1>Skenování po aktualizaci</h1>'));
 
   await stranka.reload({ waitUntil: 'networkidle' });
   await pockej(400);
 
   t(await stranka.evaluate(() => window.NOVA_VERZE === true),
     'po znovunačtení běží nový JavaScript, ne ten z cache');
-  t((await stranka.locator('h1').innerText()).includes('po aktualizaci'),
-    'a nová podoba stránky', await stranka.locator('h1').innerText());
+  const nadpisSkeneru = stranka.locator('#obrazovka-skener h1');
+  t((await nadpisSkeneru.innerText()).includes('po aktualizaci'),
+    'a nová podoba stránky', await nadpisSkeneru.innerText());
 
   /* ------------------------------------- offline musí dál fungovat */
 
@@ -83,8 +88,9 @@ try {
   await pockej(600);
 
   await stranka.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
-  t((await stranka.locator('h1').innerText()).includes('Knihovna'),
-    'bez serveru se aplikace načte z cache');
+  t((await stranka.locator('#obrazovka-skener h1').innerText()).includes('Skenování'),
+    'bez serveru se aplikace načte z cache',
+    await stranka.locator('#obrazovka-skener h1').innerText());
   t(await stranka.evaluate(() => !!document.querySelector('#btn-skenovat')),
     'a je použitelná');
 } finally {
