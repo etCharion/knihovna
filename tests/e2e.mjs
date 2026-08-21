@@ -1002,20 +1002,6 @@ await stranka.evaluate(() => {
   ]));
 });
 
-// Systémovou nabídku sdílení test podstrčí: skutečná by čekala na obsluhu
-// od operačního systému. Zachytí se, co by aplikace odeslala.
-await stranka.addInitScript(() => {
-  window.__sdileno = [];
-  navigator.canShare = (data) => Array.isArray(data?.files) && data.files.length > 0;
-  navigator.share = async (data) => {
-    window.__sdileno.push({
-      nazvy: data.files.map((s) => s.name),
-      text: data.text,
-      obsah: await Promise.all(data.files.map((s) => s.text())),
-    });
-  };
-});
-
 await stranka.reload({ waitUntil: 'networkidle' });
 await zalozka(stranka, 'zaloha');
 
@@ -1025,8 +1011,8 @@ await zalohaJson.saveAs(cestaJson);
 t(zalohaJson.suggestedFilename().startsWith('knihovna-'), 'záloha má datum v názvu',
   zalohaJson.suggestedFilename());
 
-// Popis stavu se překresluje až po dotazu na vybranou složku (IndexedDB),
-// takže se na něj čeká — čtení hned po stažení by ho zastihlo neaktuální.
+// Popis stavu se překresluje až po obsluze stažení, čtení hned po klepnutí
+// by ho zastihlo neaktuální.
 await stranka.waitForFunction(
   () => document.querySelector('#stav-zalohy')?.textContent.includes('Poslední záloha'),
   null, { timeout: 5000 }).catch(() => {});
@@ -1081,26 +1067,17 @@ t(radekCsv.includes(';Česká kniha s háčky;2015;Karolinum;'),
 t(radekCsv.includes(';2015;Karolinum;;3;'),
   'prázdné místo vydání má vlastní sloupec před počtem kusů', radekCsv);
 
-/* ------------------------------------------- odeslání zálohy ze systému */
+/* ------------------------------------------------ tlačítka na kartě zálohy */
 
+// Sdílení, e-mail a zápis do složky z karty zmizely — nabízely cestu, která
+// buď nikam nevedla, nebo skončila u dialogu prohlížeče. Zůstaly soubory.
 await zalozka(stranka, 'zaloha');
-t(await stranka.locator('#btn-sdilet').isVisible(),
-  'tlačítko pro odeslání zálohy se objeví, když prohlížeč umí sdílet soubory');
-t(await stranka.locator('#btn-email').isVisible(), 'poslání e-mailem je k dispozici vždy');
-
-await stranka.click('#btn-sdilet');
-await stranka.waitForTimeout(300);
-
-const sdileno = await stranka.evaluate(() => window.__sdileno);
-t(sdileno.length === 1, 'klepnutí otevře systémovou nabídku sdílení', String(sdileno.length));
-t(sdileno[0]?.nazvy.length === 2, 'posílají se dva soubory — CSV i JSON',
-  (sdileno[0]?.nazvy || []).join(', '));
-t(sdileno[0]?.nazvy.every((n) => /^knihovna-\d{4}-\d{2}-\d{2}\.(csv|json)$/.test(n)),
-  'soubory mají v názvu datum zálohy', (sdileno[0]?.nazvy || []).join(', '));
-t(sdileno[0]?.obsah.some((o) => o.includes('háčky')),
-  'odeslaná data obsahují knihy z tabulky i s diakritikou');
-t(JSON.parse(sdileno[0].obsah[1])[0].isbn === '9788024268705',
-  'odeslaný JSON jde přečíst zpět jako záloha');
+for (const zrusene of ['#btn-sdilet', '#btn-email', '#btn-slozka', '#btn-slozka-vypnout']) {
+  t((await stranka.locator(zrusene).count()) === 0, `zrušené tlačítko ${zrusene} na stránce není`);
+}
+for (const zbyle of ['#btn-csv', '#btn-json', '#btn-import']) {
+  t(await stranka.locator(zbyle).isVisible(), `tlačítko ${zbyle} je k dispozici`);
+}
 
 /* ------------------------------------------------------------- offline */
 

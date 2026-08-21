@@ -47,9 +47,9 @@ a po potvrzení uloží do tabulky. Běží jako statická stránka na GitHub Pa
   Když skener přečte číslo špatně, přepíšete ho a údaje se dohledají znovu.
 - **Export do CSV připravený pro import** do školního knihovního systému
   (otevře se rovnou v Excelu) a **zálohu do JSON**.
-- **Zálohu mimo telefon** — odeslání na Disk Google či do e-mailu přes systémovou
-  nabídku sdílení, rozepsaný e-mail se seznamem, nebo **automatický zápis do
-  složky** v počítači (viz [Zálohování](#zálohování--jak-dostat-seznam-mimo-telefon)).
+- **Zálohu mimo telefon** — stažený soubor JSON (nebo CSV) si uložíte na Disk,
+  do e-mailu nebo na flashku; aplikace nahoře na kartě píše, kdy záloha proběhla
+  naposledy (viz [Zálohování](#zálohování--jak-dostat-seznam-mimo-telefon)).
 - **Počítání kusů** — druhý sken téže knihy na téže poličce nevytvoří duplicitu,
   jen přičte kus. Počet jde i **zadat rovnou** — při potvrzování knihy i v jejím
   detailu, takže se třídní sada dvaceti pěti čítanek pořídí jedním skenem. Duplicity, které se do tabulky dostaly jinudy (ze zálohy z jiného
@@ -126,8 +126,9 @@ sloupci a knihovna se prohlíží vpravo**, obojí naráz.
 6. Na kartě **Záloha** klepněte na **Export jen nových** a máte tabulku
    v Excelu — se sloupci pojmenovanými tak, jak je čeká import do knihovního
    systému. Až budete pokračovat, nabídne se zase jen to, co mezitím přibylo.
-7. Aby seznam přežil ztrátu telefonu, pošlete si ho ze stejné karty na Disk
-   Google nebo e-mailem — viz [Zálohování](#zálohování--jak-dostat-seznam-mimo-telefon).
+7. Aby seznam přežil ztrátu telefonu, stáhněte si ze stejné karty **Zálohu
+   JSON** a uložte si soubor jinam — na Disk, do e-mailu, na flashku. Viz
+   [Zálohování](#zálohování--jak-dostat-seznam-mimo-telefon).
 
 ### Potvrzení u každé knihy
 
@@ -558,8 +559,8 @@ v daném telefonu. Z toho plyne pár praktických věcí:
 
 - Údaje se **nesynchronizují** mezi telefonem a počítačem.
 - Vymazání dat prohlížeče smaže i tabulku a poličky → **dělejte si zálohy**
-  (viz níže). Zpátky je nahrajete přes *Načíst zálohu nebo CSV*; poličky se ze
-  zálohy obnoví spolu s knihami.
+  (viz níže). Zpátky je nahrajete tlačítkem *Načíst*; poličky se ze zálohy
+  obnoví spolu s knihami.
 - Aplikace si při spuštění řekne prohlížeči o **trvalé úložiště**, aby data
   nevyhodil, když bude potřebovat místo. Povolení ale nedá každý prohlížeč
   a zálohy to nenahrazuje — jen to ubírá jeden způsob, jak o práci přijít.
@@ -571,63 +572,53 @@ v daném telefonu. Z toho plyne pár praktických věcí:
 
 ## Zálohování — jak dostat seznam mimo telefon
 
-Záložka **Záloha** nabízí čtyři cesty. Všechny fungují bez serveru,
-bez registrace a bez API klíče — aplikace je pořád jen statická stránka, data
-tedy putují výhradně tam, kam je pošlete sami. Nahoře na kartě je vždy vidět,
-**kdy záloha proběhla naposledy** a jestli se od té doby tabulka změnila.
+Záložka **Záloha** stahuje soubory — nic víc a nic jiného. Aplikace je pořád
+jen statická stránka bez serveru, takže data putují výhradně tam, kam je
+odnesete sami. Nahoře na kartě je vždy vidět, **kdy záloha proběhla naposledy**
+a jestli se od té doby tabulka změnila.
 
-| Tlačítko | Co udělá | Kde funguje |
-|---|---|---|
-| **📤 Odeslat zálohu** | otevře systémovou nabídku sdílení — Disk Google, Gmail, WhatsApp, Soubory… Tabulka jde jako **skutečná příloha** (CSV i JSON). | telefony (Android, iPhone); na počítači se tlačítko nezobrazí |
-| **✉️ Poslat e-mailem** | otevře rozepsanou zprávu se **seznamem knih přímo v textu** a stáhne oba soubory, abyste je mohli přiložit. | všude |
-| **📁 Zálohovat do složky** | jednou vyberete složku a aplikace do ní **sama po každé změně** zapíše zálohu. | Chrome a Edge na počítači |
-| **⬇️ Export jen nových / Export CSV / Záloha JSON** | stáhne soubor do zařízení. | všude |
-| **⬆️ Načíst** | vrátí do aplikace zálohu JSON, nebo načte tabulku CSV. | všude |
+| Tlačítko | Co udělá |
+|---|---|
+| **⬇️ Export jen nových** | stáhne CSV jen s knihami, které do knihovního systému ještě nešly, a označí je za odeslané. |
+| **⬇️ Export CSV** | stáhne celou tabulku jako CSV pro Excel a pro import do knihovního systému. |
+| **⬇️ Záloha JSON** | stáhne úplnou zálohu pro aplikaci samotnou — s poličkami, poznámkami i počty kusů. |
+| **⬆️ Načíst** | vrátí do aplikace zálohu JSON, nebo načte tabulku CSV. |
 
-### Na Disk Google
+> Dřív tu byla ještě tlačítka *Odeslat zálohu* (systémová nabídka sdílení),
+> *E-mailem* (`mailto:` s rozepsanou zprávou) a *Zálohovat do složky*
+> (automatický zápis přes File System Access API). V praxi se ukázala jako
+> nepoužitelná — buď je prohlížeč nenabídl, nebo skončila u dialogu, který
+> zálohu stejně nedokončil. Zůstalo tedy jen stažení souboru, které funguje
+> všude stejně.
 
-**Z telefonu:** *Odeslat zálohu* → v nabídce sdílení vyberte **Disk**. Zvolíte
-složku a je hotovo. Stejnou cestou jde záloha poslat do Gmailu jako příloha.
+### Kam si zálohu uložit
 
-**Z počítače:** mějte nainstalovaný *Disk Google pro počítač* (nebo OneDrive,
-Dropbox — cokoliv, co synchronizuje složku) a v aplikaci klepněte na
-**📁 Zálohovat do složky**. Vyberete synchronizovanou složku a od té chvíle se
-záloha zapisuje sama po každé změně tabulky — do cloudu ji pak vynese
-synchronizace. Ve složce vzniknou:
+Stažený soubor leží ve složce *Stažené soubory* — a tam ho ztráta telefonu
+zastihne stejně jako tabulku v prohlížeči. Přesuňte ho proto ještě jednou:
 
-```
-knihovna-zaloha.json     aktuální stav, přepisuje se
-knihovna-zaloha.csv      totéž pro Excel
-zalohy/knihovna-2026-08-13.json   jedna kopie na každý den
-```
+- **V telefonu:** otevřete *Soubory* (Android) nebo *Files* (iPhone), u souboru
+  `knihovna-*.json` klepněte na **Sdílet** a vyberte **Disk**, Gmail nebo
+  cokoliv, co soubor odnese z telefonu.
+- **Na počítači:** soubor přetáhněte do složky, kterou synchronizuje *Disk
+  Google pro počítač*, OneDrive nebo Dropbox — do cloudu ho vynese
+  synchronizace sama.
 
-Denní kopie tam jsou schválně: kdyby se tabulka poškodila nebo omylem vymazala,
-přepisovaná záloha by tu chybu jen věrně zkopírovala. Ze stejného důvodu se
-**prázdná tabulka nikdy nezapisuje** — kdyby prohlížeč sám uklidil úložiště,
-aplikace by se spustila prázdná a jinak by tím zálohu přepsala.
+Zálohu má smysl dělat po každé větší dávce skenování. Že jste na ni dlouho
+nesáhli, je vidět na kartě: věta nahoře řekne datum poslední zálohy i to,
+o kolik knih tabulka mezitím povyrostla.
 
-> Po každém novém otevření aplikace se prohlížeč jednou zeptá, jestli smí do
-> složky psát — je to jeho bezpečnostní pojistka, kterou stránka obejít nemůže.
-> Tlačítko v takovém případě říká *Povolit zápis do složky*.
+### Proč aplikace nezálohuje sama
 
-### Proč aplikace neumí poslat e-mail sama
-
-Odeslat poštu z prohlížeče bez serveru nejde a **přílohu k `mailto:` zprávě
+Odeslat data z prohlížeče bez serveru nejde a **přílohu k `mailto:` zprávě
 webová stránka přidat nesmí** — je to bezpečnostní pravidlo prohlížečů, ne
-opomenutí. Proto *Poslat e-mailem* vypíše seznam do textu zprávy (i ten je
-plnohodnotná záloha, dá se z něj přečíst, co v knihovně bylo) a soubory zároveň
-stáhne, abyste je přiložili klepnutím.
-
-Kdyby měla záloha odcházet na e-mail **sama, bez ťuknutí** (třeba každý večer),
+opomenutí. Kdyby měla záloha odcházet sama, bez ťuknutí (třeba každý večer),
 musela by aplikace mít kam poslat data — nejlevněji vlastní *Google Apps
-Script* nasazený jako webová aplikace, který zprávu odešle za vás. Znamená to
-ale jednu službu navíc a přístup k datům mimo telefon; proto to tu není a
-plánovanou zálohu zastává složka synchronizovaná Diskem.
+Script* nasazený jako webová aplikace. Znamená to ale jednu službu navíc
+a přístup k datům mimo telefon; proto to tu není.
 
 ### Obnovení ze zálohy
 
-**Načíst zálohu nebo CSV** vezme soubor **JSON** (ten z tlačítka *Záloha JSON*,
-z nabídky sdílení, nebo `knihovna-zaloha.json` ze složky) a sloučí ho se
+**Načíst** vezme soubor **JSON** (ten z tlačítka *Záloha JSON*) a sloučí ho se
 stávající tabulkou — podle ISBN pozná, co už v ní je, takže se starší záloha dá
 nahrát bez obav.
 
@@ -648,13 +639,14 @@ skenů pak nabídka rovnou napíše, že takový titul v seznamu je.
 
 | Zařízení | Stav |
 |---|---|
-| Android — Chrome, Edge | plná podpora, čtení kódů zajišťuje přímo prohlížeč; záloha přes nabídku sdílení |
-| iPhone / iPad — Safari 15+ | funguje; na čtení kódů se stáhne knihovna ZXing; záloha přes nabídku sdílení |
-| Počítač — Chrome, Edge | funguje s webkamerou i ručním zadáním; navíc **automatická záloha do složky** |
-| Počítač — Firefox, Safari | funguje; zálohuje se stažením souboru nebo e-mailem |
+| Android — Chrome, Edge | plná podpora, čtení kódů zajišťuje přímo prohlížeč |
+| iPhone / iPad — Safari 15+ | funguje; na čtení kódů se stáhne knihovna ZXing |
+| Počítač — Chrome, Edge | funguje s webkamerou i ručním zadáním |
+| Počítač — Firefox, Safari | funguje; kódy čte stažená knihovna ZXing |
 
-Tlačítka, která prohlížeč neumí, se nezobrazují — nabídne se vždy jen to, co
-v daném zařízení opravdu funguje.
+Záloha se stahuje jako soubor, takže funguje ve všech uvedených prohlížečích
+stejně. Co prohlížeč neumí — třeba kameru — aplikace nenabízí: tlačítka, která
+by nikam nevedla, se nezobrazují.
 
 ---
 
@@ -670,7 +662,7 @@ js/ocr.js                čtení ISBN z vytištěného čísla
 js/lookup.js             dohledání knihy v online databázích (podle ISBN i podle údajů)
 js/isbn.js               ověření a převody ISBN a ISSN
 js/storage.js            ukládání, poličky, export do CSV a JSON
-js/zaloha.js             sdílení, e-mail a automatická záloha do složky
+js/zaloha.js             evidence toho, kdy záloha proběhla naposledy
 sw.js                    offline režim
 manifest.webmanifest     nastavení pro přidání na plochu
 vendor/zxing.min.js      čtečka kódů pro prohlížeče bez vlastní podpory
@@ -704,7 +696,7 @@ dělení ISBN, čísla končící X, ISSN i čárové kódy časopisů, ČNB i k
 bez čísla, návrh opravy kontrolní číslice, vytahování čísla z rozpoznaného
 textu, slučování duplicit,
 práci s poličkami, hledání podle údajů o knize včetně nakladatelství a roku,
-čtení místa vydání ze všech zdrojů, sestavení e-mailové zálohy
+čtení místa vydání ze všech zdrojů, hlášení o poslední záloze
 a chování při výpadku zdrojů. Dál hlídá věci, na kterých stojí rychlost
 a bezpečnost pořizování: že se údaje hlásí **průběžně** a že přitom český
 katalog přebije rychlejší cizí zdroj, počítání a ruční opravu kusů, evidenci

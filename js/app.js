@@ -2069,110 +2069,13 @@ prvek('btn-smazat-vse').addEventListener('click', () => {
   oznam('Knihovna vymazána. Poličky zůstaly.', 'varovani', snimek);
 });
 
-/* ---------------------------------------------- záloha mimo zařízení */
+/* ---------------------------------------------- kdy se zálohovalo */
 
-const btnSdilet = prvek('btn-sdilet');
-const btnEmail = prvek('btn-email');
-const btnSlozka = prvek('btn-slozka');
-const btnSlozkaVypnout = prvek('btn-slozka-vypnout');
 const stavZalohy = prvek('stav-zalohy');
 
-async function vykresliStavZalohy() {
-  const vety = [zaloha.popisPosledniZalohy()];
-  const slozka = await zaloha.stavSlozky();
-
-  btnSlozka.hidden = !slozka.podporovano;
-  btnSlozkaVypnout.hidden = !slozka.jmeno;
-  btnSlozka.classList.toggle('aktivni', slozka.povoleno);
-
-  if (!slozka.jmeno) {
-    btnSlozka.textContent = '📁 Zálohovat do složky…';
-  } else if (slozka.povoleno) {
-    btnSlozka.textContent = `📁 Složka: ${slozka.jmeno}`;
-    vety.push(`Automatická záloha běží do složky ${slozka.jmeno}.`);
-  } else {
-    btnSlozka.textContent = '📁 Povolit zápis do složky';
-    vety.push(
-      `Automatická záloha do složky ${slozka.jmeno} čeká — prohlížeč se po ` +
-      'novém otevření aplikace musí na zápis znovu zeptat.'
-    );
-  }
-
-  stavZalohy.textContent = vety.join(' ');
+function vykresliStavZalohy() {
+  stavZalohy.textContent = zaloha.popisPosledniZalohy();
 }
-
-btnSdilet.hidden = !zaloha.lzeSdilet();
-btnSdilet.addEventListener('click', async () => {
-  const knihy = knihyKZaloze();
-  if (!knihy) return;
-  try {
-    await zaloha.sdilej(knihy);
-    oznam('Záloha odeslána.', 'uspech');
-  } catch (chyba) {
-    if (chyba?.name === 'AbortError') return;
-    console.error(chyba);
-    oznam('Odeslání se nepodařilo.', 'chyba');
-  } finally {
-    vykresliStavZalohy();
-  }
-});
-
-btnEmail.addEventListener('click', () => {
-  const knihy = knihyKZaloze();
-  if (!knihy) return;
-
-  const adresa = prompt('Na jakou adresu zálohu poslat?', zaloha.adresaProZalohu());
-  if (adresa === null) return;
-  if (adresa.trim()) zaloha.ulozAdresu(adresa.trim());
-
-  stahniCsv(knihy);
-  stahniJson(knihy);
-  zaloha.posliEmailem(knihy, adresa.trim());
-  oznam('Zpráva je rozepsaná, soubory zálohy se stáhly — přiložte je.', 'uspech');
-  vykresliStavZalohy();
-});
-
-btnSlozka.addEventListener('click', async () => {
-  try {
-    const { jmeno, povoleno } = await zaloha.stavSlozky();
-
-    if (jmeno && !povoleno) {
-      if (!(await zaloha.obnovPovoleni())) {
-        oznam('Zápis do složky nebyl povolen.', 'varovani');
-        return;
-      }
-      oznam(`Automatická záloha do složky ${jmeno} pokračuje.`, 'uspech');
-    } else {
-      const nova = await zaloha.vyberSlozku();
-      oznam(`Zálohy se budou ukládat do složky ${nova}.`, 'uspech');
-    }
-
-    zaloha.synchronizuj({ hned: true });
-  } catch (chyba) {
-    if (chyba?.name === 'AbortError') return;
-    console.error(chyba);
-    oznam('Složku se nepodařilo nastavit.', 'chyba');
-  } finally {
-    vykresliStavZalohy();
-  }
-});
-
-btnSlozkaVypnout.addEventListener('click', async () => {
-  await zaloha.vypniSlozku();
-  oznam('Automatická záloha do složky vypnuta.', 'varovani');
-  vykresliStavZalohy();
-});
-
-zaloha.priZapisu((vysledek) => {
-  if (vysledek.ok) {
-    oznam(`Záloha uložena do složky ${vysledek.kam}.`, 'uspech');
-  } else {
-    oznam('Zápis zálohy do složky selhal — zkontrolujte, že složka pořád existuje.', 'chyba');
-  }
-  vykresliStavZalohy();
-});
-
-ulozne.priZmene(() => zaloha.synchronizuj());
 
 /* ------------------------------------------------------------ start */
 
