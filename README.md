@@ -8,6 +8,10 @@ a po potvrzení uloží do tabulky. Běží jako statická stránka na GitHub Pa
 **Živá aplikace:** `https://etcharion.github.io/knihovna/`
 *(odkaz začne fungovat po zapnutí Pages — viz Zprovoznění níže)*
 
+**Tenhle soubor je návod k používání.** Kdo chce aplikaci upravovat nebo po
+někom převzít, najde popis jejího vnitřku v [dokumentaci pro vývojáře](docs/) —
+architektura, moduly, datový model, testy a kuchařka běžných úprav.
+
 ---
 
 ## Co aplikace umí
@@ -715,8 +719,21 @@ npm install          # jen poprvé, kvůli Playwrightu
 npm run test:jednotky   # rychlé testy, prohlížeč nepotřebují
 
 npm start            # pro test v prohlížeči: v jednom okně
-npm test             # a ve druhém (spustí obě sady)
+npm test             # a ve druhém (spustí všechny tři sady)
 ```
+
+### Podrobná dokumentace pro vývojáře
+
+Tahle sekce je jen rozcestník; podrobnosti jsou ve složce [`docs/`](docs/):
+
+| Dokument | O čem je |
+|---|---|
+| [Architektura](docs/architektura.md) | jak to celé drží pohromadě, tok dat, offline režim |
+| [Moduly](docs/moduly.md) | co která funkce dělá — referenční přehled |
+| [Datový model](docs/datovy-model.md) | co přesně se ukládá, klíče, formáty CSV a JSON |
+| [Vývoj](docs/vyvoj.md) | spuštění u sebe, testy, nasazení, konvence kódu |
+| [Kuchařka úprav](docs/upravy.md) | jak přidat pole, katalog, sloupec, obrazovku |
+| [Jak přispívat](CONTRIBUTING.md) | postup pro pull request a co se sem nehodí |
 
 ---
 
