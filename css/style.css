@@ -1,6 +1,6 @@
 /* Knihovna — mobilní skener knih.
-   Teplá, klidná paleta; IBM Plex Serif pro nadpisy a názvy knih, IBM Plex Sans
-   na zbytek. Dělané nejdřív pro telefon (tři záložky dole), na iPadu a počítači
+   Teplý papírový podklad, tmavě modrý akcent; IBM Plex Serif pro nadpisy
+   a názvy knih, IBM Plex Sans na zbytek. Dělané nejdřív pro telefon (tři záložky dole), na iPadu a počítači
    se skenování a knihovna zobrazí vedle sebe. */
 
 /* Písma jsou v repozitáři, ne na cizím CDN — stejně jako čtečka kódů
@@ -82,10 +82,17 @@
   --text-jemny: #8C8272;
   --ram: #DCD3C0;
   --ram-jemny: #EAE2D0;
-  --hlavni: #22453A;
+  /* Akcent. Návrh k němu nabízel čtyři barvy — modrou #1F3A5F, zelenou
+     #22453A, cihlovou #7A3B2A a fialovou #3F3A5C. Vyměnit je jde tady
+     a v tmavém režimu níž; ve zbytku souboru se sahá jen na proměnnou.
+     Modrá je zároveň barva, kterou aplikace nosila před redesignem. */
+  --hlavni: #1F3A5F;
   --hlavni-text: #FFFCF4;
-  --hlavni-jemne: #E9EFE9;
-  --uspech: #22453A;
+  --hlavni-jemne: #E4EAF3;
+  /* Zelená je vyhrazená pro „odesláno do knihovního systému“ — proto se
+     s akcentem nemění. Splynout s ním smí jen tehdy, když je akcent taky
+     zelený, jinak by odznak odeslané knihy zanikl mezi ostatními prvky. */
+  --uspech: #2C6A45;
   --varovani: #8A4A1E;
   --varovani-pozadi: #FBEFE4;
   --varovani-ram: #E7C4A6;
@@ -110,9 +117,9 @@
     --text-jemny: #8C8272;
     --ram: #3A362D;
     --ram-jemny: #2E2C26;
-    --hlavni: #6FA88F;
-    --hlavni-text: #12211C;
-    --hlavni-jemne: #22322B;
+    --hlavni: #749BCB;
+    --hlavni-text: #101A26;
+    --hlavni-jemne: #1E2A39;
     --uspech: #6FA88F;
     --varovani: #E0A46E;
     --varovani-pozadi: #322822;
