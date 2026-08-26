@@ -35,7 +35,9 @@ architektura, moduly, datový model, testy a kuchařka běžných úprav.
   s řazením a hledáním, které projde všechna pole najednou: název, autora, rok,
   vydavatele, místo vydání, číslo, poličku i poznámku.
 - **Ruční zadání ISBN**, když je kód poškozený nebo chybí — včetně starších
-  desetimístných čísel končících písmenem **X**.
+  desetimístných čísel končících písmenem **X**. Vede k němu tlačítko
+  *🔎 Hledat ručně*, ve kterém se přepíná mezi hledáním *podle čísla*
+  a *podle názvu*.
 - **Časopisy podle ISSN** — zadané ručně, nebo naskenované z čárového kódu
   s prefixem 977.
 - **Knihy bez ISBN** — starší tituly žádné nemají. Vedou se pod číslem České
@@ -43,7 +45,8 @@ architektura, moduly, datový model, testy a kuchařka běžných úprav.
   bez čísla.
 - **Hledání podle názvu, autora, nakladatelství a roku** pro knihy, které ISBN
   vytištěné nemají: vyplníte kterákoliv pole, z nabídky vyberete tu svou a přidá
-  se do tabulky. Jedno tlačítko všechna pole zase vyprázdní.
+  se do tabulky. Jedno tlačítko všechna pole zase vyprázdní. Je ve stejném listu
+  jako ruční zadání čísla — obojí je totéž hledání, jen jinak zadané.
 - **Návrh opravy**, když číslo neprojde kontrolou — poslední číslice ISBN je
   kontrolní, takže aplikace umí spočítat, jak mělo číslo nejspíš vypadat.
 - **Úpravy na dvou úrovních** — název se přepíše rovnou v řádku, zbytek údajů
@@ -212,9 +215,14 @@ prostý název místa, třeba *Obývák — horní řada* nebo *Ložnice*.
 ### Kniha bez čárového kódu
 
 Starší tituly čárový kód často nemají, číslo ISBN ale bývá vytištěné v tiráži
-nebo na zadní straně. Klepněte v okénku kamery na **Číslo z tiráže** — místo rámečku na
-čárový kód se objeví úzký **čtecí proužek**. Zaměřte ho na řádek s číslem
-a klepněte na **Přečíst číslo**.
+nebo na zadní straně. Klepněte v **levém dolním rohu okénka kamery** na
+**Číslo z tiráže** — místo rámečku na čárový kód se objeví úzký **čtecí
+proužek**. Zaměřte ho na řádek s číslem a klepněte na **Přečíst číslo**
+(tamtéž, tlačítko si jen změní popisek).
+
+Ovládání okénka — *Číslo z tiráže*, *Zpět na kód* i *Světlo* — stojí dole
+u levého okraje, na dosah palce ruky, která drží telefon. Nahoře, kde bývalo,
+se na ně mířilo špatně.
 
 **Proužek jde posunout tahem** a spodním úchytem se mu mění výška, takže si
 přesně určíte, který řádek se přečte. Právě o to jde: v tiráži bývají hned nad
@@ -248,10 +256,11 @@ blíž, přisviťte 🔦, nebo číslo zadejte ručně.
 
 ### Kniha bez ISBN — hledání podle údajů o knize
 
-Tituly vydané před rokem 1989 často ISBN vůbec nemají. Rozbalte **Zadat ISBN
-ručně nebo hledat podle údajů o knize**, vyplňte cokoliv z toho, co o knize
-víte — **název**, **autora**, **nakladatelství**, **rok** — a klepněte na
-**🔎 Hledat v databázích**. Stačí jediné pole; vyplněná se sčítají. Aplikace se
+Tituly vydané před rokem 1989 často ISBN vůbec nemají. Klepněte na
+**🔎 Hledat ručně** pod tlačítkem skenování, v listu přepněte na **Podle
+názvu**, vyplňte cokoliv z toho, co o knize víte — **název**, **autora**,
+**nakladatelství**, **rok** — a klepněte na **Hledat**. Stačí jediné pole;
+vyplněná se sčítají. Aplikace se
 zeptá stejných databází jako u čárového kódu a nabídne, co našla — u každé knihy
 je autor, rok, vydavatel, místo vydání a ISBN, aby šlo poznat, které vydání
 je to vaše.

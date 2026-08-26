@@ -6,7 +6,7 @@
  * offline funguje skenování a už uložená tabulka.
  */
 
-const VERZE = 'knihovna-v9';
+const VERZE = 'knihovna-v10';
 
 /**
  * Soubory aplikace — bez nich by se nespustila, proto se stahují dopředu.

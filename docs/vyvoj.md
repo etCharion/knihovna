@@ -35,7 +35,7 @@ původ. Na jiném počítači v síti (`http://192.168.…`) už ne — tam je p
 HTTPS, jinak `getUserMedia` selže.
 
 **Skenování jde vyzkoušet i bez knihy:** čárový kód se dá vygenerovat na
-monitoru druhého zařízení, nebo použít tlačítko *ISBN ručně*, které jde
+monitoru druhého zařízení, nebo použít tlačítko *Hledat ručně*, které jde
 stejnou cestou (`zpracujKod`) jako skener.
 
 ### Service worker při vývoji

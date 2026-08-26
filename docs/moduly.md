@@ -229,7 +229,7 @@ načítá se jako `<script type="module">` z `index.html`.
 | detail knihy | úpravy včetně opravy ISBN |
 | skenování | zapnutí/vypnutí kamery, světlo |
 | přečtení ISBN z čísla | čtecí proužek, tahání, uložení nastavení |
-| ruční zadání a hledání | ISBN ručně, hledání podle údajů |
+| ruční zadání a hledání | jeden list „Hledat ručně“ — přepínač mezi číslem a údaji |
 | export a import | tlačítka na záložce Záloha |
 | start | úklid dat, registrace service workeru, první vykreslení |
 

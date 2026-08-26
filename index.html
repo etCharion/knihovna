@@ -29,10 +29,6 @@
       <div class="kamera" id="kamera">
         <video id="video" playsinline muted></video>
 
-        <!-- Než se kamera zapne, drží okénko své místo — rozvržení nad
-             seznamem se pak spuštěním skenování nikam neposune. -->
-        <p class="kamera-placeholder" id="kamera-placeholder">Okénko se zapne po spuštění skenování.</p>
-
         <div class="hledacek" id="hledacek" hidden aria-hidden="true"></div>
         <div class="skener-cara" id="skener-cara" hidden aria-hidden="true"></div>
 
@@ -47,10 +43,12 @@
           <p class="ctecka-napoveda">Zaměřte řádek s číslem ISBN — proužek jde posunout tahem.</p>
         </div>
 
+        <!-- Ovládání stojí v levém dolním rohu okénka: nahoře na něj palec
+             nedosáhl a klepnutí se často minulo. Čtecí tlačítko je první. -->
         <div class="kamera-ovladani">
-          <button id="btn-svetlo" class="kamera-tlacitko" hidden>Světlo</button>
           <button id="btn-cislo" class="kamera-tlacitko" hidden>Číslo z tiráže</button>
           <button id="btn-kod" class="kamera-tlacitko" hidden>Zpět na kód</button>
+          <button id="btn-svetlo" class="kamera-tlacitko" hidden>Světlo</button>
         </div>
 
       </div>
@@ -64,8 +62,7 @@
       <button id="btn-skenovat" class="tlacitko-hlavni">📷 Spustit skenování</button>
 
       <div class="skener-tlacitka-dole">
-        <button type="button" id="btn-rucne-otevrit" class="tlacitko-vedlejsi">ISBN ručně</button>
-        <button type="button" id="btn-nazev-otevrit" class="tlacitko-vedlejsi">Hledat podle názvu</button>
+        <button type="button" id="btn-rucne-otevrit" class="tlacitko-vedlejsi">🔎 Hledat ručně</button>
       </div>
 
       <div class="stavovy-radek">
@@ -400,13 +397,20 @@
   </section>
 </div>
 
-<!-- ----------------------------------- ISBN ručně / hledání podle názvu -->
+<!-- ----------------------------------- hledat ručně: podle čísla i podle názvu -->
 <div class="prekryv" id="sheet-rucne" hidden>
   <section class="list" role="dialog" aria-modal="true" aria-labelledby="rucne-nadpis">
     <div class="list-obsah">
       <div class="list-zahlavi">
-        <h2 id="rucne-nadpis">Zadat ISBN ručně</h2>
+        <h2 id="rucne-nadpis">Hledat ručně</h2>
         <button type="button" class="tlacitko-zavrit" id="btn-rucne-zavrit">Zavřít</button>
+      </div>
+
+      <!-- Obojí je totéž hledání, jen jinak zadané — dvě tlačítka na skenovací
+           obrazovce z toho dělala dvě různé věci. Tady se jen přepne. -->
+      <div class="prepinac-varianty prepinac-hledani" role="group" aria-label="Podle čeho hledat">
+        <button type="button" id="btn-rezim-isbn" class="prepinac-tlacitko">Podle čísla</button>
+        <button type="button" id="btn-rezim-nazev" class="prepinac-tlacitko">Podle názvu</button>
       </div>
 
       <div id="rucne-rezim-isbn">
