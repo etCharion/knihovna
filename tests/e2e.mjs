@@ -225,19 +225,24 @@ async function smazKnihu(str, poradi = 0) {
   await str.waitForSelector('#sheet-detail', { state: 'hidden', timeout: 5000 });
 }
 
-/** Otevře spodní list s ručním zadáním ISBN. */
-async function otevriRucne(str) {
+/**
+ * Otevře spodní list ručního hledání a přepne ho na zadaný způsob.
+ *
+ * Na skenovací obrazovce je pro obojí jedno tlačítko; způsob se volí až
+ * v listu a naposledy zvolený se pamatuje, takže se přepíná pokaždé.
+ */
+async function otevriRucneHledani(str, rezim) {
   await zalozka(str, 'skener');
   await str.click('#btn-rucne-otevrit');
-  await str.waitForSelector('#rucne-rezim-isbn:not([hidden])', { timeout: 5000 });
+  await str.click(rezim === 'nazev' ? '#btn-rezim-nazev' : '#btn-rezim-isbn');
+  await str.waitForSelector(`#rucne-rezim-${rezim}:not([hidden])`, { timeout: 5000 });
 }
 
+/** Otevře spodní list s ručním zadáním ISBN. */
+const otevriRucne = (str) => otevriRucneHledani(str, 'isbn');
+
 /** Otevře spodní list s hledáním podle názvu a dalších údajů. */
-async function otevriHledaniPodleNazvu(str) {
-  await zalozka(str, 'skener');
-  await str.click('#btn-nazev-otevrit');
-  await str.waitForSelector('#rucne-rezim-nazev:not([hidden])', { timeout: 5000 });
-}
+const otevriHledaniPodleNazvu = (str) => otevriRucneHledani(str, 'nazev');
 
 /** Zadá ISBN ručně — kniha se tím zatím jen nabídne, neuloží. */
 async function zadejIsbn(str, isbn) {
@@ -712,6 +717,39 @@ await smazKnihu(stranka);
 await otevriHledaniPodleNazvu(stranka);
 await stranka.fill('#vstup-nazev', '');
 
+/* ------------------------------ jedno tlačítko pro obojí ruční hledání */
+
+// Zadat číslo a hledat podle údajů je jedna a tatáž věc — kniha, kterou skener
+// nepřečetl. Dvě tlačítka vedle sebe nutila vybrat způsob dřív, než člověk
+// knihu vzal do ruky; teď se přepíná až v otevřeném listu.
+await stranka.click('#btn-rucne-zavrit');
+await zalozka(stranka, 'skener');
+t((await stranka.locator('.skener-tlacitka-dole button').count()) === 1,
+  'na skenovací obrazovce je pro ruční hledání jediné tlačítko',
+  String(await stranka.locator('.skener-tlacitka-dole button').count()));
+t((await stranka.locator('#btn-rucne-otevrit').innerText()).includes('Hledat ručně'),
+  'a jmenuje se Hledat ručně', await stranka.locator('#btn-rucne-otevrit').innerText());
+
+await stranka.click('#btn-rucne-otevrit');
+t((await stranka.locator('#rucne-nadpis').innerText()) === 'Hledat ručně',
+  'list se jmenuje stejně', await stranka.locator('#rucne-nadpis').innerText());
+t(await stranka.locator('#rucne-rezim-nazev').isVisible(),
+  'a otevře se ve způsobu, který se použil naposledy');
+
+await stranka.click('#btn-rezim-isbn');
+t(await stranka.locator('#vstup-isbn').isVisible(), 'přepínač ukáže pole na číslo');
+t(await stranka.locator('#rucne-rezim-nazev').isHidden(), 'a hledání podle údajů schová');
+
+await stranka.click('#btn-rezim-nazev');
+t(await stranka.locator('#vstup-nazev').isVisible(), 'druhá půlka přepínače se vrátí zpátky');
+t(await stranka.locator('#rucne-rezim-isbn').isHidden(), 'a pole na číslo ustoupí');
+
+await stranka.click('#btn-rucne-zavrit');
+await stranka.click('#btn-rucne-otevrit');
+t(await stranka.locator('#rucne-rezim-nazev').isVisible(),
+  'zvolený způsob zůstane i po zavření listu');
+await stranka.click('#btn-rucne-zavrit');
+
 /* --------------------------------------- hledání podle názvu a autora */
 
 await otevriHledaniPodleNazvu(stranka);
@@ -969,6 +1007,12 @@ t(readFileSync(cestaPolicky, 'utf8').includes('Obývák dole'), 'polička je i v
 
 await stranka.evaluate(() => localStorage.clear());
 await stranka.reload({ waitUntil: 'networkidle' });
+
+// Přes obraz z kamery nemá ležet nic, co se nedá odklidit — okénko drží své
+// místo samo poměrem stran, nápis v něm jen zavazel ve výhledu.
+t((await stranka.locator('#kamera-placeholder').count()) === 0,
+  'v okénku kamery nestojí nápis přes výhled');
+
 await stranka.click('#btn-skenovat');
 try {
   await pockejNaNabidku(stranka);
@@ -1190,6 +1234,16 @@ await strankaOcr.goto(ADRESA, { waitUntil: 'networkidle' });
 await strankaOcr.click('#btn-skenovat');
 await strankaOcr.waitForTimeout(1500);
 t(await strankaOcr.locator('#btn-cislo').isVisible(), 'tlačítko pro čtení čísla se objeví s kamerou');
+
+// Nahoře na tlačítko palec při držení telefonu nedosáhl a klepnutí se míjelo.
+const okenko = await strankaOcr.locator('#kamera').boundingBox();
+const tlacitkoCisla = await strankaOcr.locator('#btn-cislo').boundingBox();
+t(tlacitkoCisla.y > okenko.y + okenko.height / 2 &&
+  tlacitkoCisla.x < okenko.x + okenko.width / 2,
+  'a stojí v levé dolní části okénka, na dosah palce',
+  JSON.stringify({ okenko, tlacitkoCisla }));
+t(tlacitkoCisla.height >= 44, 'terč tlačítka je aspoň 44 bodů vysoký',
+  String(tlacitkoCisla.height));
 
 // První klepnutí zapne režim čtení čísla a ukáže čtecí proužek, teprve
 // druhé čte — proužek se musí dát nejdřív zaměřit.

@@ -69,7 +69,6 @@ const btnSvetlo = prvek('btn-svetlo');
 const btnCislo = prvek('btn-cislo');
 const btnKod = prvek('btn-kod');
 const hledacek = prvek('hledacek');
-const kameraPlaceholder = prvek('kamera-placeholder');
 const skenerCara = prvek('skener-cara');
 const stavovaTecka = prvek('stavova-tecka');
 const ctecka = prvek('ctecka');
@@ -155,9 +154,10 @@ const poleDetailu = {
 const detailKusuEl = prvek('detail-kusu');
 
 const sheetRucne = prvek('sheet-rucne');
-const rucneNadpis = prvek('rucne-nadpis');
 const rezimIsbn = prvek('rucne-rezim-isbn');
 const rezimNazev = prvek('rucne-rezim-nazev');
+const btnRezimIsbn = prvek('btn-rezim-isbn');
+const btnRezimNazev = prvek('btn-rezim-nazev');
 
 let razeni = { sloupec: null, sestupne: false };
 
@@ -1538,7 +1538,6 @@ async function prepniSkenovani() {
   if (skener.jeSpusten()) {
     skener.zastav(video);
     ocr.uklid();
-    kameraPlaceholder.hidden = false;
     btnSvetlo.hidden = true;
     btnCislo.hidden = true;
     btnKod.hidden = true;
@@ -1558,7 +1557,6 @@ async function prepniSkenovani() {
   nastavStav('Zapínám kameru …');
 
   try {
-    kameraPlaceholder.hidden = true;
     await skener.spust(video, zpracujKod);
     btnSkenovat.textContent = '⏹ Zastavit skenování';
     btnSvetlo.hidden = !skener.maSvetlo();
@@ -1568,7 +1566,6 @@ async function prepniSkenovani() {
     stavovaTecka.hidden = false;
     nastavStav('Namiřte čárový kód do rámečku. Kniha žádný nemá? Klepněte na „Číslo z tiráže“.');
   } catch (chyba) {
-    kameraPlaceholder.hidden = false;
     console.error(chyba);
     nastavStav(popisChybyKamery(chyba));
     oznam('Kameru se nepodařilo spustit.', 'chyba');
@@ -1732,13 +1729,30 @@ btnCislo.addEventListener('click', async () => {
 
 /* ------------------------------------------------------------ ruční zadání a hledání */
 
-function otevriRucne(rezim, { zaostri = true } = {}) {
-  rezimIsbn.hidden = rezim !== 'isbn';
-  rezimNazev.hidden = rezim !== 'nazev';
-  rucneNadpis.textContent = rezim === 'nazev' ? 'Hledat podle názvu' : 'Zadat ISBN ručně';
+/**
+ * Ruční hledání má dva vstupy — číslo a údaje o knize — ale je to jedna věc:
+ * kniha, kterou skener nepřečetl. Dvě tlačítka vedle sebe nutila rozhodnout se
+ * dřív, než uživatel knihu vzal do ruky; teď se přepíná až v listu a naposledy
+ * zvolený způsob se pamatuje, aby se při katalogizaci starých knih neklikalo
+ * pořád dokola.
+ */
+let rezimHledani = 'isbn';
+
+function nastavRezimHledani(rezim, { zaostri = true } = {}) {
+  rezimHledani = rezim === 'nazev' ? 'nazev' : 'isbn';
+  rezimIsbn.hidden = rezimHledani !== 'isbn';
+  rezimNazev.hidden = rezimHledani !== 'nazev';
+  btnRezimIsbn.classList.toggle('aktivni', rezimHledani === 'isbn');
+  btnRezimNazev.classList.toggle('aktivni', rezimHledani === 'nazev');
+  btnRezimIsbn.setAttribute('aria-pressed', String(rezimHledani === 'isbn'));
+  btnRezimNazev.setAttribute('aria-pressed', String(rezimHledani === 'nazev'));
+  if (zaostri) (rezimHledani === 'nazev' ? prvek('vstup-nazev') : prvek('vstup-isbn')).focus();
+}
+
+function otevriRucne(rezim = rezimHledani, { zaostri = true } = {}) {
   sheetRucne.hidden = false;
   document.body.classList.add('bez-posunu');
-  if (zaostri) (rezim === 'nazev' ? prvek('vstup-nazev') : prvek('vstup-isbn')).focus();
+  nastavRezimHledani(rezim, { zaostri });
 }
 
 function zavriRucne() {
@@ -1747,9 +1761,12 @@ function zavriRucne() {
   if (!jeNejakySheetOtevreny()) document.body.classList.remove('bez-posunu');
 }
 
-prvek('btn-rucne-otevrit').addEventListener('click', () => otevriRucne('isbn'));
-prvek('btn-nazev-otevrit').addEventListener('click', () => otevriRucne('nazev'));
+prvek('btn-rucne-otevrit').addEventListener('click', () => otevriRucne());
 prvek('btn-rucne-zavrit').addEventListener('click', zavriRucne);
+
+btnRezimIsbn.addEventListener('click', () => nastavRezimHledani('isbn'));
+btnRezimNazev.addEventListener('click', () => nastavRezimHledani('nazev'));
+nastavRezimHledani('isbn', { zaostri: false });
 
 prvek('form-rucne').addEventListener('submit', async (u) => {
   u.preventDefault();
