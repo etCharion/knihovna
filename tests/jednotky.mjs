@@ -405,7 +405,8 @@ const vypadek = () => Promise.reject(new Error('síť'));
   // Českým katalogům chybí obálky, Open Library je má — výsledek se skládá.
   globalThis.fetch = (url) => {
     if (url.includes('knihovny.cz')) {
-      return odpoved({ records: [{ title: 'Test /', authors: { primary: { 'Novák, Jan': {} } } }] });
+      return odpoved({ records: [{ title: 'Test /', authors: { primary: { 'Novák, Jan': {} } },
+                                   isbns: ['978-80-7335-506-7'] }] });
     }
     if (url.includes('googleapis')) return vypadek();
     return odpoved({ 'ISBN:9788073355067': { title: 'Test', cover: { medium: 'https://ol/x.jpg' } } });
@@ -464,6 +465,7 @@ nadpis('Český katalog (Knihovny.cz)');
         publicationDates: ['2006'],
         languages: ['cze'],
         physicalDescriptions: ['253 s. : il. ; 21 cm'],
+        isbns: ['978-80-7335-506-7 (váz.)'],
       }],
       status: 'OK',
     });
@@ -487,12 +489,15 @@ nadpis('Český katalog (Knihovny.cz)');
     'vyžádaná pole jsou v dotazu — jinak by se vrátil jen identifikátor');
   t(adresa.includes('field%5B%5D=placesOfPublication'),
     'a mezi nimi i místo vydání');
+  t(adresa.includes('field%5B%5D=cnb') && !adresa.includes('nbn'),
+    'ČNB se žádá jako cnb — jiná jména katalog mlčky přeskočí a číslo nepřijde');
 }
 
 {
   // Tečka za iniciálou ke jménu patří, koncová katalogizační tečka ne.
   globalThis.fetch = (url) => url.includes('knihovny.cz')
-    ? odpoved({ records: [{ title: 'Kniha', authors: { primary: { 'Novák, J.': {} } } }] })
+    ? odpoved({ records: [{ title: 'Kniha', authors: { primary: { 'Novák, J.': {} } },
+                            isbns: ['9788073355067'] }] })
     : Promise.reject(new Error('jiný zdroj'));
   const kniha = await najdiKnihu('9788073355067');
   t(kniha.autor === 'J. Novák', 'iniciála si nechá tečku', kniha.autor);
@@ -501,7 +506,8 @@ nadpis('Český katalog (Knihovny.cz)');
 {
   // Instituce jako autor se nesmí přehazovat.
   globalThis.fetch = (url) => url.includes('knihovny.cz')
-    ? odpoved({ records: [{ title: 'Sborník', authors: { primary: { 'Univerzita Karlova, Filozofická fakulta': {} } } }] })
+    ? odpoved({ records: [{ title: 'Sborník', authors: { primary: { 'Univerzita Karlova, Filozofická fakulta': {} } },
+                            isbns: ['9788073355067'] }] })
     : Promise.reject(new Error('jiný zdroj'));
   const kniha = await najdiKnihu('9788073355067');
   t(kniha.autor === 'Univerzita Karlova, Filozofická fakulta', 'název instituce zůstane, jak je',
@@ -517,6 +523,48 @@ nadpis('Český katalog (Knihovny.cz)');
       : Promise.reject(new Error('jiný zdroj'));
   const kniha = await najdiKnihu('9788073355067');
   t(kniha.nazev === 'Zná to jen Google', 'prázdný výsledek katalogu nevadí ostatním');
+}
+
+{
+  // Katalog podle ISBN vrací i jiná vydání téhož díla a správné nemusí být
+  // první: u Saturnina s ISBN vydání z roku 1994 přišlo jako první vydání
+  // z roku 1995. Data jsou tu zjednodušená, pořadí je ale stejné.
+  let adresa = '';
+  globalThis.fetch = (url) => {
+    if (!url.includes('knihovny.cz')) return vypadek();
+    adresa = url;
+    return odpoved({ resultCount: 2, records: [
+      { title: 'Saturnin /', publicationDates: ['1995'], isbns: ['80-202-0574-8'] },
+      { title: 'Saturnin /', publicationDates: ['1994'], isbns: ['80-202-0468-7 (brož.)'] },
+    ] });
+  };
+  const kniha = await najdiKnihu('9788020204684');
+  t(kniha.rok === '1994', 'vezme se vydání, které skenované ISBN uvádí, ne první v pořadí',
+    kniha.rok);
+  t(adresa.includes('limit=10'), 'z katalogu se proto bere víc záznamů než jeden', adresa);
+}
+
+{
+  // Když hledané ISBN neuvádí žádný záznam, údaje o jiném vydání by přebily
+  // správné údaje z ostatních zdrojů — katalog se proto bere, jako by knihu neznal.
+  globalThis.fetch = (url) => url.includes('knihovny.cz')
+    ? odpoved({ records: [{ title: 'Jiné vydání /', publicationDates: ['1995'],
+                            isbns: ['80-202-0574-8'] }] })
+    : url.includes('googleapis')
+      ? odpoved({ items: [{ volumeInfo: { title: 'Saturnin', publishedDate: '1994' } }] })
+      : vypadek();
+  const kniha = await najdiKnihu('9788020204684');
+  t(kniha.nazev === 'Saturnin' && kniha.rok === '1994', 'cizí vydání z katalogu se nepoužije',
+    `${kniha.nazev} (${kniha.rok})`);
+}
+
+{
+  // Číslice z poznámky za ISBN se s ním nesmí slepit dohromady.
+  globalThis.fetch = (url) => url.includes('knihovny.cz')
+    ? odpoved({ records: [{ title: 'Díl druhý /', isbns: ['978-80-7335-506-7 (2. díl)'] }] })
+    : vypadek();
+  const kniha = await najdiKnihu('9788073355067');
+  t(kniha.nazev === 'Díl druhý', 'ISBN s poznámkou o dílu se pozná', kniha.nazev);
 }
 
 nadpis('Náhradní obálka');
@@ -908,7 +956,7 @@ nadpis('Kniha bez ISBN — dohledání podle ČNB');
       publishers: ['Státní zemědělské nakladatelství,'],
       publicationDates: ['1974'],
       languages: ['cze'],
-      nbn: ['cnb000123456'],
+      cnb: 'cnb000123456',
     }] });
   };
 
@@ -928,8 +976,8 @@ nadpis('Kniha bez ISBN — dohledání podle ČNB');
   // Nálezy podle názvu: co nemá ISBN ani ISSN, jede pod ČNB.
   globalThis.fetch = (url) => url.includes('knihovny.cz')
     ? odpoved({ records: [
-        { title: 'Kniha z roku 1974', publicationDates: ['1974'], nbn: ['cnb000123456'] },
-        { title: 'Novější kniha', cleanIsbn: '9788073355067', nbn: ['cnb000999999'] },
+        { title: 'Kniha z roku 1974', publicationDates: ['1974'], cnb: 'cnb000123456' },
+        { title: 'Novější kniha', cleanIsbn: '9788073355067', cnb: 'cnb000999999' },
         { title: 'Kniha, kterou katalog nezná pod žádným číslem' },
       ] })
     : vypadek();
@@ -965,8 +1013,8 @@ nadpis('Kniha bez ISBN — dohledání podle ČNB');
 {
   // Katalogy uvádějí ČNB jednou s předponou, jindy jako holé číslo.
   globalThis.fetch = (url) => url.includes('knihovny.cz')
-    ? odpoved({ records: [{ title: 'S předponou', nbn: ['cnb000123456'] },
-                          { title: 'Holé číslo', nbn: ['000999888'] }] })
+    ? odpoved({ records: [{ title: 'S předponou', cnb: 'cnb000123456' },
+                          { title: 'Holé číslo', cnb: '000999888' }] })
     : vypadek();
 
   const { vysledky } = await hledejPodleTextu({ nazev: 'Sládek' });
@@ -1031,7 +1079,7 @@ nadpis('Průběžné dohledávání');
   let pustOpenLibrary;
   globalThis.fetch = (url) => {
     if (url.includes('knihovny.cz')) {
-      return odpoved({ records: [{ title: 'Rychlý český nález /' }] });
+      return odpoved({ records: [{ title: 'Rychlý český nález /', isbns: ['9788073355067'] }] });
     }
     if (url.includes('openlibrary')) {
       return new Promise((splneno) => {
@@ -1072,7 +1120,7 @@ nadpis('Průběžné dohledávání');
     if (url.includes('knihovny.cz')) {
       return new Promise((splneno) => setTimeout(() => splneno({
         ok: true,
-        json: async () => ({ records: [{ title: 'Český název /' }] }),
+        json: async () => ({ records: [{ title: 'Český název /', isbns: ['9788073355067'] }] }),
       }), 20));
     }
     if (url.includes('googleapis')) {
