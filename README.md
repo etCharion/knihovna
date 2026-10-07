@@ -482,6 +482,12 @@ záznamy se přitom upraví pro běžné čtení: z názvu se odstraní katalogi
 interpunkce (`Název : podtitul /`) a autor se z tvaru `Novák, Jan, 1970-`
 převede na `Jan Novák`.
 
+Na ISBN odpovídá Knihovny.cz i záznamy jiných vydání téhož díla a správné
+vydání nemusí být první. Aplikace si proto vezme víc záznamů a použije ten,
+který naskenované ISBN opravdu uvádí. Když takový není, údaje z katalogu se
+nepoužijí a doplní je ostatní zdroje. Jinak by rok a nakladatel jiného vydání
+přebily správné údaje.
+
 Tytéž zdroje obsluhují i hledání podle údajů o knize. Každý má na to vlastní
 způsob dotazu:
 

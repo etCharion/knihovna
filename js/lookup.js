@@ -247,19 +247,19 @@ async function googleBooksPodleTextu({ nazev, autor, vydavatel }) {
  * vrátilo jen identifikátor záznamu, proto ten seznam v každém dotazu.
  */
 /*
- * Poslední tři jsou číslo národní bibliografie (u nás ČNB) — jediné číslo,
- * které mají i knihy vydané před rokem 1989. Pod jakým jménem ho tenhle
- * katalog vydává, se nedalo ověřit, proto se říká o víc variant najednou:
- * neplatná jména polí VuFind mlčky přeskočí, takže dotaz navíc nic nestojí.
+ * Jména polí jsou ověřená dotazem na živé API i ve zdrojovém kódu katalogu
+ * (SearchApiRecordFields.yaml v moravianlibrary/knihovny.cz). Na překlep v nich pozor:
+ * neplatné jméno VuFind mlčky přeskočí, takže se neprojeví chybou, jen tím,
+ * že údaj nikdy nepřijde. Přesně tak se dřív ztrácelo ČNB, o které se žádalo
+ * pod neexistujícími jmény `nbn`, `cleanNbn` a `nbns`.
  *
- * Poslední dvě jsou místo vydání ze stejného soudku: VuFind ho z katalogizačního
- * záznamu (MARC 260$a / 264$a) vydává jako `placesOfPublication`, ale jistota
- * to není, a tak se i tady říká o obě jména najednou.
+ * `cnb` je číslo České národní bibliografie — jediné číslo, které mají i knihy
+ * vydané před rokem 1989. Přichází jako jeden řetězec (`cnb002163342`) a u části
+ * záznamů chybí. Místo vydání je v `placesOfPublication` (MARC 260$a / 264$a).
  */
-const POLE_KNIHOVNY = ['title', 'authors', 'publishers', 'publicationDates', 'languages',
-                       'physicalDescriptions', 'cleanIsbn', 'isbns', 'cleanIssn', 'issns',
-                       'nbn', 'cleanNbn', 'nbns',
-                       'placesOfPublication', 'publicationPlaces'];
+const POLE_KNIHOVNY = ['title', 'authors', 'publishers', 'placesOfPublication',
+                       'publicationDates', 'languages', 'physicalDescriptions',
+                       'cleanIsbn', 'isbns', 'cleanIssn', 'issns', 'cnb'];
 
 async function knihovnyCzDotaz(lookfor, type, limit) {
   const parametry = new URLSearchParams({ lookfor, type, limit: String(limit) });
@@ -285,7 +285,7 @@ function zKnihovnyCz(zaznam) {
     autor: autori.map(uklidAutora).filter(Boolean).join(', '),
     vydavatel: uklidNazev(zaznam.publishers?.[0] || ''),
     // „Praha :“ — dvojtečka odděluje místo od nakladatele, ke jménu města nepatří.
-    misto: uklidNazev(zaznam.placesOfPublication?.[0] || zaznam.publicationPlaces?.[0] || ''),
+    misto: uklidNazev(zaznam.placesOfPublication?.[0] || ''),
     rok: rok(zaznam.publicationDates?.[0]),
     stran: stran ? stran[1] : '',
     jazyk: (zaznam.languages?.[0] || '').replace(/^cze$/, 'cs'),
@@ -294,12 +294,37 @@ function zKnihovnyCz(zaznam) {
 }
 
 /**
+ * Uvádí záznam z katalogu tohle ISBN? Katalog ho píše s pomlčkami, jednou
+ * desetimístné, jindy třináctimístné, a připisuje k němu vazbu
+ * („80-202-0468-7 (brož.)“). Porovnává se proto až číslo vytažené ze zápisu
+ * a převedené na 13 číslic — kdyby se jen vyhodilo všechno kromě číslic,
+ * slepila by se s ISBN i číslice z poznámky („(2. díl)“).
+ */
+function uvadiIsbn(zaznam, isbn13) {
+  return [].concat(zaznam?.isbns || []).some((zapis) => {
+    const cislo = String(zapis).match(/\d[\d-]{8,}[\dX]/i)?.[0];
+    return !!cislo && normalizuj(cislo) === isbn13;
+  });
+}
+
+/**
  * Rejstřík `ISN` obsahuje ISBN i ISSN, takže na obojí stačí jeden dotaz.
  * ČNB v něm ale není — to se hledá napříč poli.
+ *
+ * U ISBN se nesmí brát naslepo první nález: katalog podle čísla vrací i jiná
+ * vydání téhož díla, a to správné nemusí být první (Saturnin s ISBN vydání
+ * z roku 1994 přijde nejdřív ve vydání z roku 1995). Bere se proto víc záznamů
+ * a z nich ten, který hledané ISBN opravdu uvádí. Když žádný, bere se to, jako
+ * by katalog knihu neznal: chybějící údaje doplní ostatní zdroje, kdežto údaje
+ * o jiném vydání by je přebily — český katalog má při skládání přednost.
  */
 async function knihovnyCz(kod) {
-  const [zaznam] = await knihovnyCzDotaz(kod, normalizujCnb(kod) ? 'AllFields' : 'ISN', 1);
-  return zKnihovnyCz(zaznam);
+  if (!jeKnizniKod(kod)) {
+    const [zaznam] = await knihovnyCzDotaz(kod, normalizujCnb(kod) ? 'AllFields' : 'ISN', 1);
+    return zKnihovnyCz(zaznam);
+  }
+  const zaznamy = await knihovnyCzDotaz(kod, 'ISN', NALEZU_ZE_ZDROJE);
+  return zKnihovnyCz(zaznamy.find((zaznam) => uvadiIsbn(zaznam, kod)));
 }
 
 /**
@@ -330,7 +355,7 @@ async function knihovnyCzPodleTextu(dotaz) {
     // před rokem 1989. Pořadí je od nejsdělnějšího čísla k tomu poslednímu.
     const isbn = prvniIsbn(zaznam.cleanIsbn || zaznam.isbns);
     const issn = prvniIssn(zaznam.cleanIssn || zaznam.issns);
-    const cnb = prvniCnb(zaznam.nbn ?? zaznam.cleanNbn ?? zaznam.nbns);
+    const cnb = prvniCnb(zaznam.cnb);
     return { ...kniha, isbn: isbn || issn, cnb: isbn || issn ? '' : cnb };
   }).filter(Boolean);
 }
